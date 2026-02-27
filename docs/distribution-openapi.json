@@ -1,0 +1,866 @@
+{
+  "components": {
+    "schemas": {
+      "newsdoc.Block": {
+        "description": "Block is the building block for data embedded in documents. It is used for both content, links and metadata. Blocks have can be nested, but that's nothing to strive for, keep it simple.",
+        "properties": {
+          "content": {
+            "description": "Content is used to embed content blocks.",
+            "items": {
+              "$ref": "#/components/schemas/newsdoc.Block"
+            },
+            "type": "array"
+          },
+          "contenttype": {
+            "description": "ContentType is used to describe the content type of the block/linked entity if it differs from the type of the block.",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Data contains block data.",
+            "type": "object"
+          },
+          "id": {
+            "description": "ID is the block ID,",
+            "type": "string"
+          },
+          "links": {
+            "description": "Links are used to link to other resources and documents.",
+            "items": {
+              "$ref": "#/components/schemas/newsdoc.Block"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "description": "Meta is used to embed metadata",
+            "items": {
+              "$ref": "#/components/schemas/newsdoc.Block"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Name is a name for the block. An alternative to \"rel\" when relationship is a term that doesn't fit.",
+            "type": "string"
+          },
+          "rel": {
+            "description": "Rel describes the relationship to the document/parent entity.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Role is used either as an alternative to rel, or for nuancing the relationship.",
+            "type": "string"
+          },
+          "sensitivity": {
+            "description": "Sensitivity can be use to communicate how the information in a block can be handled. It could f.ex. be set to \"internal\", to show that it contains information that must be removed or transformed before publishing.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Title is the title/headline of the block, typically used in the presentation of the block.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type is the type of the block",
+            "type": "string"
+          },
+          "uri": {
+            "description": "URI is used to reference another entity in a document.",
+            "type": "string"
+          },
+          "url": {
+            "description": "URL is a browseable URL for the the block.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID is used to reference another Document in a block.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value is a value for the block. Useful when we want to store a primitive value.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "newsdoc.Document": {
+        "description": "Document is a NewsDoc document.",
+        "properties": {
+          "content": {
+            "description": "Content is the content of the document, this is essentially what gets rendered on the page when you view a document.",
+            "items": {
+              "$ref": "#/components/schemas/newsdoc.Block"
+            },
+            "type": "array"
+          },
+          "language": {
+            "description": "Language is the language used in the document as an IETF language tag. F.ex. \"en\", \"en-UK\", \"es\", or \"sv-SE\".",
+            "type": "string"
+          },
+          "links": {
+            "description": "Links are links to other resources and entities. This could be links to topics, categories and subjects for the document, or credited authors.",
+            "items": {
+              "$ref": "#/components/schemas/newsdoc.Block"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "description": "Meta is the metadata for a document, this could be things like teasers, open graph data, newsvalues.",
+            "items": {
+              "$ref": "#/components/schemas/newsdoc.Block"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "Title is the title of the document, can be used as the document name, or the headline when the document is displayed.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type is the content type of the document.",
+            "type": "string"
+          },
+          "uri": {
+            "description": "URI identifies the document (in a more human-readable way than the UUID).",
+            "type": "string"
+          },
+          "url": {
+            "description": "URL is the browseable location of the document (if any).",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID is a unique ID for the document, this can for example be a random v4 UUID, or a URI-derived v5 UUID.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ConfigureTypeRequest": {
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
+          },
+          "type": {
+            "description": "Type to configure.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ConfigureTypeResponse": {
+        "type": "object"
+      },
+      "ttab.distribution.DocumentEvent": {
+        "properties": {
+          "doc_uuid": {
+            "description": "DocUUID is the UUID of the affected document.",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "EventType is either \"published\" or \"unpublished\".",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the event.",
+            "type": "integer"
+          },
+          "version": {
+            "description": "Version that was published (if this was a publish event).",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.DocumentItem": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
+          "event": {
+            "$ref": "#/components/schemas/ttab.distribution.DocumentEvent"
+          },
+          "subset": {
+            "description": "Subset is the extracted subset of the document.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ExtractedValues"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ExtractedValue": {
+        "properties": {
+          "annotation": {
+            "description": "Annotations can be used to differentiate between different extracted values.",
+            "type": "string"
+          },
+          "block": {
+            "$ref": "#/components/schemas/newsdoc.Block"
+          },
+          "role": {
+            "description": "Role can be used to differentiate between different extracted values.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value is used for extracted attributes and data values.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ExtractedValues": {
+        "properties": {
+          "extractor": {
+            "description": "Extractor index for the the extractor that produced the values.",
+            "type": "integer"
+          },
+          "values": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ttab.distribution.ExtractedValue"
+            },
+            "description": "Values that were extracted.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetAllActiveSchemasRequest": {
+        "properties": {
+          "known": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Known schema versions that the client already has. Optional.",
+            "type": "object"
+          },
+          "only_changed": {
+            "description": "OnlyChanged only returns the schemas that have been changed.",
+            "type": "boolean"
+          },
+          "wait_seconds": {
+            "description": "WaitSeconds is the maximum number of seconds to wait for changes, defaults to 10 seconds. Optional.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetAllActiveSchemasResponse": {
+        "properties": {
+          "removed": {
+            "description": "Removed schemas.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schemas": {
+            "description": "Schemas that currently are active.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.Schema"
+            },
+            "type": "array"
+          },
+          "unchanged": {
+            "description": "Unchanged is set to true if no changes were done compared to known schema versions.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetDocumentTypesRequest": {
+        "type": "object"
+      },
+      "ttab.distribution.GetDocumentTypesResponse": {
+        "properties": {
+          "types": {
+            "description": "Types that have been defined in the schema.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetNewDocumentsRequest": {
+        "properties": {
+          "after": {
+            "description": "After returns new documents after the given event ID.",
+            "type": "integer"
+          },
+          "load_documents": {
+            "description": "LoadDocuments should be set to true if you want the full documents in the response. If subset is used it will override load_documents.",
+            "type": "boolean"
+          },
+          "subset": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ttab.distribution.Subsets"
+            },
+            "description": "Subset returns a subset of the documents as specified by a map of newsdoc value extractors keyed by the types that they should be applied to.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetNewDocumentsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.DocumentItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetSchemaRequest": {
+        "properties": {
+          "name": {
+            "description": "Name of the schema to get.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the schema to get, optional. The currently active version of the schema will be returned if no version is specified.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetSchemaResponse": {
+        "properties": {
+          "spec": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetTypeConfigurationRequest": {
+        "properties": {
+          "type": {
+            "description": "Type to get configuration for.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetTypeConfigurationResponse": {
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.LabelExpression": {
+        "properties": {
+          "expression": {
+            "description": "Expression is a newsdoc value extraction expression.",
+            "type": "string"
+          },
+          "template": {
+            "description": "Template is the template that turns the extracted values into a label.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ListActiveSchemasRequest": {
+        "type": "object"
+      },
+      "ttab.distribution.ListActiveSchemasResponse": {
+        "properties": {
+          "schemas": {
+            "description": "Schemas without the spec populated",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.Schema"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.RegisterSchemaRequest": {
+        "properties": {
+          "activate": {
+            "description": "Activate the registered schema immediately.",
+            "type": "boolean"
+          },
+          "schema": {
+            "$ref": "#/components/schemas/ttab.distribution.Schema"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.RegisterSchemaResponse": {
+        "type": "object"
+      },
+      "ttab.distribution.Schema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.SetActiveSchemaRequest": {
+        "properties": {
+          "deactivate": {
+            "description": "Deactivate is used to disable a schema, activate new schema versions instead if you want to start using a new version.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Name is the name of the schema to activate or deactivate, required.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the schema to activate, required when activating a new version.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.SetActiveSchemaResponse": {
+        "type": "object"
+      },
+      "ttab.distribution.Subsets": {
+        "properties": {
+          "expressions": {
+            "description": "Expressions to use to extract document contents.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.TypeConfiguration": {
+        "properties": {
+          "bounded_collection": {
+            "description": "Set to true if this is a collection of documents that are bounded (limited in size). Bounded collections can be fetched by type and language in one go.",
+            "type": "boolean"
+          },
+          "label_expressions": {
+            "description": "LabelExpressions are used to extract labels from documents.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.LabelExpression"
+            },
+            "type": "array"
+          },
+          "time_expressions": {
+            "description": "TimeExpressions are used for extracting time ranges from documents.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.TypeTimeExpression"
+            },
+            "type": "array"
+          },
+          "variants": {
+            "description": "Variants are the allowed variants for the document type.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.TypeTimeExpression": {
+        "properties": {
+          "expression": {
+            "description": "Expression is a newsdoc value extraction expression.",
+            "type": "string"
+          },
+          "layout": {
+            "description": "Layout is the time/date format to use when parsing. Optional, defaults to RFC3339 or ISO 8601 for values annotated as dates.",
+            "type": "string"
+          },
+          "timezone": {
+            "description": "Timezone is the timezone the time should be parsed in. Optional, most timestamps should include timezone information, if they don't, parsing will fall back to the default timezone that the repository has been configured with.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "distribution API",
+    "version": "v0.0.0"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/twirp/ttab.distribution.Configuration/ConfigureType": {
+      "post": {
+        "description": "ConfigureType configures a document type.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.ConfigureTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.ConfigureTypeResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ConfigureType",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/GetAllActiveSchemas": {
+      "post": {
+        "description": "GetAllActiveSchemas returns the currently active schemas.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetAllActiveSchemasRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetAllActiveSchemasResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetAllActiveSchemas",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/GetDocumentTypes": {
+      "post": {
+        "description": "GetDocumentTypes lists the defined document types.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetDocumentTypesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetDocumentTypesResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetDocumentTypes",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/GetSchema": {
+      "post": {
+        "description": "GetSchema retrieves a schema.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetSchemaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetSchemaResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetSchema",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/GetTypeConfiguration": {
+      "post": {
+        "description": "GetTypeConfiguration returns the current configuration for a type.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetTypeConfigurationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetTypeConfigurationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetTypeConfiguration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/ListActiveSchemas": {
+      "post": {
+        "description": "ListActiveSchemas lists the currently active schemas.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.ListActiveSchemasRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.ListActiveSchemasResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListActiveSchemas",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/RegisterSchema": {
+      "post": {
+        "description": "Register register a new validation schema version.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.RegisterSchemaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.RegisterSchemaResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RegisterSchema",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/SetActiveSchema": {
+      "post": {
+        "description": "SetActive activates schema versions.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.SetActiveSchemaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.SetActiveSchemaResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SetActiveSchema",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Content/GetNewDocuments": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetNewDocumentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetNewDocumentsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetNewDocuments",
+        "tags": [
+          "Content"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://distribution.api.tt.se"
+    },
+    {
+      "url": "https://distribution.api.stage.tt.se"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Configuration"
+    },
+    {
+      "name": "Content"
+    }
+  ]
+}

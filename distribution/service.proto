@@ -1,0 +1,214 @@
+syntax = "proto3";
+
+import "newsdoc/newsdoc.proto";
+
+package ttab.distribution;
+
+option go_package = "github.com/ttab/public-tt-api/distribution";
+
+service Configuration {
+  // Register register a new validation schema version.
+  rpc RegisterSchema(RegisterSchemaRequest) returns (RegisterSchemaResponse);
+  // SetActive activates schema versions.
+  rpc SetActiveSchema(SetActiveSchemaRequest) returns (SetActiveSchemaResponse);
+  // GetSchema retrieves a schema.
+  rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
+  // GetAllActiveSchemas returns the currently active schemas.
+  rpc GetAllActiveSchemas(GetAllActiveSchemasRequest) returns (GetAllActiveSchemasResponse);
+  // ListActiveSchemas lists the currently active schemas.
+  rpc ListActiveSchemas(ListActiveSchemasRequest) returns (ListActiveSchemasResponse);
+  // GetDocumentTypes lists the defined document types.
+  rpc GetDocumentTypes(GetDocumentTypesRequest) returns (GetDocumentTypesResponse);
+  // ConfigureType configures a document type.
+  rpc ConfigureType(ConfigureTypeRequest) returns (ConfigureTypeResponse);
+  // GetTypeConfiguration returns the current configuration for a type.
+  rpc GetTypeConfiguration(GetTypeConfigurationRequest) returns (GetTypeConfigurationResponse);
+}
+
+service Content {
+  rpc GetNewDocuments(GetNewDocumentsRequest) returns (GetNewDocumentsResponse);
+}
+
+message GetNewDocumentsRequest {
+  // After returns new documents after the given event ID.
+  int64 after = 1;
+  // Subset returns a subset of the documents as specified by a map of newsdoc
+  // value extractors keyed by the types that they should be applied to.
+  map<string,Subsets> subset = 2;
+  // LoadDocuments should be set to true if you want the full documents in the
+  // response. If subset is used it will override load_documents.
+  bool load_documents = 3;
+}
+
+message Subsets {
+  // Expressions to use to extract document contents.
+  repeated string expressions = 1;
+}
+
+message GetNewDocumentsResponse {
+  repeated DocumentItem items = 1;
+}
+
+message DocumentItem {
+  // Event information.
+  DocumentEvent event = 1;
+  // Document is the full document (if requested).
+  newsdoc.Document document = 2;
+  // Subset is the extracted subset of the document.
+  repeated ExtractedValues subset = 3;
+}
+
+message ExtractedValues {
+  // Extractor index for the the extractor that produced the values.
+  int64 extractor = 1;
+  // Values that were extracted.
+  map<string, ExtractedValue> values = 2;
+}
+
+message ExtractedValue {
+  // Value is used for extracted attributes and data values.
+  string value        = 1;
+  // Block is used for block extractors.
+  newsdoc.Block block = 2;
+  // Annotations can be used to differentiate between different extracted values.
+  string annotation   = 3;
+  // Role can be used to differentiate between different extracted values.
+  string role         = 4;
+}
+
+message DocumentEvent {
+  // ID of the event.
+  int64 id = 1;
+  // EventType is either "published" or "unpublished".
+  string event_type = 2;
+  // DocUUID is the UUID of the affected document.
+  string doc_uuid = 3;
+  // Version that was published (if this was a publish event).
+  int64 version = 4;
+}
+
+message Schema {
+  string name    = 1;
+  string version = 2;
+  string spec    = 3;
+}
+
+message RegisterSchemaRequest {
+  // Schema to register.
+  Schema schema = 1;
+  // Activate the registered schema immediately.
+  bool activate = 2;
+}
+
+message RegisterSchemaResponse {}
+
+message SetActiveSchemaRequest {
+  // Name is the name of the schema to activate or deactivate, required.
+  string name = 1;
+  // Version of the schema to activate, required when activating a new version.
+  string version = 2;
+  // Deactivate is used to disable a schema, activate new schema versions
+  // instead if you want to start using a new version.
+  bool deactivate = 3;
+}
+
+message SetActiveSchemaResponse {}
+
+message GetSchemaRequest {
+  // Name of the schema to get.
+  string name = 1;
+  // Version of the schema to get, optional. The currently active version of the
+  // schema will be returned if no version is specified.
+  string version = 2;
+}
+
+message GetSchemaResponse {
+  string version = 1;
+  bytes spec = 2;
+}
+
+message GetAllActiveSchemasRequest {
+  // WaitSeconds is the maximum number of seconds to wait for changes, defaults
+  // to 10 seconds. Optional.
+  int64 wait_seconds        = 1;
+  // Known schema versions that the client already has. Optional.
+  map<string, string> known = 2;
+  // OnlyChanged only returns the schemas that have been changed.
+  bool only_changed         = 3;
+}
+
+message GetAllActiveSchemasResponse {
+  // Schemas that currently are active.
+  repeated Schema schemas = 1;
+  // Unchanged is set to true if no changes were done compared to known schema
+  // versions.
+  bool unchanged          = 2;
+  // Removed schemas.
+  repeated string removed = 3;
+}
+
+message ListActiveSchemasRequest {}
+
+message ListActiveSchemasResponse {
+  // Schemas without the spec populated
+  repeated Schema schemas = 1;
+}
+
+message GetDocumentTypesRequest {}
+
+message GetDocumentTypesResponse {
+  // Types that have been defined in the schema.
+  repeated string types = 1;
+}
+
+message ConfigureTypeRequest {
+  // Type to configure.
+  string type                     = 1;
+  // Configuration for the type.
+  TypeConfiguration configuration = 2;
+}
+
+message TypeConfiguration {
+  // Set to true if this is a collection of documents that are bounded (limited
+  // in size). Bounded collections can be fetched by type and language in one
+  // go.
+  bool bounded_collection                      = 1;
+  // TimeExpressions are used for extracting time ranges from documents.
+  repeated TypeTimeExpression time_expressions = 2;
+  // LabelExpressions are used to extract labels from documents.
+  repeated LabelExpression label_expressions   = 3;
+  // Variants are the allowed variants for the document type.
+  repeated string variants                     = 4;
+}
+
+message TypeTimeExpression {
+  // Expression is a newsdoc value extraction expression.
+  string expression = 1;
+  // Layout is the time/date format to use when parsing. Optional, defaults to
+  // RFC3339 or ISO 8601 for values annotated as dates.
+  string layout     = 2;
+  // Timezone is the timezone the time should be parsed in. Optional, most
+  // timestamps should include timezone information, if they don't, parsing will
+  // fall back to the default timezone that the repository has been configured
+  // with.
+  string timezone   = 3;
+}
+
+message LabelExpression {
+  // Expression is a newsdoc value extraction expression.
+  string expression = 1;
+  // Template is the template that turns the extracted values into a label.
+  string template   = 2;
+}
+
+message ConfigureTypeResponse {}
+
+message GetTypeConfigurationRequest {
+  // Type to get configuration for.
+  string type = 1;
+}
+
+message GetTypeConfigurationResponse {
+  // Configuration of the type.
+  TypeConfiguration configuration = 1;
+}
