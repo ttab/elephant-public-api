@@ -139,6 +139,10 @@
           "configuration": {
             "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
           },
+          "delete": {
+            "description": "Delete removes the type configuration entirely.",
+            "type": "boolean"
+          },
           "type": {
             "description": "Type to configure.",
             "type": "string"
@@ -462,6 +466,10 @@
               "$ref": "#/components/schemas/ttab.distribution.TypeTimeExpression"
             },
             "type": "array"
+          },
+          "transform_script": {
+            "description": "TransformScript is the transformation script for this document type.",
+            "type": "string"
           },
           "variants": {
             "description": "Variants are the allowed variants for the document type.",

@@ -166,6 +166,8 @@ message ConfigureTypeRequest {
   string type                     = 1;
   // Configuration for the type.
   TypeConfiguration configuration = 2;
+  // Delete removes the type configuration entirely.
+  bool delete                     = 3;
 }
 
 message TypeConfiguration {
@@ -179,6 +181,8 @@ message TypeConfiguration {
   repeated LabelExpression label_expressions   = 3;
   // Variants are the allowed variants for the document type.
   repeated string variants                     = 4;
+  // TransformScript is the transformation script for this document type.
+  string transform_script                      = 5;
 }
 
 message TypeTimeExpression {
