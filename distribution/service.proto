@@ -7,21 +7,31 @@ package ttab.distribution;
 option go_package = "github.com/ttab/public-tt-api/distribution";
 
 service Configuration {
-  // Register register a new validation schema version.
-  rpc RegisterSchema(RegisterSchemaRequest) returns (RegisterSchemaResponse);
-  // SetActive activates schema versions.
-  rpc SetActiveSchema(SetActiveSchemaRequest) returns (SetActiveSchemaResponse);
-  // GetSchema retrieves a schema.
+  // RegisterConfigGeneration registers a complete configuration set
+  // (schemas + type configurations) as a new generation. Existing schema
+  // versions can be re-used by name and version without re-supplying the
+  // spec; if the spec is supplied for an existing version it must match
+  // the stored one. Returns the new generation ID.
+  rpc RegisterConfigGeneration(RegisterConfigGenerationRequest) returns (RegisterConfigGenerationResponse);
+  // ActivateConfigGeneration switches the active configuration to the
+  // generation with the given ID.
+  rpc ActivateConfigGeneration(ActivateConfigGenerationRequest) returns (ActivateConfigGenerationResponse);
+  // GetActiveConfigGeneration returns the currently active generation,
+  // including its schemas and type configurations. Supports long polling
+  // for changes.
+  rpc GetActiveConfigGeneration(GetActiveConfigGenerationRequest) returns (GetActiveConfigGenerationResponse);
+  // ListConfigGenerations lists historical generations, most recent first.
+  rpc ListConfigGenerations(ListConfigGenerationsRequest) returns (ListConfigGenerationsResponse);
+  // GetSchema retrieves a stored schema spec by name and version.
   rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
-  // GetAllActiveSchemas returns the currently active schemas.
+  // GetAllActiveSchemas returns the schemas in the active generation.
+  // Supports long polling so clients can watch for changes.
   rpc GetAllActiveSchemas(GetAllActiveSchemasRequest) returns (GetAllActiveSchemasResponse);
-  // ListActiveSchemas lists the currently active schemas.
-  rpc ListActiveSchemas(ListActiveSchemasRequest) returns (ListActiveSchemasResponse);
-  // GetDocumentTypes lists the defined document types.
+  // GetDocumentTypes lists the document types declared by schemas in the
+  // active generation.
   rpc GetDocumentTypes(GetDocumentTypesRequest) returns (GetDocumentTypesResponse);
-  // ConfigureType configures a document type.
-  rpc ConfigureType(ConfigureTypeRequest) returns (ConfigureTypeResponse);
-  // GetTypeConfiguration returns the current configuration for a type.
+  // GetTypeConfiguration returns the configuration for a type in the
+  // active generation.
   rpc GetTypeConfiguration(GetTypeConfigurationRequest) returns (GetTypeConfigurationResponse);
 }
 
@@ -93,26 +103,97 @@ message Schema {
   string spec    = 3;
 }
 
-message RegisterSchemaRequest {
-  // Schema to register.
-  Schema schema = 1;
-  // Activate the registered schema immediately.
-  bool activate = 2;
-}
-
-message RegisterSchemaResponse {}
-
-message SetActiveSchemaRequest {
-  // Name is the name of the schema to activate or deactivate, required.
-  string name = 1;
-  // Version of the schema to activate, required when activating a new version.
+// ConfigGenerationSchema references a schema version included in a
+// generation. Spec is optional when the version is already stored; it is
+// required when registering a new (name, version) pair.
+message ConfigGenerationSchema {
+  string name    = 1;
   string version = 2;
-  // Deactivate is used to disable a schema, activate new schema versions
-  // instead if you want to start using a new version.
-  bool deactivate = 3;
+  string spec    = 3;
 }
 
-message SetActiveSchemaResponse {}
+// ConfigGenerationType configures a document type within a generation.
+message ConfigGenerationType {
+  string type                        = 1;
+  TypeConfiguration configuration    = 2;
+}
+
+message ConfigGeneration {
+  // ID is assigned by the server on registration.
+  int64 id                                  = 1;
+  // Description is an optional human-readable tag.
+  string description                        = 2;
+  // CreatedAt is the time of registration, RFC3339.
+  string created_at                         = 3;
+  // ActivatedAt is the time the generation was last activated, RFC3339, or
+  // empty if it has never been activated.
+  string activated_at                       = 4;
+  // Schemas in the generation.
+  repeated ConfigGenerationSchema schemas   = 5;
+  // Types configured in the generation.
+  repeated ConfigGenerationType types       = 6;
+}
+
+message RegisterConfigGenerationRequest {
+  // Description is an optional human-readable tag for the new generation.
+  string description                        = 1;
+  // Schemas the generation should contain. Order is preserved.
+  repeated ConfigGenerationSchema schemas   = 2;
+  // Types the generation should contain. Order is preserved.
+  repeated ConfigGenerationType types       = 3;
+  // Activate the new generation immediately. Defaults to false; callers
+  // typically register first and activate as a separate step so they can
+  // inspect the diff first.
+  bool activate                             = 4;
+}
+
+message RegisterConfigGenerationResponse {
+  // Generation is the persisted generation, with its assigned ID.
+  ConfigGeneration generation = 1;
+}
+
+message ActivateConfigGenerationRequest {
+  // ID of the generation to activate.
+  int64 id = 1;
+}
+
+message ActivateConfigGenerationResponse {
+  ConfigGeneration generation = 1;
+}
+
+message GetActiveConfigGenerationRequest {
+  // WaitSeconds is the maximum number of seconds to wait for the active
+  // generation to differ from KnownId. Defaults to 10. Optional.
+  int64 wait_seconds = 1;
+  // KnownId is the generation ID the client already has; the call returns
+  // immediately when the active generation differs. Optional.
+  int64 known_id     = 2;
+  // OnlyChanged returns an empty response (with Unchanged=true) if the
+  // active generation matches KnownId.
+  bool only_changed  = 3;
+}
+
+message GetActiveConfigGenerationResponse {
+  // Generation is the active generation, populated with schemas and type
+  // configurations.
+  ConfigGeneration generation = 1;
+  // Unchanged is true if KnownId matched the active generation and
+  // OnlyChanged was set.
+  bool unchanged              = 2;
+}
+
+message ListConfigGenerationsRequest {
+  // Before is the highest generation ID to return; defaults to the latest.
+  // Use the smallest returned ID to paginate further into the past.
+  int64 before    = 1;
+  // PageSize defaults to 50, max 200.
+  int64 page_size = 2;
+}
+
+message ListConfigGenerationsResponse {
+  // Generations without schemas or type configurations populated.
+  repeated ConfigGeneration generations = 1;
+}
 
 message GetSchemaRequest {
   // Name of the schema to get.
@@ -147,27 +228,11 @@ message GetAllActiveSchemasResponse {
   repeated string removed = 3;
 }
 
-message ListActiveSchemasRequest {}
-
-message ListActiveSchemasResponse {
-  // Schemas without the spec populated
-  repeated Schema schemas = 1;
-}
-
 message GetDocumentTypesRequest {}
 
 message GetDocumentTypesResponse {
   // Types that have been defined in the schema.
   repeated string types = 1;
-}
-
-message ConfigureTypeRequest {
-  // Type to configure.
-  string type                     = 1;
-  // Configuration for the type.
-  TypeConfiguration configuration = 2;
-  // Delete removes the type configuration entirely.
-  bool delete                     = 3;
 }
 
 message TypeConfiguration {
@@ -204,8 +269,6 @@ message LabelExpression {
   // Template is the template that turns the extracted values into a label.
   string template   = 2;
 }
-
-message ConfigureTypeResponse {}
 
 message GetTypeConfigurationRequest {
   // Type to get configuration for.

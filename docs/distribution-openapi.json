@@ -134,23 +134,83 @@
         },
         "type": "object"
       },
-      "ttab.distribution.ConfigureTypeRequest": {
+      "ttab.distribution.ActivateConfigGenerationRequest": {
         "properties": {
-          "configuration": {
-            "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
+          "id": {
+            "description": "ID of the generation to activate.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ActivateConfigGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ConfigGeneration": {
+        "properties": {
+          "activated_at": {
+            "description": "ActivatedAt is the time the generation was last activated, RFC3339, or empty if it has never been activated.",
+            "type": "string"
           },
-          "delete": {
-            "description": "Delete removes the type configuration entirely.",
-            "type": "boolean"
+          "created_at": {
+            "description": "CreatedAt is the time of registration, RFC3339.",
+            "type": "string"
           },
-          "type": {
-            "description": "Type to configure.",
+          "description": {
+            "description": "Description is an optional human-readable tag.",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID is assigned by the server on registration.",
+            "type": "integer"
+          },
+          "schemas": {
+            "description": "Schemas in the generation.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationSchema"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types configured in the generation.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationType"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ConfigGenerationSchema": {
+        "description": "ConfigGenerationSchema references a schema version included in a generation. Spec is optional when the version is already stored; it is required when registering a new (name, version) pair.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          },
+          "version": {
             "type": "string"
           }
         },
         "type": "object"
       },
-      "ttab.distribution.ConfigureTypeResponse": {
+      "ttab.distribution.ConfigGenerationType": {
+        "description": "ConfigGenerationType configures a document type within a generation.",
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "ttab.distribution.DocumentEvent": {
@@ -224,6 +284,35 @@
             },
             "description": "Values that were extracted.",
             "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetActiveConfigGenerationRequest": {
+        "properties": {
+          "known_id": {
+            "description": "KnownId is the generation ID the client already has; the call returns immediately when the active generation differs. Optional.",
+            "type": "integer"
+          },
+          "only_changed": {
+            "description": "OnlyChanged returns an empty response (with Unchanged=true) if the active generation matches KnownId.",
+            "type": "boolean"
+          },
+          "wait_seconds": {
+            "description": "WaitSeconds is the maximum number of seconds to wait for the active generation to differ from KnownId. Defaults to 10. Optional.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetActiveConfigGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
+          },
+          "unchanged": {
+            "description": "Unchanged is true if KnownId matched the active generation and OnlyChanged was set.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -371,34 +460,64 @@
         },
         "type": "object"
       },
-      "ttab.distribution.ListActiveSchemasRequest": {
+      "ttab.distribution.ListConfigGenerationsRequest": {
+        "properties": {
+          "before": {
+            "description": "Before is the highest generation ID to return; defaults to the latest. Use the smallest returned ID to paginate further into the past.",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "PageSize defaults to 50, max 200.",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
-      "ttab.distribution.ListActiveSchemasResponse": {
+      "ttab.distribution.ListConfigGenerationsResponse": {
         "properties": {
-          "schemas": {
-            "description": "Schemas without the spec populated",
+          "generations": {
+            "description": "Generations without schemas or type configurations populated.",
             "items": {
-              "$ref": "#/components/schemas/ttab.distribution.Schema"
+              "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.distribution.RegisterSchemaRequest": {
+      "ttab.distribution.RegisterConfigGenerationRequest": {
         "properties": {
           "activate": {
-            "description": "Activate the registered schema immediately.",
+            "description": "Activate the new generation immediately. Defaults to false; callers typically register first and activate as a separate step so they can inspect the diff first.",
             "type": "boolean"
           },
-          "schema": {
-            "$ref": "#/components/schemas/ttab.distribution.Schema"
+          "description": {
+            "description": "Description is an optional human-readable tag for the new generation.",
+            "type": "string"
+          },
+          "schemas": {
+            "description": "Schemas the generation should contain. Order is preserved.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationSchema"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types the generation should contain. Order is preserved.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationType"
+            },
+            "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.distribution.RegisterSchemaResponse": {
+      "ttab.distribution.RegisterConfigGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
+          }
+        },
         "type": "object"
       },
       "ttab.distribution.Schema": {
@@ -413,26 +532,6 @@
             "type": "string"
           }
         },
-        "type": "object"
-      },
-      "ttab.distribution.SetActiveSchemaRequest": {
-        "properties": {
-          "deactivate": {
-            "description": "Deactivate is used to disable a schema, activate new schema versions instead if you want to start using a new version.",
-            "type": "boolean"
-          },
-          "name": {
-            "description": "Name is the name of the schema to activate or deactivate, required.",
-            "type": "string"
-          },
-          "version": {
-            "description": "Version of the schema to activate, required when activating a new version.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.SetActiveSchemaResponse": {
         "type": "object"
       },
       "ttab.distribution.Subsets": {
@@ -513,14 +612,14 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/twirp/ttab.distribution.Configuration/ConfigureType": {
+    "/twirp/ttab.distribution.Configuration/ActivateConfigGeneration": {
       "post": {
-        "description": "ConfigureType configures a document type.",
+        "description": "ActivateConfigGeneration switches the active configuration to the generation with the given ID.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.ConfigureTypeRequest"
+                "$ref": "#/components/schemas/ttab.distribution.ActivateConfigGenerationRequest"
               }
             }
           }
@@ -530,7 +629,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.ConfigureTypeResponse"
+                  "$ref": "#/components/schemas/ttab.distribution.ActivateConfigGenerationResponse"
                 }
               }
             },
@@ -545,7 +644,45 @@
             "bearer": []
           }
         ],
-        "summary": "ConfigureType",
+        "summary": "ActivateConfigGeneration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/GetActiveConfigGeneration": {
+      "post": {
+        "description": "GetActiveConfigGeneration returns the currently active generation, including its schemas and type configurations. Supports long polling for changes.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetActiveConfigGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetActiveConfigGenerationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetActiveConfigGeneration",
         "tags": [
           "Configuration"
         ]
@@ -553,7 +690,7 @@
     },
     "/twirp/ttab.distribution.Configuration/GetAllActiveSchemas": {
       "post": {
-        "description": "GetAllActiveSchemas returns the currently active schemas.",
+        "description": "GetAllActiveSchemas returns the schemas in the active generation. Supports long polling so clients can watch for changes.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -591,7 +728,7 @@
     },
     "/twirp/ttab.distribution.Configuration/GetDocumentTypes": {
       "post": {
-        "description": "GetDocumentTypes lists the defined document types.",
+        "description": "GetDocumentTypes lists the document types declared by schemas in the active generation.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -629,7 +766,7 @@
     },
     "/twirp/ttab.distribution.Configuration/GetSchema": {
       "post": {
-        "description": "GetSchema retrieves a schema.",
+        "description": "GetSchema retrieves a stored schema spec by name and version.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -667,7 +804,7 @@
     },
     "/twirp/ttab.distribution.Configuration/GetTypeConfiguration": {
       "post": {
-        "description": "GetTypeConfiguration returns the current configuration for a type.",
+        "description": "GetTypeConfiguration returns the configuration for a type in the active generation.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -703,14 +840,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/ListActiveSchemas": {
+    "/twirp/ttab.distribution.Configuration/ListConfigGenerations": {
       "post": {
-        "description": "ListActiveSchemas lists the currently active schemas.",
+        "description": "ListConfigGenerations lists historical generations, most recent first.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.ListActiveSchemasRequest"
+                "$ref": "#/components/schemas/ttab.distribution.ListConfigGenerationsRequest"
               }
             }
           }
@@ -720,7 +857,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.ListActiveSchemasResponse"
+                  "$ref": "#/components/schemas/ttab.distribution.ListConfigGenerationsResponse"
                 }
               }
             },
@@ -735,20 +872,20 @@
             "bearer": []
           }
         ],
-        "summary": "ListActiveSchemas",
+        "summary": "ListConfigGenerations",
         "tags": [
           "Configuration"
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/RegisterSchema": {
+    "/twirp/ttab.distribution.Configuration/RegisterConfigGeneration": {
       "post": {
-        "description": "Register register a new validation schema version.",
+        "description": "RegisterConfigGeneration registers a complete configuration set (schemas + type configurations) as a new generation. Existing schema versions can be re-used by name and version without re-supplying the spec; if the spec is supplied for an existing version it must match the stored one. Returns the new generation ID.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.RegisterSchemaRequest"
+                "$ref": "#/components/schemas/ttab.distribution.RegisterConfigGenerationRequest"
               }
             }
           }
@@ -758,7 +895,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.RegisterSchemaResponse"
+                  "$ref": "#/components/schemas/ttab.distribution.RegisterConfigGenerationResponse"
                 }
               }
             },
@@ -773,45 +910,7 @@
             "bearer": []
           }
         ],
-        "summary": "RegisterSchema",
-        "tags": [
-          "Configuration"
-        ]
-      }
-    },
-    "/twirp/ttab.distribution.Configuration/SetActiveSchema": {
-      "post": {
-        "description": "SetActive activates schema versions.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.SetActiveSchemaRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.SetActiveSchemaResponse"
-                }
-              }
-            },
-            "description": "Method response"
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "SetActiveSchema",
+        "summary": "RegisterConfigGeneration",
         "tags": [
           "Configuration"
         ]

@@ -32,28 +32,38 @@ const _ = twirp.TwirpPackageMinVersion_8_1_0
 // =======================
 
 type Configuration interface {
-	// Register register a new validation schema version.
-	RegisterSchema(context.Context, *RegisterSchemaRequest) (*RegisterSchemaResponse, error)
+	// RegisterConfigGeneration registers a complete configuration set
+	// (schemas + type configurations) as a new generation. Existing schema
+	// versions can be re-used by name and version without re-supplying the
+	// spec; if the spec is supplied for an existing version it must match
+	// the stored one. Returns the new generation ID.
+	RegisterConfigGeneration(context.Context, *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error)
 
-	// SetActive activates schema versions.
-	SetActiveSchema(context.Context, *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error)
+	// ActivateConfigGeneration switches the active configuration to the
+	// generation with the given ID.
+	ActivateConfigGeneration(context.Context, *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error)
 
-	// GetSchema retrieves a schema.
+	// GetActiveConfigGeneration returns the currently active generation,
+	// including its schemas and type configurations. Supports long polling
+	// for changes.
+	GetActiveConfigGeneration(context.Context, *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error)
+
+	// ListConfigGenerations lists historical generations, most recent first.
+	ListConfigGenerations(context.Context, *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error)
+
+	// GetSchema retrieves a stored schema spec by name and version.
 	GetSchema(context.Context, *GetSchemaRequest) (*GetSchemaResponse, error)
 
-	// GetAllActiveSchemas returns the currently active schemas.
+	// GetAllActiveSchemas returns the schemas in the active generation.
+	// Supports long polling so clients can watch for changes.
 	GetAllActiveSchemas(context.Context, *GetAllActiveSchemasRequest) (*GetAllActiveSchemasResponse, error)
 
-	// ListActiveSchemas lists the currently active schemas.
-	ListActiveSchemas(context.Context, *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error)
-
-	// GetDocumentTypes lists the defined document types.
+	// GetDocumentTypes lists the document types declared by schemas in the
+	// active generation.
 	GetDocumentTypes(context.Context, *GetDocumentTypesRequest) (*GetDocumentTypesResponse, error)
 
-	// ConfigureType configures a document type.
-	ConfigureType(context.Context, *ConfigureTypeRequest) (*ConfigureTypeResponse, error)
-
-	// GetTypeConfiguration returns the current configuration for a type.
+	// GetTypeConfiguration returns the configuration for a type in the
+	// active generation.
 	GetTypeConfiguration(context.Context, *GetTypeConfigurationRequest) (*GetTypeConfigurationResponse, error)
 }
 
@@ -92,13 +102,13 @@ func NewConfigurationProtobufClient(baseURL string, client HTTPClient, opts ...t
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "ttab.distribution", "Configuration")
 	urls := [8]string{
-		serviceURL + "RegisterSchema",
-		serviceURL + "SetActiveSchema",
+		serviceURL + "RegisterConfigGeneration",
+		serviceURL + "ActivateConfigGeneration",
+		serviceURL + "GetActiveConfigGeneration",
+		serviceURL + "ListConfigGenerations",
 		serviceURL + "GetSchema",
 		serviceURL + "GetAllActiveSchemas",
-		serviceURL + "ListActiveSchemas",
 		serviceURL + "GetDocumentTypes",
-		serviceURL + "ConfigureType",
 		serviceURL + "GetTypeConfiguration",
 	}
 
@@ -110,26 +120,26 @@ func NewConfigurationProtobufClient(baseURL string, client HTTPClient, opts ...t
 	}
 }
 
-func (c *configurationProtobufClient) RegisterSchema(ctx context.Context, in *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
+func (c *configurationProtobufClient) RegisterConfigGeneration(ctx context.Context, in *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
 	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "RegisterSchema")
-	caller := c.callRegisterSchema
+	ctx = ctxsetters.WithMethodName(ctx, "RegisterConfigGeneration")
+	caller := c.callRegisterConfigGeneration
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
+		caller = func(ctx context.Context, req *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*RegisterSchemaRequest)
+					typedReq, ok := req.(*RegisterConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*RegisterSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*RegisterConfigGenerationRequest) when calling interceptor")
 					}
-					return c.callRegisterSchema(ctx, typedReq)
+					return c.callRegisterConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RegisterSchemaResponse)
+				typedResp, ok := resp.(*RegisterConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RegisterSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*RegisterConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -139,8 +149,8 @@ func (c *configurationProtobufClient) RegisterSchema(ctx context.Context, in *Re
 	return caller(ctx, in)
 }
 
-func (c *configurationProtobufClient) callRegisterSchema(ctx context.Context, in *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
-	out := new(RegisterSchemaResponse)
+func (c *configurationProtobufClient) callRegisterConfigGeneration(ctx context.Context, in *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
+	out := new(RegisterConfigGenerationResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -156,26 +166,26 @@ func (c *configurationProtobufClient) callRegisterSchema(ctx context.Context, in
 	return out, nil
 }
 
-func (c *configurationProtobufClient) SetActiveSchema(ctx context.Context, in *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
+func (c *configurationProtobufClient) ActivateConfigGeneration(ctx context.Context, in *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
 	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "SetActiveSchema")
-	caller := c.callSetActiveSchema
+	ctx = ctxsetters.WithMethodName(ctx, "ActivateConfigGeneration")
+	caller := c.callActivateConfigGeneration
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
+		caller = func(ctx context.Context, req *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*SetActiveSchemaRequest)
+					typedReq, ok := req.(*ActivateConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*SetActiveSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ActivateConfigGenerationRequest) when calling interceptor")
 					}
-					return c.callSetActiveSchema(ctx, typedReq)
+					return c.callActivateConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SetActiveSchemaResponse)
+				typedResp, ok := resp.(*ActivateConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SetActiveSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ActivateConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -185,9 +195,101 @@ func (c *configurationProtobufClient) SetActiveSchema(ctx context.Context, in *S
 	return caller(ctx, in)
 }
 
-func (c *configurationProtobufClient) callSetActiveSchema(ctx context.Context, in *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
-	out := new(SetActiveSchemaResponse)
+func (c *configurationProtobufClient) callActivateConfigGeneration(ctx context.Context, in *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
+	out := new(ActivateConfigGenerationResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *configurationProtobufClient) GetActiveConfigGeneration(ctx context.Context, in *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
+	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
+	ctx = ctxsetters.WithMethodName(ctx, "GetActiveConfigGeneration")
+	caller := c.callGetActiveConfigGeneration
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetActiveConfigGenerationRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetActiveConfigGenerationRequest) when calling interceptor")
+					}
+					return c.callGetActiveConfigGeneration(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetActiveConfigGenerationResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetActiveConfigGenerationResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *configurationProtobufClient) callGetActiveConfigGeneration(ctx context.Context, in *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+	out := new(GetActiveConfigGenerationResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *configurationProtobufClient) ListConfigGenerations(ctx context.Context, in *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
+	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
+	ctx = ctxsetters.WithMethodName(ctx, "ListConfigGenerations")
+	caller := c.callListConfigGenerations
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListConfigGenerationsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListConfigGenerationsRequest) when calling interceptor")
+					}
+					return c.callListConfigGenerations(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListConfigGenerationsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListConfigGenerationsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *configurationProtobufClient) callListConfigGenerations(ctx context.Context, in *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+	out := new(ListConfigGenerationsResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -233,7 +335,7 @@ func (c *configurationProtobufClient) GetSchema(ctx context.Context, in *GetSche
 
 func (c *configurationProtobufClient) callGetSchema(ctx context.Context, in *GetSchemaRequest) (*GetSchemaResponse, error) {
 	out := new(GetSchemaResponse)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -279,53 +381,7 @@ func (c *configurationProtobufClient) GetAllActiveSchemas(ctx context.Context, i
 
 func (c *configurationProtobufClient) callGetAllActiveSchemas(ctx context.Context, in *GetAllActiveSchemasRequest) (*GetAllActiveSchemasResponse, error) {
 	out := new(GetAllActiveSchemasResponse)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
-
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-func (c *configurationProtobufClient) ListActiveSchemas(ctx context.Context, in *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
-	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "ListActiveSchemas")
-	caller := c.callListActiveSchemas
-	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-			resp, err := c.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListActiveSchemasRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListActiveSchemasRequest) when calling interceptor")
-					}
-					return c.callListActiveSchemas(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ListActiveSchemasResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListActiveSchemasResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-	return caller(ctx, in)
-}
-
-func (c *configurationProtobufClient) callListActiveSchemas(ctx context.Context, in *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-	out := new(ListActiveSchemasResponse)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -371,52 +427,6 @@ func (c *configurationProtobufClient) GetDocumentTypes(ctx context.Context, in *
 
 func (c *configurationProtobufClient) callGetDocumentTypes(ctx context.Context, in *GetDocumentTypesRequest) (*GetDocumentTypesResponse, error) {
 	out := new(GetDocumentTypesResponse)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
-
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-func (c *configurationProtobufClient) ConfigureType(ctx context.Context, in *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
-	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "ConfigureType")
-	caller := c.callConfigureType
-	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-			resp, err := c.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ConfigureTypeRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ConfigureTypeRequest) when calling interceptor")
-					}
-					return c.callConfigureType(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ConfigureTypeResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ConfigureTypeResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-	return caller(ctx, in)
-}
-
-func (c *configurationProtobufClient) callConfigureType(ctx context.Context, in *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-	out := new(ConfigureTypeResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -513,13 +523,13 @@ func NewConfigurationJSONClient(baseURL string, client HTTPClient, opts ...twirp
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "ttab.distribution", "Configuration")
 	urls := [8]string{
-		serviceURL + "RegisterSchema",
-		serviceURL + "SetActiveSchema",
+		serviceURL + "RegisterConfigGeneration",
+		serviceURL + "ActivateConfigGeneration",
+		serviceURL + "GetActiveConfigGeneration",
+		serviceURL + "ListConfigGenerations",
 		serviceURL + "GetSchema",
 		serviceURL + "GetAllActiveSchemas",
-		serviceURL + "ListActiveSchemas",
 		serviceURL + "GetDocumentTypes",
-		serviceURL + "ConfigureType",
 		serviceURL + "GetTypeConfiguration",
 	}
 
@@ -531,26 +541,26 @@ func NewConfigurationJSONClient(baseURL string, client HTTPClient, opts ...twirp
 	}
 }
 
-func (c *configurationJSONClient) RegisterSchema(ctx context.Context, in *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
+func (c *configurationJSONClient) RegisterConfigGeneration(ctx context.Context, in *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
 	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "RegisterSchema")
-	caller := c.callRegisterSchema
+	ctx = ctxsetters.WithMethodName(ctx, "RegisterConfigGeneration")
+	caller := c.callRegisterConfigGeneration
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
+		caller = func(ctx context.Context, req *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*RegisterSchemaRequest)
+					typedReq, ok := req.(*RegisterConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*RegisterSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*RegisterConfigGenerationRequest) when calling interceptor")
 					}
-					return c.callRegisterSchema(ctx, typedReq)
+					return c.callRegisterConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RegisterSchemaResponse)
+				typedResp, ok := resp.(*RegisterConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RegisterSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*RegisterConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -560,8 +570,8 @@ func (c *configurationJSONClient) RegisterSchema(ctx context.Context, in *Regist
 	return caller(ctx, in)
 }
 
-func (c *configurationJSONClient) callRegisterSchema(ctx context.Context, in *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
-	out := new(RegisterSchemaResponse)
+func (c *configurationJSONClient) callRegisterConfigGeneration(ctx context.Context, in *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
+	out := new(RegisterConfigGenerationResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -577,26 +587,26 @@ func (c *configurationJSONClient) callRegisterSchema(ctx context.Context, in *Re
 	return out, nil
 }
 
-func (c *configurationJSONClient) SetActiveSchema(ctx context.Context, in *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
+func (c *configurationJSONClient) ActivateConfigGeneration(ctx context.Context, in *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
 	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "SetActiveSchema")
-	caller := c.callSetActiveSchema
+	ctx = ctxsetters.WithMethodName(ctx, "ActivateConfigGeneration")
+	caller := c.callActivateConfigGeneration
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
+		caller = func(ctx context.Context, req *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*SetActiveSchemaRequest)
+					typedReq, ok := req.(*ActivateConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*SetActiveSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ActivateConfigGenerationRequest) when calling interceptor")
 					}
-					return c.callSetActiveSchema(ctx, typedReq)
+					return c.callActivateConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SetActiveSchemaResponse)
+				typedResp, ok := resp.(*ActivateConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SetActiveSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ActivateConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -606,9 +616,101 @@ func (c *configurationJSONClient) SetActiveSchema(ctx context.Context, in *SetAc
 	return caller(ctx, in)
 }
 
-func (c *configurationJSONClient) callSetActiveSchema(ctx context.Context, in *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
-	out := new(SetActiveSchemaResponse)
+func (c *configurationJSONClient) callActivateConfigGeneration(ctx context.Context, in *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
+	out := new(ActivateConfigGenerationResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *configurationJSONClient) GetActiveConfigGeneration(ctx context.Context, in *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
+	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
+	ctx = ctxsetters.WithMethodName(ctx, "GetActiveConfigGeneration")
+	caller := c.callGetActiveConfigGeneration
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetActiveConfigGenerationRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetActiveConfigGenerationRequest) when calling interceptor")
+					}
+					return c.callGetActiveConfigGeneration(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetActiveConfigGenerationResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetActiveConfigGenerationResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *configurationJSONClient) callGetActiveConfigGeneration(ctx context.Context, in *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+	out := new(GetActiveConfigGenerationResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *configurationJSONClient) ListConfigGenerations(ctx context.Context, in *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
+	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
+	ctx = ctxsetters.WithMethodName(ctx, "ListConfigGenerations")
+	caller := c.callListConfigGenerations
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListConfigGenerationsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListConfigGenerationsRequest) when calling interceptor")
+					}
+					return c.callListConfigGenerations(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListConfigGenerationsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListConfigGenerationsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *configurationJSONClient) callListConfigGenerations(ctx context.Context, in *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+	out := new(ListConfigGenerationsResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -654,7 +756,7 @@ func (c *configurationJSONClient) GetSchema(ctx context.Context, in *GetSchemaRe
 
 func (c *configurationJSONClient) callGetSchema(ctx context.Context, in *GetSchemaRequest) (*GetSchemaResponse, error) {
 	out := new(GetSchemaResponse)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -700,53 +802,7 @@ func (c *configurationJSONClient) GetAllActiveSchemas(ctx context.Context, in *G
 
 func (c *configurationJSONClient) callGetAllActiveSchemas(ctx context.Context, in *GetAllActiveSchemasRequest) (*GetAllActiveSchemasResponse, error) {
 	out := new(GetAllActiveSchemasResponse)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
-
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-func (c *configurationJSONClient) ListActiveSchemas(ctx context.Context, in *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
-	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "ListActiveSchemas")
-	caller := c.callListActiveSchemas
-	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-			resp, err := c.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListActiveSchemasRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListActiveSchemasRequest) when calling interceptor")
-					}
-					return c.callListActiveSchemas(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ListActiveSchemasResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListActiveSchemasResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-	return caller(ctx, in)
-}
-
-func (c *configurationJSONClient) callListActiveSchemas(ctx context.Context, in *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-	out := new(ListActiveSchemasResponse)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -792,52 +848,6 @@ func (c *configurationJSONClient) GetDocumentTypes(ctx context.Context, in *GetD
 
 func (c *configurationJSONClient) callGetDocumentTypes(ctx context.Context, in *GetDocumentTypesRequest) (*GetDocumentTypesResponse, error) {
 	out := new(GetDocumentTypesResponse)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
-
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-func (c *configurationJSONClient) ConfigureType(ctx context.Context, in *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "ttab.distribution")
-	ctx = ctxsetters.WithServiceName(ctx, "Configuration")
-	ctx = ctxsetters.WithMethodName(ctx, "ConfigureType")
-	caller := c.callConfigureType
-	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-			resp, err := c.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ConfigureTypeRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ConfigureTypeRequest) when calling interceptor")
-					}
-					return c.callConfigureType(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ConfigureTypeResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ConfigureTypeResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-	return caller(ctx, in)
-}
-
-func (c *configurationJSONClient) callConfigureType(ctx context.Context, in *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-	out := new(ConfigureTypeResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -996,11 +1006,17 @@ func (s *configurationServer) ServeHTTP(resp http.ResponseWriter, req *http.Requ
 	}
 
 	switch method {
-	case "RegisterSchema":
-		s.serveRegisterSchema(ctx, resp, req)
+	case "RegisterConfigGeneration":
+		s.serveRegisterConfigGeneration(ctx, resp, req)
 		return
-	case "SetActiveSchema":
-		s.serveSetActiveSchema(ctx, resp, req)
+	case "ActivateConfigGeneration":
+		s.serveActivateConfigGeneration(ctx, resp, req)
+		return
+	case "GetActiveConfigGeneration":
+		s.serveGetActiveConfigGeneration(ctx, resp, req)
+		return
+	case "ListConfigGenerations":
+		s.serveListConfigGenerations(ctx, resp, req)
 		return
 	case "GetSchema":
 		s.serveGetSchema(ctx, resp, req)
@@ -1008,14 +1024,8 @@ func (s *configurationServer) ServeHTTP(resp http.ResponseWriter, req *http.Requ
 	case "GetAllActiveSchemas":
 		s.serveGetAllActiveSchemas(ctx, resp, req)
 		return
-	case "ListActiveSchemas":
-		s.serveListActiveSchemas(ctx, resp, req)
-		return
 	case "GetDocumentTypes":
 		s.serveGetDocumentTypes(ctx, resp, req)
-		return
-	case "ConfigureType":
-		s.serveConfigureType(ctx, resp, req)
 		return
 	case "GetTypeConfiguration":
 		s.serveGetTypeConfiguration(ctx, resp, req)
@@ -1027,7 +1037,7 @@ func (s *configurationServer) ServeHTTP(resp http.ResponseWriter, req *http.Requ
 	}
 }
 
-func (s *configurationServer) serveRegisterSchema(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *configurationServer) serveRegisterConfigGeneration(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1035,9 +1045,9 @@ func (s *configurationServer) serveRegisterSchema(ctx context.Context, resp http
 	}
 	switch strings.TrimSpace(strings.ToLower(header[:i])) {
 	case "application/json":
-		s.serveRegisterSchemaJSON(ctx, resp, req)
+		s.serveRegisterConfigGenerationJSON(ctx, resp, req)
 	case "application/protobuf":
-		s.serveRegisterSchemaProtobuf(ctx, resp, req)
+		s.serveRegisterConfigGenerationProtobuf(ctx, resp, req)
 	default:
 		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
 		twerr := badRouteError(msg, req.Method, req.URL.Path)
@@ -1045,9 +1055,9 @@ func (s *configurationServer) serveRegisterSchema(ctx context.Context, resp http
 	}
 }
 
-func (s *configurationServer) serveRegisterSchemaJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *configurationServer) serveRegisterConfigGenerationJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "RegisterSchema")
+	ctx = ctxsetters.WithMethodName(ctx, "RegisterConfigGeneration")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -1060,29 +1070,29 @@ func (s *configurationServer) serveRegisterSchemaJSON(ctx context.Context, resp 
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(RegisterSchemaRequest)
+	reqContent := new(RegisterConfigGenerationRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
 
-	handler := s.Configuration.RegisterSchema
+	handler := s.Configuration.RegisterConfigGeneration
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
+		handler = func(ctx context.Context, req *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*RegisterSchemaRequest)
+					typedReq, ok := req.(*RegisterConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*RegisterSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*RegisterConfigGenerationRequest) when calling interceptor")
 					}
-					return s.Configuration.RegisterSchema(ctx, typedReq)
+					return s.Configuration.RegisterConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RegisterSchemaResponse)
+				typedResp, ok := resp.(*RegisterConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RegisterSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*RegisterConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1091,7 +1101,7 @@ func (s *configurationServer) serveRegisterSchemaJSON(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *RegisterSchemaResponse
+	var respContent *RegisterConfigGenerationResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1102,7 +1112,7 @@ func (s *configurationServer) serveRegisterSchemaJSON(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RegisterSchemaResponse and nil error while calling RegisterSchema. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *RegisterConfigGenerationResponse and nil error while calling RegisterConfigGeneration. nil responses are not supported"))
 		return
 	}
 
@@ -1128,9 +1138,9 @@ func (s *configurationServer) serveRegisterSchemaJSON(ctx context.Context, resp 
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *configurationServer) serveRegisterSchemaProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *configurationServer) serveRegisterConfigGenerationProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "RegisterSchema")
+	ctx = ctxsetters.WithMethodName(ctx, "RegisterConfigGeneration")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -1142,28 +1152,28 @@ func (s *configurationServer) serveRegisterSchemaProtobuf(ctx context.Context, r
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(RegisterSchemaRequest)
+	reqContent := new(RegisterConfigGenerationRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
 	}
 
-	handler := s.Configuration.RegisterSchema
+	handler := s.Configuration.RegisterConfigGeneration
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *RegisterSchemaRequest) (*RegisterSchemaResponse, error) {
+		handler = func(ctx context.Context, req *RegisterConfigGenerationRequest) (*RegisterConfigGenerationResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*RegisterSchemaRequest)
+					typedReq, ok := req.(*RegisterConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*RegisterSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*RegisterConfigGenerationRequest) when calling interceptor")
 					}
-					return s.Configuration.RegisterSchema(ctx, typedReq)
+					return s.Configuration.RegisterConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RegisterSchemaResponse)
+				typedResp, ok := resp.(*RegisterConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RegisterSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*RegisterConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1172,7 +1182,7 @@ func (s *configurationServer) serveRegisterSchemaProtobuf(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *RegisterSchemaResponse
+	var respContent *RegisterConfigGenerationResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1183,7 +1193,7 @@ func (s *configurationServer) serveRegisterSchemaProtobuf(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RegisterSchemaResponse and nil error while calling RegisterSchema. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *RegisterConfigGenerationResponse and nil error while calling RegisterConfigGeneration. nil responses are not supported"))
 		return
 	}
 
@@ -1207,7 +1217,7 @@ func (s *configurationServer) serveRegisterSchemaProtobuf(ctx context.Context, r
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *configurationServer) serveSetActiveSchema(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *configurationServer) serveActivateConfigGeneration(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1215,9 +1225,9 @@ func (s *configurationServer) serveSetActiveSchema(ctx context.Context, resp htt
 	}
 	switch strings.TrimSpace(strings.ToLower(header[:i])) {
 	case "application/json":
-		s.serveSetActiveSchemaJSON(ctx, resp, req)
+		s.serveActivateConfigGenerationJSON(ctx, resp, req)
 	case "application/protobuf":
-		s.serveSetActiveSchemaProtobuf(ctx, resp, req)
+		s.serveActivateConfigGenerationProtobuf(ctx, resp, req)
 	default:
 		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
 		twerr := badRouteError(msg, req.Method, req.URL.Path)
@@ -1225,9 +1235,9 @@ func (s *configurationServer) serveSetActiveSchema(ctx context.Context, resp htt
 	}
 }
 
-func (s *configurationServer) serveSetActiveSchemaJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *configurationServer) serveActivateConfigGenerationJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "SetActiveSchema")
+	ctx = ctxsetters.WithMethodName(ctx, "ActivateConfigGeneration")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -1240,29 +1250,29 @@ func (s *configurationServer) serveSetActiveSchemaJSON(ctx context.Context, resp
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(SetActiveSchemaRequest)
+	reqContent := new(ActivateConfigGenerationRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
 
-	handler := s.Configuration.SetActiveSchema
+	handler := s.Configuration.ActivateConfigGeneration
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
+		handler = func(ctx context.Context, req *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*SetActiveSchemaRequest)
+					typedReq, ok := req.(*ActivateConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*SetActiveSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ActivateConfigGenerationRequest) when calling interceptor")
 					}
-					return s.Configuration.SetActiveSchema(ctx, typedReq)
+					return s.Configuration.ActivateConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SetActiveSchemaResponse)
+				typedResp, ok := resp.(*ActivateConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SetActiveSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ActivateConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1271,7 +1281,7 @@ func (s *configurationServer) serveSetActiveSchemaJSON(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *SetActiveSchemaResponse
+	var respContent *ActivateConfigGenerationResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1282,7 +1292,7 @@ func (s *configurationServer) serveSetActiveSchemaJSON(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *SetActiveSchemaResponse and nil error while calling SetActiveSchema. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ActivateConfigGenerationResponse and nil error while calling ActivateConfigGeneration. nil responses are not supported"))
 		return
 	}
 
@@ -1308,9 +1318,9 @@ func (s *configurationServer) serveSetActiveSchemaJSON(ctx context.Context, resp
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *configurationServer) serveSetActiveSchemaProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *configurationServer) serveActivateConfigGenerationProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "SetActiveSchema")
+	ctx = ctxsetters.WithMethodName(ctx, "ActivateConfigGeneration")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -1322,28 +1332,28 @@ func (s *configurationServer) serveSetActiveSchemaProtobuf(ctx context.Context, 
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(SetActiveSchemaRequest)
+	reqContent := new(ActivateConfigGenerationRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
 	}
 
-	handler := s.Configuration.SetActiveSchema
+	handler := s.Configuration.ActivateConfigGeneration
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *SetActiveSchemaRequest) (*SetActiveSchemaResponse, error) {
+		handler = func(ctx context.Context, req *ActivateConfigGenerationRequest) (*ActivateConfigGenerationResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*SetActiveSchemaRequest)
+					typedReq, ok := req.(*ActivateConfigGenerationRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*SetActiveSchemaRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ActivateConfigGenerationRequest) when calling interceptor")
 					}
-					return s.Configuration.SetActiveSchema(ctx, typedReq)
+					return s.Configuration.ActivateConfigGeneration(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SetActiveSchemaResponse)
+				typedResp, ok := resp.(*ActivateConfigGenerationResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SetActiveSchemaResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ActivateConfigGenerationResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1352,7 +1362,7 @@ func (s *configurationServer) serveSetActiveSchemaProtobuf(ctx context.Context, 
 	}
 
 	// Call service method
-	var respContent *SetActiveSchemaResponse
+	var respContent *ActivateConfigGenerationResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1363,7 +1373,367 @@ func (s *configurationServer) serveSetActiveSchemaProtobuf(ctx context.Context, 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *SetActiveSchemaResponse and nil error while calling SetActiveSchema. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ActivateConfigGenerationResponse and nil error while calling ActivateConfigGeneration. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *configurationServer) serveGetActiveConfigGeneration(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveGetActiveConfigGenerationJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveGetActiveConfigGenerationProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *configurationServer) serveGetActiveConfigGenerationJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetActiveConfigGeneration")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(GetActiveConfigGenerationRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Configuration.GetActiveConfigGeneration
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetActiveConfigGenerationRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetActiveConfigGenerationRequest) when calling interceptor")
+					}
+					return s.Configuration.GetActiveConfigGeneration(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetActiveConfigGenerationResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetActiveConfigGenerationResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *GetActiveConfigGenerationResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetActiveConfigGenerationResponse and nil error while calling GetActiveConfigGeneration. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *configurationServer) serveGetActiveConfigGenerationProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetActiveConfigGeneration")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(GetActiveConfigGenerationRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Configuration.GetActiveConfigGeneration
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *GetActiveConfigGenerationRequest) (*GetActiveConfigGenerationResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetActiveConfigGenerationRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetActiveConfigGenerationRequest) when calling interceptor")
+					}
+					return s.Configuration.GetActiveConfigGeneration(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetActiveConfigGenerationResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetActiveConfigGenerationResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *GetActiveConfigGenerationResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetActiveConfigGenerationResponse and nil error while calling GetActiveConfigGeneration. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *configurationServer) serveListConfigGenerations(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveListConfigGenerationsJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveListConfigGenerationsProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *configurationServer) serveListConfigGenerationsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListConfigGenerations")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(ListConfigGenerationsRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Configuration.ListConfigGenerations
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListConfigGenerationsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListConfigGenerationsRequest) when calling interceptor")
+					}
+					return s.Configuration.ListConfigGenerations(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListConfigGenerationsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListConfigGenerationsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListConfigGenerationsResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListConfigGenerationsResponse and nil error while calling ListConfigGenerations. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *configurationServer) serveListConfigGenerationsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListConfigGenerations")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(ListConfigGenerationsRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Configuration.ListConfigGenerations
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListConfigGenerationsRequest) (*ListConfigGenerationsResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListConfigGenerationsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListConfigGenerationsRequest) when calling interceptor")
+					}
+					return s.Configuration.ListConfigGenerations(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListConfigGenerationsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListConfigGenerationsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListConfigGenerationsResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListConfigGenerationsResponse and nil error while calling ListConfigGenerations. nil responses are not supported"))
 		return
 	}
 
@@ -1747,186 +2117,6 @@ func (s *configurationServer) serveGetAllActiveSchemasProtobuf(ctx context.Conte
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *configurationServer) serveListActiveSchemas(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	header := req.Header.Get("Content-Type")
-	i := strings.Index(header, ";")
-	if i == -1 {
-		i = len(header)
-	}
-	switch strings.TrimSpace(strings.ToLower(header[:i])) {
-	case "application/json":
-		s.serveListActiveSchemasJSON(ctx, resp, req)
-	case "application/protobuf":
-		s.serveListActiveSchemasProtobuf(ctx, resp, req)
-	default:
-		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
-		twerr := badRouteError(msg, req.Method, req.URL.Path)
-		s.writeError(ctx, resp, twerr)
-	}
-}
-
-func (s *configurationServer) serveListActiveSchemasJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "ListActiveSchemas")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	d := json.NewDecoder(req.Body)
-	rawReqBody := json.RawMessage{}
-	if err := d.Decode(&rawReqBody); err != nil {
-		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
-		return
-	}
-	reqContent := new(ListActiveSchemasRequest)
-	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
-	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
-		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
-		return
-	}
-
-	handler := s.Configuration.ListActiveSchemas
-	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-			resp, err := s.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListActiveSchemasRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListActiveSchemasRequest) when calling interceptor")
-					}
-					return s.Configuration.ListActiveSchemas(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ListActiveSchemasResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListActiveSchemasResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-
-	// Call service method
-	var respContent *ListActiveSchemasResponse
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = handler(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListActiveSchemasResponse and nil error while calling ListActiveSchemas. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
-	respBytes, err := marshaler.Marshal(respContent)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		ctx = callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *configurationServer) serveListActiveSchemasProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "ListActiveSchemas")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	buf, err := io.ReadAll(req.Body)
-	if err != nil {
-		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
-		return
-	}
-	reqContent := new(ListActiveSchemasRequest)
-	if err = proto.Unmarshal(buf, reqContent); err != nil {
-		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
-		return
-	}
-
-	handler := s.Configuration.ListActiveSchemas
-	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *ListActiveSchemasRequest) (*ListActiveSchemasResponse, error) {
-			resp, err := s.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListActiveSchemasRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListActiveSchemasRequest) when calling interceptor")
-					}
-					return s.Configuration.ListActiveSchemas(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ListActiveSchemasResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListActiveSchemasResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-
-	// Call service method
-	var respContent *ListActiveSchemasResponse
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = handler(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListActiveSchemasResponse and nil error while calling ListActiveSchemas. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	respBytes, err := proto.Marshal(respContent)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	resp.Header().Set("Content-Type", "application/protobuf")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		ctx = callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
 func (s *configurationServer) serveGetDocumentTypes(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
@@ -2084,186 +2274,6 @@ func (s *configurationServer) serveGetDocumentTypesProtobuf(ctx context.Context,
 	}
 	if respContent == nil {
 		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetDocumentTypesResponse and nil error while calling GetDocumentTypes. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	respBytes, err := proto.Marshal(respContent)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	resp.Header().Set("Content-Type", "application/protobuf")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		ctx = callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *configurationServer) serveConfigureType(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	header := req.Header.Get("Content-Type")
-	i := strings.Index(header, ";")
-	if i == -1 {
-		i = len(header)
-	}
-	switch strings.TrimSpace(strings.ToLower(header[:i])) {
-	case "application/json":
-		s.serveConfigureTypeJSON(ctx, resp, req)
-	case "application/protobuf":
-		s.serveConfigureTypeProtobuf(ctx, resp, req)
-	default:
-		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
-		twerr := badRouteError(msg, req.Method, req.URL.Path)
-		s.writeError(ctx, resp, twerr)
-	}
-}
-
-func (s *configurationServer) serveConfigureTypeJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "ConfigureType")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	d := json.NewDecoder(req.Body)
-	rawReqBody := json.RawMessage{}
-	if err := d.Decode(&rawReqBody); err != nil {
-		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
-		return
-	}
-	reqContent := new(ConfigureTypeRequest)
-	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
-	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
-		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
-		return
-	}
-
-	handler := s.Configuration.ConfigureType
-	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-			resp, err := s.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ConfigureTypeRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ConfigureTypeRequest) when calling interceptor")
-					}
-					return s.Configuration.ConfigureType(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ConfigureTypeResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ConfigureTypeResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-
-	// Call service method
-	var respContent *ConfigureTypeResponse
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = handler(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ConfigureTypeResponse and nil error while calling ConfigureType. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
-	respBytes, err := marshaler.Marshal(respContent)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		ctx = callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *configurationServer) serveConfigureTypeProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "ConfigureType")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	buf, err := io.ReadAll(req.Body)
-	if err != nil {
-		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
-		return
-	}
-	reqContent := new(ConfigureTypeRequest)
-	if err = proto.Unmarshal(buf, reqContent); err != nil {
-		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
-		return
-	}
-
-	handler := s.Configuration.ConfigureType
-	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *ConfigureTypeRequest) (*ConfigureTypeResponse, error) {
-			resp, err := s.interceptor(
-				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ConfigureTypeRequest)
-					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ConfigureTypeRequest) when calling interceptor")
-					}
-					return s.Configuration.ConfigureType(ctx, typedReq)
-				},
-			)(ctx, req)
-			if resp != nil {
-				typedResp, ok := resp.(*ConfigureTypeResponse)
-				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ConfigureTypeResponse) when calling interceptor")
-				}
-				return typedResp, err
-			}
-			return nil, err
-		}
-	}
-
-	// Call service method
-	var respContent *ConfigureTypeResponse
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = handler(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ConfigureTypeResponse and nil error while calling ConfigureType. nil responses are not supported"))
 		return
 	}
 
@@ -3542,86 +3552,98 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 1296 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x57, 0xcd, 0x72, 0x13, 0x47,
-	0x10, 0xae, 0xb5, 0x90, 0x6c, 0xb5, 0xf0, 0x8f, 0x26, 0xc6, 0xc8, 0x1b, 0x42, 0xc4, 0x06, 0x2a,
-	0xc2, 0x60, 0x19, 0x4c, 0x91, 0x50, 0x9c, 0x02, 0x8e, 0xe3, 0x0a, 0x01, 0x42, 0xad, 0x81, 0x43,
-	0x2a, 0x55, 0xaa, 0xd5, 0x6e, 0xdb, 0xde, 0x78, 0xb5, 0xa3, 0xec, 0xcc, 0xca, 0x38, 0xa7, 0x9c,
-	0x73, 0xc8, 0x93, 0xe4, 0x92, 0x87, 0xc9, 0x3b, 0xe4, 0x90, 0x37, 0xc8, 0x25, 0x35, 0x3f, 0xbb,
-	0xde, 0x95, 0x46, 0xb6, 0x08, 0x27, 0x6f, 0xf7, 0x7c, 0xdd, 0x5f, 0xcf, 0xcc, 0xd7, 0x3d, 0x16,
-	0xd8, 0x41, 0xc8, 0x78, 0x12, 0xf6, 0x53, 0x1e, 0xd2, 0x78, 0x8b, 0x61, 0x32, 0x0a, 0x7d, 0xec,
-	0x0e, 0x13, 0xca, 0x29, 0x69, 0x72, 0xee, 0xf5, 0xbb, 0x45, 0x80, 0x7d, 0x25, 0xc6, 0x13, 0x16,
-	0x50, 0x7f, 0x4b, 0xff, 0x55, 0x48, 0xe7, 0x5f, 0x0b, 0xd6, 0xf6, 0x90, 0xbf, 0xc4, 0x93, 0xaf,
-	0xa9, 0x9f, 0x0e, 0x30, 0xe6, 0xcc, 0xc5, 0x9f, 0x53, 0x64, 0x9c, 0xac, 0x42, 0xd5, 0x3b, 0xe0,
-	0x98, 0xb4, 0xac, 0xb6, 0xd5, 0xa9, 0xb8, 0xca, 0x20, 0x2f, 0xa0, 0xc6, 0xd2, 0x3e, 0x43, 0xde,
-	0x9a, 0x6b, 0x57, 0x3a, 0x8d, 0xed, 0x87, 0xdd, 0x09, 0xae, 0xae, 0x39, 0x61, 0x77, 0x5f, 0xc6,
-	0xed, 0xc6, 0x3c, 0x39, 0x75, 0x75, 0x12, 0x72, 0x0b, 0x96, 0x22, 0xea, 0x05, 0xbd, 0x20, 0x03,
-	0xb7, 0x2a, 0x6d, 0xab, 0xb3, 0xe0, 0x2e, 0x0a, 0x6f, 0x9e, 0xc1, 0x7e, 0x03, 0x8d, 0x42, 0x34,
-	0x59, 0x81, 0xca, 0x31, 0x9e, 0xca, 0xc2, 0xea, 0xae, 0xf8, 0x24, 0xf7, 0xa0, 0x3a, 0xf2, 0xa2,
-	0x14, 0x5b, 0x73, 0x6d, 0xab, 0xd3, 0xd8, 0xb6, 0x0d, 0x55, 0xa9, 0x04, 0xcc, 0x55, 0xc0, 0xc7,
-	0x73, 0x8f, 0x2c, 0xe7, 0x0e, 0xcc, 0x6b, 0x2f, 0x69, 0x43, 0x03, 0xdf, 0x0d, 0x13, 0x64, 0x2c,
-	0xa4, 0x31, 0x6b, 0x59, 0xed, 0x4a, 0xa7, 0xee, 0x16, 0x5d, 0xce, 0x2b, 0xb8, 0x3a, 0xb1, 0x31,
-	0x36, 0xa4, 0x31, 0x43, 0xf2, 0x10, 0xaa, 0x21, 0xc7, 0x81, 0x0a, 0x6b, 0x6c, 0x7f, 0x6a, 0x60,
-	0xcf, 0x82, 0xbe, 0xe5, 0x38, 0x70, 0x15, 0xda, 0xf9, 0xd3, 0x82, 0xcb, 0x45, 0x3f, 0xf9, 0x02,
-	0xaa, 0x38, 0xc2, 0x98, 0xcb, 0x9d, 0x35, 0xb6, 0xdb, 0xe7, 0xe4, 0xd9, 0x15, 0x38, 0x57, 0xc1,
-	0xc9, 0x26, 0x2c, 0x64, 0x07, 0xa8, 0x0f, 0xa0, 0xd9, 0xcd, 0xee, 0x39, 0x0b, 0x70, 0x73, 0x08,
-	0x79, 0x9c, 0xdf, 0x61, 0x45, 0xd6, 0xeb, 0x18, 0x78, 0x76, 0xdf, 0xf1, 0xc4, 0xf3, 0x39, 0x06,
-	0x6f, 0xc5, 0x69, 0xb1, 0xec, 0xc2, 0x9c, 0xbf, 0x2c, 0x58, 0x1e, 0x5b, 0x23, 0xd7, 0xa0, 0x8e,
-	0xca, 0x45, 0x33, 0xb5, 0x9c, 0x39, 0xc8, 0x37, 0x50, 0x93, 0x27, 0xce, 0xb4, 0x62, 0xba, 0x17,
-	0xb3, 0x75, 0xd5, 0x1f, 0x2d, 0x15, 0x15, 0x6d, 0xff, 0x08, 0x8d, 0x82, 0xdb, 0xa0, 0x81, 0x2f,
-	0xcb, 0x1a, 0xb8, 0x71, 0x21, 0x4f, 0x51, 0x0a, 0xbf, 0x5a, 0xb0, 0x54, 0x5e, 0x15, 0x0d, 0xa0,
-	0xf2, 0x29, 0x0e, 0x65, 0x90, 0x9b, 0x50, 0xed, 0x47, 0xd4, 0x3f, 0xd6, 0x2c, 0x4b, 0xf9, 0x41,
-	0x3f, 0x15, 0x5e, 0x57, 0x2d, 0x92, 0xeb, 0x00, 0x5e, 0x1c, 0x53, 0xee, 0x09, 0x5a, 0xa9, 0xe9,
-	0xba, 0x5b, 0xf0, 0x10, 0x02, 0x97, 0x12, 0x1a, 0x61, 0xeb, 0x92, 0x5c, 0x91, 0xdf, 0x0e, 0x83,
-	0xc5, 0xd2, 0xed, 0x92, 0x25, 0x98, 0x0b, 0x03, 0x7d, 0xa0, 0x73, 0x61, 0x40, 0x3e, 0x01, 0x90,
-	0xf7, 0xdd, 0xe3, 0xa7, 0x43, 0xb5, 0xcb, 0xba, 0x5b, 0x97, 0x9e, 0xd7, 0xa7, 0x43, 0x24, 0xeb,
-	0x52, 0x05, 0xbd, 0x34, 0x0d, 0x03, 0xcd, 0x38, 0x1f, 0x50, 0xff, 0x4d, 0x1a, 0x06, 0xa4, 0x05,
-	0xf3, 0x23, 0x4c, 0x84, 0x8e, 0x25, 0x63, 0xc5, 0xcd, 0x4c, 0xe7, 0x19, 0xd4, 0xf6, 0xfd, 0x23,
-	0x1c, 0x78, 0xa2, 0xa4, 0xd8, 0x1b, 0x64, 0xbb, 0x95, 0xdf, 0xc5, 0x38, 0x45, 0x97, 0x99, 0x02,
-	0xcd, 0x86, 0xe8, 0x6b, 0x22, 0xf9, 0xed, 0x1c, 0xc0, 0x15, 0x17, 0x0f, 0x43, 0xc6, 0x31, 0x51,
-	0x39, 0xb3, 0x51, 0x72, 0x1f, 0x6a, 0x4c, 0x3a, 0xb4, 0xb0, 0xd7, 0x4d, 0xed, 0xa9, 0x22, 0x34,
-	0x90, 0xd8, 0xb0, 0xe0, 0xf9, 0x3c, 0x1c, 0x79, 0x5c, 0xed, 0x74, 0xc1, 0xcd, 0x6d, 0xa7, 0x05,
-	0x6b, 0xe3, 0x3c, 0xaa, 0x11, 0x9d, 0x03, 0x58, 0xdb, 0x47, 0xfe, 0x44, 0x00, 0xb1, 0x5c, 0xc2,
-	0xfb, 0xed, 0xee, 0x3a, 0x40, 0x80, 0x39, 0xbf, 0x1a, 0x49, 0x05, 0x8f, 0xb3, 0x0e, 0x57, 0x27,
-	0x78, 0x74, 0x09, 0x5f, 0xc1, 0xca, 0x1e, 0xf2, 0x0f, 0x20, 0x77, 0x9e, 0x40, 0xb3, 0x90, 0x41,
-	0x8f, 0x98, 0x02, 0xdc, 0x32, 0xdf, 0x84, 0xc8, 0x72, 0x59, 0xdf, 0xc4, 0x3f, 0x16, 0xd8, 0x7b,
-	0xc8, 0x9f, 0x44, 0x51, 0xb1, 0xc6, 0x7c, 0xb4, 0xdf, 0x80, 0xcb, 0x27, 0x5e, 0xc8, 0x7b, 0x0c,
-	0x7d, 0x1a, 0x07, 0x4c, 0x4b, 0xac, 0x21, 0x7c, 0xfb, 0xca, 0x45, 0x5e, 0x42, 0xf5, 0x38, 0xa6,
-	0x27, 0xb1, 0x6e, 0xda, 0x47, 0xe6, 0x31, 0x3f, 0x85, 0xa0, 0xfb, 0x9d, 0x08, 0x55, 0xed, 0xab,
-	0xd2, 0x08, 0x4a, 0x1a, 0x47, 0xa7, 0x3d, 0xff, 0xc8, 0x8b, 0x0f, 0x31, 0xd0, 0x67, 0xda, 0x10,
-	0xbe, 0x1d, 0xe5, 0xb2, 0x1f, 0x01, 0x9c, 0xc5, 0x19, 0xfa, 0x7b, 0xb5, 0xd8, 0xdf, 0xf5, 0x62,
-	0xf3, 0xfe, 0x66, 0xc1, 0xc7, 0xc6, 0x6a, 0xf4, 0xe1, 0x3d, 0x80, 0x79, 0x25, 0xab, 0x6c, 0x42,
-	0x9f, 0x23, 0xc0, 0x0c, 0x29, 0xa6, 0x5a, 0x1a, 0x67, 0xe5, 0x2a, 0x09, 0x9e, 0x39, 0xc4, 0x7d,
-	0x24, 0x38, 0xa0, 0x23, 0xb9, 0x15, 0xf1, 0x56, 0x64, 0xa6, 0x63, 0x43, 0xeb, 0x79, 0xc8, 0xb8,
-	0xe9, 0x5c, 0x9c, 0x57, 0xb0, 0x6e, 0x58, 0xfb, 0x80, 0x2a, 0x85, 0x12, 0xf7, 0x90, 0x67, 0x73,
-	0x43, 0xcc, 0x81, 0x9c, 0xec, 0x1e, 0xb4, 0x26, 0x97, 0x34, 0xd7, 0x2a, 0x54, 0xc5, 0x10, 0xc9,
-	0x1e, 0x3a, 0x65, 0x38, 0xbf, 0x5b, 0xb0, 0xba, 0x43, 0xe3, 0x83, 0xf0, 0x30, 0x4d, 0x50, 0x04,
-	0x14, 0x04, 0x2c, 0x67, 0x8e, 0x16, 0xb0, 0xf8, 0x26, 0xcf, 0x60, 0xd1, 0xd7, 0x58, 0x35, 0xe5,
-	0xd4, 0x40, 0xbc, 0x69, 0x28, 0x5a, 0xa4, 0xda, 0x29, 0x62, 0xdd, 0x72, 0x28, 0x59, 0x83, 0x5a,
-	0x80, 0x11, 0xe6, 0xbd, 0xa6, 0x2d, 0xe7, 0x8f, 0x39, 0x68, 0x4e, 0x04, 0x93, 0x4d, 0x20, 0x7d,
-	0x9a, 0xc6, 0x01, 0x06, 0x3d, 0x9f, 0x46, 0x11, 0xfa, 0x3c, 0x6b, 0x8b, 0x05, 0xb7, 0xa9, 0x57,
-	0x76, 0xf2, 0x05, 0xf2, 0x0a, 0x56, 0x78, 0x38, 0xc0, 0x5e, 0xf1, 0x7d, 0x57, 0xaa, 0xbe, 0x35,
-	0xa5, 0xd6, 0xd7, 0xe1, 0x00, 0x77, 0x73, 0xb4, 0xbb, 0xcc, 0x4b, 0x36, 0x23, 0xdf, 0x43, 0x33,
-	0xf2, 0xfa, 0x18, 0x95, 0x52, 0x4e, 0x7f, 0x4b, 0x9f, 0x0b, 0x6c, 0x21, 0xdf, 0x4a, 0x54, 0x76,
-	0x30, 0x31, 0xed, 0x46, 0x5e, 0x12, 0x7a, 0xe2, 0x1f, 0xa0, 0x4b, 0xf2, 0x46, 0x72, 0x9b, 0xdc,
-	0x86, 0x15, 0x9e, 0x78, 0x31, 0x3b, 0xa0, 0xc9, 0xa0, 0xc7, 0xfc, 0x24, 0x1c, 0xf2, 0x56, 0x55,
-	0xde, 0xc3, 0x72, 0xee, 0xdf, 0x97, 0x6e, 0xe7, 0x08, 0xc8, 0x64, 0xf9, 0x62, 0x98, 0x9d, 0xd5,
-	0xa9, 0xaf, 0xb0, 0xe0, 0x11, 0x87, 0x1f, 0x79, 0xa7, 0x34, 0xe5, 0xba, 0xb1, 0xb4, 0x25, 0x8a,
-	0x12, 0x1b, 0xff, 0x85, 0xc6, 0xa8, 0xc7, 0x7c, 0x6e, 0x3b, 0x2f, 0x60, 0x79, 0x6c, 0x57, 0x17,
-	0xd2, 0x88, 0x74, 0x38, 0x18, 0x46, 0xd9, 0x44, 0x17, 0xe9, 0xb4, 0xed, 0x5c, 0x85, 0x2b, 0x63,
-	0xba, 0xd3, 0xd3, 0xf4, 0xbe, 0x6c, 0xec, 0x49, 0xfd, 0x4c, 0xd7, 0xa5, 0xf3, 0x13, 0x5c, 0x33,
-	0x87, 0x68, 0xe9, 0x4f, 0xe8, 0xd6, 0xfa, 0xdf, 0xba, 0xdd, 0xfe, 0xbb, 0x06, 0x8b, 0x65, 0x6d,
-	0x22, 0x2c, 0x95, 0xdf, 0x26, 0xd2, 0x31, 0x24, 0x36, 0x3e, 0x93, 0xf6, 0xed, 0x19, 0x90, 0x7a,
-	0x13, 0x47, 0xb0, 0x3c, 0xf6, 0x00, 0x11, 0x53, 0xb4, 0xf9, 0x31, 0xb4, 0x37, 0x66, 0x81, 0x6a,
-	0xa6, 0xb7, 0x50, 0xcf, 0x5f, 0x23, 0xf2, 0x99, 0xf9, 0x19, 0x28, 0x67, 0xbf, 0x79, 0x3e, 0x48,
-	0xe7, 0xe5, 0xf0, 0x91, 0x61, 0x64, 0x93, 0xcd, 0xf7, 0x7a, 0x68, 0xec, 0xee, 0xac, 0x70, 0xcd,
-	0x1a, 0x43, 0x73, 0x62, 0x00, 0x93, 0x3b, 0xa6, 0x9e, 0x9d, 0x32, 0xc2, 0xed, 0xbb, 0xb3, 0x81,
-	0x35, 0xdf, 0xb1, 0xfc, 0x6f, 0xa0, 0x34, 0x83, 0xc9, 0x86, 0xb9, 0x66, 0xd3, 0x0c, 0xb7, 0xef,
-	0xcc, 0x84, 0xd5, 0x64, 0xfd, 0x33, 0x31, 0xca, 0x2e, 0x22, 0x9f, 0x1b, 0xa2, 0x4d, 0xf3, 0xdd,
-	0xee, 0x5c, 0x0c, 0xd4, 0x1c, 0x27, 0xb0, 0x6a, 0xea, 0x2e, 0x32, 0xe5, 0x22, 0xa6, 0x75, 0xae,
-	0xbd, 0x35, 0x33, 0x5e, 0x11, 0x6f, 0x33, 0x98, 0xdf, 0xa1, 0x31, 0x17, 0xff, 0x17, 0x1f, 0xc1,
-	0xf2, 0xd8, 0x2f, 0x31, 0xa3, 0xf8, 0xcd, 0x3f, 0x43, 0xed, 0x8d, 0x59, 0xa0, 0x8a, 0xf4, 0xe9,
-	0xdd, 0x1f, 0x36, 0x0e, 0x43, 0x7e, 0x94, 0xf6, 0xbb, 0x3e, 0x1d, 0x6c, 0x89, 0xb8, 0xad, 0x61,
-	0xda, 0x8f, 0x42, 0x7f, 0x93, 0xf3, 0x4d, 0x6f, 0x18, 0x6e, 0x15, 0xb3, 0xf4, 0x6b, 0xf2, 0x37,
-	0xf5, 0x83, 0xff, 0x02, 0x00, 0x00, 0xff, 0xff, 0xea, 0x8f, 0xc6, 0xb2, 0x9b, 0x0f, 0x00, 0x00,
+	// 1480 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x58, 0xdd, 0x72, 0xd3, 0xc6,
+	0x17, 0x1f, 0xd9, 0x71, 0x1c, 0x1f, 0xe7, 0x73, 0xff, 0x81, 0xbf, 0x22, 0xa0, 0x38, 0x02, 0xa6,
+	0x01, 0x1a, 0x1b, 0x9c, 0xd2, 0x32, 0xcc, 0x74, 0xa6, 0xc1, 0x4d, 0x33, 0x50, 0xa0, 0x8c, 0x02,
+	0x5c, 0x30, 0x9d, 0xf1, 0xc8, 0xd2, 0xc6, 0x51, 0x23, 0x6b, 0x5d, 0xed, 0xca, 0x21, 0xb9, 0xea,
+	0x0c, 0x33, 0x5c, 0xf0, 0x2c, 0xbd, 0xe9, 0xbb, 0xb4, 0x4f, 0xd0, 0xdb, 0xbe, 0x41, 0x6f, 0x3a,
+	0xfb, 0x21, 0x59, 0xb6, 0xa5, 0xc4, 0xa1, 0xb9, 0x8a, 0xf6, 0xec, 0xf9, 0xf8, 0x9d, 0x8f, 0x3d,
+	0xe7, 0xc4, 0x60, 0xb8, 0x1e, 0x65, 0xa1, 0xd7, 0x89, 0x98, 0x47, 0x82, 0x06, 0xc5, 0xe1, 0xc0,
+	0x73, 0x70, 0xbd, 0x1f, 0x12, 0x46, 0xd0, 0x0a, 0x63, 0x76, 0xa7, 0x9e, 0x66, 0x30, 0x2e, 0x05,
+	0xf8, 0x88, 0xba, 0xc4, 0x69, 0xa8, 0xbf, 0x92, 0xd3, 0xfc, 0x47, 0x83, 0xcb, 0xbb, 0x98, 0xbd,
+	0xc0, 0x47, 0xdf, 0x11, 0x27, 0xea, 0xe1, 0x80, 0x51, 0x0b, 0xff, 0x12, 0x61, 0xca, 0xd0, 0x2a,
+	0x94, 0xec, 0x7d, 0x86, 0x43, 0x5d, 0xab, 0x69, 0x1b, 0x45, 0x4b, 0x1e, 0xd0, 0x73, 0x98, 0xa5,
+	0x51, 0x87, 0x62, 0xa6, 0x17, 0x6a, 0xc5, 0x8d, 0x6a, 0xf3, 0x41, 0x7d, 0xc2, 0x56, 0x3d, 0x5b,
+	0x61, 0x7d, 0x4f, 0xc8, 0xed, 0x04, 0x2c, 0x3c, 0xb6, 0x94, 0x12, 0x74, 0x0b, 0x16, 0x7d, 0x62,
+	0xbb, 0x6d, 0x37, 0x66, 0xd6, 0x8b, 0x35, 0x6d, 0x63, 0xce, 0x5a, 0xe0, 0xd4, 0x44, 0x83, 0xf1,
+	0x1a, 0xaa, 0x29, 0x69, 0xb4, 0x0c, 0xc5, 0x43, 0x7c, 0x2c, 0x80, 0x55, 0x2c, 0xfe, 0x89, 0xee,
+	0x41, 0x69, 0x60, 0xfb, 0x11, 0xd6, 0x0b, 0x35, 0x6d, 0xa3, 0xda, 0x34, 0x32, 0x50, 0x49, 0x05,
+	0xd4, 0x92, 0x8c, 0x8f, 0x0a, 0x0f, 0x35, 0xf3, 0x2e, 0x94, 0x15, 0x15, 0xd5, 0xa0, 0x8a, 0xdf,
+	0xf5, 0x43, 0x4c, 0xa9, 0x47, 0x02, 0xaa, 0x6b, 0xb5, 0xe2, 0x46, 0xc5, 0x4a, 0x93, 0xcc, 0x97,
+	0xf0, 0xff, 0x09, 0xc7, 0x68, 0x9f, 0x04, 0x14, 0xa3, 0x07, 0x50, 0xf2, 0x18, 0xee, 0x49, 0xb1,
+	0x6a, 0xf3, 0x7a, 0x86, 0xf5, 0x58, 0xe8, 0x09, 0xc3, 0x3d, 0x4b, 0x72, 0x9b, 0xbf, 0x6b, 0x30,
+	0x9f, 0xa6, 0xa3, 0xaf, 0xa0, 0x84, 0x07, 0x38, 0x60, 0xc2, 0xb3, 0x6a, 0xb3, 0x76, 0x8a, 0x9e,
+	0x1d, 0xce, 0x67, 0x49, 0x76, 0xb4, 0x09, 0x73, 0x71, 0x00, 0x55, 0x00, 0x56, 0xea, 0x71, 0x9e,
+	0x63, 0x01, 0x2b, 0x61, 0x41, 0x8f, 0x92, 0x1c, 0x16, 0x05, 0x5e, 0x33, 0xc3, 0xce, 0xce, 0x3b,
+	0x16, 0xda, 0x0e, 0xc3, 0xee, 0x1b, 0x1e, 0x2d, 0x1a, 0x27, 0xcc, 0xfc, 0x53, 0x83, 0xa5, 0xb1,
+	0x3b, 0x74, 0x15, 0x2a, 0x58, 0x92, 0x48, 0x5c, 0x2d, 0x43, 0x02, 0xfa, 0x1e, 0x66, 0x45, 0xc4,
+	0xa9, 0xaa, 0x98, 0xfa, 0xd9, 0xd6, 0xea, 0xf2, 0x8f, 0x2a, 0x15, 0x29, 0x6d, 0xfc, 0x04, 0xd5,
+	0x14, 0x39, 0xa3, 0x06, 0xbe, 0x1e, 0xad, 0x81, 0xf5, 0x33, 0xed, 0xa4, 0x4b, 0xe1, 0x57, 0x0d,
+	0x16, 0x47, 0x6f, 0xf9, 0x03, 0x90, 0xfa, 0xa4, 0x0d, 0x79, 0x40, 0x37, 0xa1, 0xd4, 0xf1, 0x89,
+	0x73, 0xa8, 0xac, 0x2c, 0x26, 0x81, 0x7e, 0xcc, 0xa9, 0x96, 0xbc, 0x44, 0x9f, 0x01, 0xd8, 0x41,
+	0x40, 0x98, 0xcd, 0xcd, 0x8a, 0x9a, 0xae, 0x58, 0x29, 0x0a, 0x42, 0x30, 0x13, 0x12, 0x1f, 0xeb,
+	0x33, 0xe2, 0x46, 0x7c, 0x9b, 0x14, 0x16, 0x46, 0xb2, 0x8b, 0x16, 0xa1, 0xe0, 0xb9, 0x2a, 0xa0,
+	0x05, 0xcf, 0x45, 0xd7, 0x00, 0x44, 0xbe, 0xdb, 0xec, 0xb8, 0x2f, 0xbd, 0xac, 0x58, 0x15, 0x41,
+	0x79, 0x75, 0xdc, 0xc7, 0x68, 0x4d, 0x54, 0x41, 0x3b, 0x8a, 0x3c, 0x57, 0x59, 0x2c, 0xbb, 0xc4,
+	0x79, 0x1d, 0x79, 0x2e, 0xd2, 0xa1, 0x3c, 0xc0, 0x21, 0xaf, 0x63, 0x61, 0xb1, 0x68, 0xc5, 0x47,
+	0xf3, 0x29, 0xcc, 0xee, 0x39, 0x07, 0xb8, 0x67, 0x73, 0x48, 0x81, 0xdd, 0x8b, 0xbd, 0x15, 0xdf,
+	0x69, 0x39, 0x69, 0x2e, 0x3e, 0x72, 0x6e, 0xda, 0xc7, 0x8e, 0x32, 0x24, 0xbe, 0xcd, 0xb7, 0x70,
+	0xb9, 0x45, 0x82, 0x7d, 0xaf, 0xbb, 0x8b, 0x03, 0x1c, 0x0a, 0x47, 0x2f, 0x4c, 0xf7, 0x00, 0x56,
+	0xc7, 0x75, 0x0b, 0xa7, 0x11, 0xcc, 0x88, 0x68, 0x28, 0xcd, 0xfc, 0x1b, 0x3d, 0x85, 0x05, 0x47,
+	0xf0, 0x46, 0x92, 0x51, 0xa5, 0xea, 0x66, 0x46, 0x41, 0x70, 0x1d, 0xad, 0x34, 0xaf, 0x35, 0x2a,
+	0x6a, 0x7e, 0x2c, 0xc0, 0xf2, 0xb8, 0xe1, 0x89, 0xc4, 0xd4, 0xa0, 0xea, 0x62, 0xea, 0x84, 0x5e,
+	0x9f, 0x0d, 0xdd, 0x49, 0x93, 0x78, 0xea, 0x9c, 0x10, 0xdb, 0x0c, 0xbb, 0x6d, 0x9b, 0x29, 0xc7,
+	0x2a, 0x8a, 0xb2, 0xcd, 0xd0, 0x3a, 0xcc, 0xdb, 0x0e, 0xf3, 0x06, 0x31, 0x83, 0x2c, 0x8b, 0x6a,
+	0x42, 0xdb, 0x66, 0xa8, 0x05, 0x65, 0x2a, 0x82, 0x49, 0xf5, 0x92, 0x78, 0x47, 0xb7, 0x33, 0xdc,
+	0xc9, 0x0e, 0xbf, 0x15, 0x4b, 0xa2, 0x6f, 0xa0, 0xc4, 0x23, 0x44, 0xf5, 0x59, 0xa1, 0xe2, 0xf3,
+	0x29, 0x54, 0xf0, 0x08, 0x59, 0x52, 0xca, 0xfc, 0x4b, 0x83, 0xeb, 0x16, 0xee, 0x7a, 0x94, 0xe1,
+	0x70, 0x9c, 0x2f, 0x1e, 0x1b, 0x63, 0xb1, 0xd0, 0x26, 0x63, 0x91, 0xf2, 0xa4, 0xf0, 0xdf, 0x3d,
+	0x29, 0x7e, 0x8a, 0x27, 0xc8, 0x80, 0xb9, 0x38, 0xb8, 0x22, 0xd8, 0x73, 0x56, 0x72, 0x36, 0xbb,
+	0x50, 0xcb, 0x77, 0x52, 0x75, 0xfc, 0x16, 0x40, 0x37, 0xa1, 0xaa, 0x76, 0x7d, 0x63, 0x0a, 0x0c,
+	0x56, 0x4a, 0xcc, 0xbc, 0x0f, 0xd7, 0xb7, 0x95, 0xd1, 0xbc, 0x68, 0x8e, 0x55, 0x1a, 0xc7, 0x96,
+	0x2f, 0x72, 0x91, 0xd8, 0xde, 0x6b, 0x50, 0xdb, 0xc5, 0x4c, 0x18, 0xcb, 0x45, 0xb7, 0x0e, 0xf3,
+	0x47, 0xb6, 0xc7, 0xda, 0x14, 0x3b, 0x24, 0x70, 0xa9, 0xc2, 0x59, 0xe5, 0xb4, 0x3d, 0x49, 0xe2,
+	0x4d, 0xe9, 0x30, 0x20, 0x47, 0x41, 0xdb, 0x73, 0xc5, 0xbb, 0x28, 0x5a, 0x65, 0x71, 0x7e, 0xe2,
+	0x72, 0x69, 0x12, 0xf8, 0xc7, 0x6d, 0xe7, 0xc0, 0x0e, 0xba, 0xd8, 0x55, 0x93, 0xbf, 0xca, 0x69,
+	0x2d, 0x49, 0x32, 0x3f, 0x68, 0xb0, 0x7e, 0x0a, 0x8a, 0x0b, 0x74, 0x98, 0x0f, 0xb1, 0x28, 0x88,
+	0xa1, 0x14, 0x04, 0x94, 0x21, 0xc1, 0xdc, 0x83, 0xab, 0xcf, 0x3c, 0xca, 0xc6, 0x35, 0x24, 0xcb,
+	0xd2, 0x65, 0x98, 0xed, 0xe0, 0x7d, 0x12, 0x62, 0x15, 0x03, 0x75, 0x42, 0x57, 0xa0, 0xd2, 0xb7,
+	0xbb, 0xb8, 0x4d, 0xbd, 0x13, 0xac, 0xfc, 0x9f, 0xe3, 0x84, 0x3d, 0xef, 0x04, 0x9b, 0xfb, 0x70,
+	0x2d, 0x47, 0xa9, 0x72, 0x6c, 0x07, 0xaa, 0x43, 0x84, 0xf1, 0x76, 0x31, 0x95, 0x67, 0x69, 0x39,
+	0xf3, 0x5b, 0x58, 0xde, 0xc5, 0x4c, 0xbd, 0x20, 0x05, 0xf8, 0x5c, 0x1d, 0xd9, 0xdc, 0x86, 0x95,
+	0x94, 0x06, 0x85, 0x2e, 0xc5, 0xae, 0x65, 0x37, 0x70, 0xae, 0x65, 0x5e, 0x35, 0xf0, 0xbf, 0x35,
+	0x30, 0x78, 0x2a, 0x7d, 0x5f, 0x66, 0x53, 0x2a, 0xa3, 0xe7, 0x28, 0xa5, 0x17, 0x50, 0x12, 0xa5,
+	0xa3, 0xba, 0xc6, 0xc3, 0xec, 0xcd, 0x33, 0xc7, 0x40, 0xfd, 0x07, 0x2e, 0x2a, 0x37, 0x0a, 0xa9,
+	0x66, 0x8a, 0xfa, 0x33, 0x1e, 0x02, 0x0c, 0xe5, 0x32, 0x56, 0x8e, 0xd5, 0xf4, 0xca, 0x51, 0x49,
+	0xef, 0x13, 0x1f, 0x35, 0xb8, 0x92, 0x89, 0x46, 0x05, 0x6f, 0x6b, 0xd8, 0x04, 0x65, 0x5a, 0xd7,
+	0xb2, 0x56, 0xd6, 0xb1, 0xa6, 0x77, 0x6a, 0x8d, 0xf2, 0x7c, 0x84, 0xb8, 0x47, 0x06, 0xc2, 0x15,
+	0xbe, 0xbe, 0xc6, 0x47, 0x73, 0x4d, 0xac, 0xae, 0xf1, 0x72, 0xc1, 0xfb, 0x60, 0x1c, 0x16, 0xf3,
+	0x1e, 0xe8, 0x93, 0x57, 0x0a, 0xe3, 0x6a, 0xdc, 0x63, 0xe5, 0x36, 0xac, 0x86, 0xc0, 0x6f, 0x05,
+	0x58, 0x99, 0x18, 0x9b, 0x68, 0x13, 0x50, 0x87, 0x44, 0x81, 0x8b, 0xdd, 0xb6, 0x43, 0x7c, 0x1f,
+	0x3b, 0xc9, 0x5b, 0x9c, 0xb3, 0x56, 0xd4, 0x4d, 0x2b, 0xb9, 0x40, 0x2f, 0x61, 0x99, 0x79, 0x3d,
+	0xdc, 0x4e, 0xef, 0xdc, 0x32, 0xad, 0xb7, 0x72, 0xa6, 0xf4, 0x2b, 0xaf, 0x87, 0x77, 0x12, 0x6e,
+	0x6b, 0x89, 0x8d, 0x9c, 0x29, 0xfa, 0x11, 0x56, 0x7c, 0xbb, 0x83, 0xfd, 0x11, 0x95, 0xf9, 0xfb,
+	0xed, 0x33, 0xce, 0x9b, 0xd2, 0xb7, 0xec, 0x8f, 0x12, 0xc4, 0x88, 0x18, 0xd8, 0xa1, 0x67, 0xf3,
+	0x7f, 0x4a, 0x66, 0x44, 0x00, 0x92, 0x33, 0xba, 0x0d, 0xcb, 0x2c, 0xb4, 0x03, 0xba, 0x4f, 0xc2,
+	0x5e, 0x5b, 0x4e, 0x36, 0xbd, 0x24, 0x4a, 0x60, 0x29, 0xa1, 0xef, 0x09, 0xb2, 0x79, 0x00, 0x68,
+	0x12, 0x3e, 0xdf, 0x0f, 0x87, 0x38, 0x55, 0x45, 0xa5, 0x28, 0xbc, 0x9f, 0xf8, 0xf6, 0x31, 0x89,
+	0x98, 0xaa, 0x2c, 0x75, 0xe2, 0xa0, 0xb8, 0xe3, 0x27, 0x24, 0xc0, 0x6a, 0x8b, 0x48, 0xce, 0xe6,
+	0x73, 0x58, 0x1a, 0xf3, 0xea, 0x4c, 0x33, 0x5c, 0x1d, 0xee, 0xf5, 0x7d, 0x3e, 0x06, 0x0b, 0x4a,
+	0x9d, 0x3a, 0x9b, 0xf7, 0x45, 0x01, 0x4f, 0x2e, 0x48, 0xc3, 0x06, 0x32, 0xbe, 0x78, 0x99, 0x3f,
+	0xc3, 0xd5, 0x6c, 0x11, 0x55, 0x50, 0x13, 0x8b, 0x99, 0xf6, 0xc9, 0x8b, 0x59, 0xf3, 0x8f, 0x32,
+	0x2c, 0x8c, 0x96, 0xe0, 0x7b, 0x0d, 0xf4, 0xbc, 0xc1, 0x8d, 0x9a, 0x19, 0x36, 0xce, 0x58, 0x65,
+	0x8c, 0xad, 0x73, 0xc9, 0x28, 0x1f, 0x39, 0x8a, 0xbc, 0x11, 0x9d, 0x89, 0xe2, 0x8c, 0x15, 0x20,
+	0x13, 0xc5, 0x99, 0x3b, 0xc0, 0x07, 0x0d, 0xd6, 0x72, 0x07, 0x27, 0xda, 0xca, 0x69, 0x9d, 0xa7,
+	0x0d, 0x7b, 0xe3, 0xcb, 0xf3, 0x09, 0x29, 0x20, 0x27, 0x70, 0x29, 0x73, 0xc6, 0xa1, 0x46, 0xd6,
+	0xa3, 0x3c, 0x65, 0xc4, 0x1a, 0xf7, 0xa6, 0x17, 0x50, 0xb6, 0xdf, 0x40, 0x25, 0x99, 0x5a, 0xe8,
+	0x46, 0x36, 0xfc, 0x91, 0xa9, 0x68, 0xdc, 0x3c, 0x9d, 0x49, 0xe9, 0x65, 0xf0, 0xbf, 0x8c, 0xd6,
+	0x8e, 0x36, 0xcf, 0x35, 0x90, 0x8c, 0xfa, 0xb4, 0xec, 0xca, 0xea, 0xa1, 0x98, 0xe2, 0x23, 0x9d,
+	0x1a, 0xdd, 0xc9, 0xd6, 0x91, 0xd5, 0xe9, 0x8d, 0xbb, 0x53, 0xf1, 0x2a, 0x63, 0x47, 0xb0, 0x9a,
+	0xf5, 0x92, 0x51, 0x0e, 0xe8, 0xbc, 0x2e, 0x61, 0x34, 0xa6, 0xe6, 0x97, 0x86, 0x9b, 0x14, 0xca,
+	0x2d, 0x12, 0x30, 0xfe, 0xef, 0xef, 0x01, 0x2c, 0x8d, 0xfd, 0xe0, 0x82, 0x6e, 0x4f, 0xfd, 0x6b,
+	0x93, 0x71, 0x67, 0x1a, 0x56, 0x69, 0xf4, 0xf1, 0x17, 0x6f, 0xef, 0x74, 0x3d, 0x76, 0x10, 0x75,
+	0xea, 0x0e, 0xe9, 0x35, 0xb8, 0x5c, 0xa3, 0x1f, 0x75, 0x7c, 0xcf, 0xd9, 0x64, 0x6c, 0xd3, 0xee,
+	0x7b, 0x8d, 0xb4, 0x96, 0xce, 0xac, 0xf8, 0xe9, 0x6c, 0xeb, 0xdf, 0x00, 0x00, 0x00, 0xff, 0xff,
+	0xeb, 0x40, 0xf7, 0x31, 0x82, 0x13, 0x00, 0x00,
 }
