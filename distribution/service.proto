@@ -4,7 +4,7 @@ import "newsdoc/newsdoc.proto";
 
 package ttab.distribution;
 
-option go_package = "github.com/ttab/public-tt-api/distribution";
+option go_package = "github.com/ttab/elephant-public-api/distribution";
 
 service Configuration {
   // RegisterConfigGeneration registers a complete configuration set

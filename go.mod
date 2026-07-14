@@ -1,4 +1,4 @@
-module github.com/ttab/public-tt-api
+module github.com/ttab/elephant-public-api
 
 go 1.25.7
 
