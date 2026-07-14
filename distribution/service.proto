@@ -33,6 +33,15 @@ service Configuration {
   // GetTypeConfiguration returns the configuration for a type in the
   // active generation.
   rpc GetTypeConfiguration(GetTypeConfigurationRequest) returns (GetTypeConfigurationResponse);
+  // SetSyncState sets the desired state of the distribution sync worker.
+  // A cold-started service (no configuration, no sync position) starts
+  // out paused so that the repository eventlog isn't consumed - and
+  // discarded - before a configuration generation has been activated.
+  rpc SetSyncState(SetSyncStateRequest) returns (SetSyncStateResponse);
+  // GetSyncStatus returns the desired and current state of the
+  // distribution sync worker together with its position in the
+  // repository eventlog.
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
 }
 
 service Content {
@@ -268,6 +277,31 @@ message LabelExpression {
   string expression = 1;
   // Template is the template that turns the extracted values into a label.
   string template   = 2;
+}
+
+message SetSyncStateRequest {
+  // Desired state of the sync worker, either "running" or "paused".
+  string desired = 1;
+}
+
+message SetSyncStateResponse {}
+
+message GetSyncStatusRequest {}
+
+message GetSyncStatusResponse {
+  // Desired is the state the sync worker should be in, either "running"
+  // or "paused".
+  string desired    = 1;
+  // Current is the state the sync worker most recently reported, either
+  // "running" or "paused". Empty if the worker has never reported a
+  // state.
+  string current    = 2;
+  // Position is the repository eventlog ID that the sync worker has
+  // processed up to.
+  int64 position    = 3;
+  // CaughtUp is true if the sync worker had caught up with the head of
+  // the repository eventlog when it last stored its position.
+  bool caught_up    = 4;
 }
 
 message GetTypeConfigurationRequest {

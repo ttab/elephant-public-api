@@ -430,6 +430,30 @@
         },
         "type": "object"
       },
+      "ttab.distribution.GetSyncStatusRequest": {
+        "type": "object"
+      },
+      "ttab.distribution.GetSyncStatusResponse": {
+        "properties": {
+          "caught_up": {
+            "description": "CaughtUp is true if the sync worker had caught up with the head of the repository eventlog when it last stored its position.",
+            "type": "boolean"
+          },
+          "current": {
+            "description": "Current is the state the sync worker most recently reported, either \"running\" or \"paused\". Empty if the worker has never reported a state.",
+            "type": "string"
+          },
+          "desired": {
+            "description": "Desired is the state the sync worker should be in, either \"running\" or \"paused\".",
+            "type": "string"
+          },
+          "position": {
+            "description": "Position is the repository eventlog ID that the sync worker has processed up to.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ttab.distribution.GetTypeConfigurationRequest": {
         "properties": {
           "type": {
@@ -532,6 +556,18 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ttab.distribution.SetSyncStateRequest": {
+        "properties": {
+          "desired": {
+            "description": "Desired state of the sync worker, either \"running\" or \"paused\".",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.SetSyncStateResponse": {
         "type": "object"
       },
       "ttab.distribution.Subsets": {
@@ -802,6 +838,44 @@
         ]
       }
     },
+    "/twirp/ttab.distribution.Configuration/GetSyncStatus": {
+      "post": {
+        "description": "GetSyncStatus returns the desired and current state of the distribution sync worker together with its position in the repository eventlog.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetSyncStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetSyncStatusResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetSyncStatus",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
     "/twirp/ttab.distribution.Configuration/GetTypeConfiguration": {
       "post": {
         "description": "GetTypeConfiguration returns the configuration for a type in the active generation.",
@@ -911,6 +985,44 @@
           }
         ],
         "summary": "RegisterConfigGeneration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Configuration/SetSyncState": {
+      "post": {
+        "description": "SetSyncState sets the desired state of the distribution sync worker. A cold-started service (no configuration, no sync position) starts out paused so that the repository eventlog isn't consumed - and discarded - before a configuration generation has been activated.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.SetSyncStateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.SetSyncStateResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SetSyncState",
         "tags": [
           "Configuration"
         ]
