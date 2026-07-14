@@ -530,6 +530,1074 @@ func (s *keysServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "ttab.assets", "Keys")
 }
 
+// ====================
+// Management Interface
+// ====================
+
+// Management exposes the take-down operations: one authorized call instead
+// of a runbook of raw AWS actions, callable by editorial tooling or event
+// handlers as well as by humans. Note that in the ingest model a take-down
+// only stops new deliveries — customers already hold ingested copies, so
+// the take-down workflow is primarily a customer-notification process with
+// this RPC as one step.
+type Management interface {
+	// Takedown purges an asset's derivatives from the derivatives bucket
+	// and invalidates its CDN paths. Optionally pins the asset to a single
+	// selector at the edge (the retroactive-crop kill switch): with a pin
+	// set, requests for any other selector are rejected regardless of token
+	// validity.
+	Takedown(context.Context, *TakedownRequest) (*TakedownResponse, error)
+
+	// RemoveSelectorPin removes a selector pin. Safe once every token
+	// minted before the pin was set has expired (the maximum token
+	// lifetime is 30 days) and issuance-time enforcement is in place.
+	RemoveSelectorPin(context.Context, *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error)
+
+	// SetAudienceDeny adds or removes an audience deny-list entry at the
+	// edge: coarse revocation of every URL signed for the audience.
+	SetAudienceDeny(context.Context, *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error)
+}
+
+// ==========================
+// Management Protobuf Client
+// ==========================
+
+type managementProtobufClient struct {
+	client      HTTPClient
+	urls        [3]string
+	interceptor twirp.Interceptor
+	opts        twirp.ClientOptions
+}
+
+// NewManagementProtobufClient creates a Protobuf client that implements the Management interface.
+// It communicates using Protobuf and can be configured with a custom HTTPClient.
+func NewManagementProtobufClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) Management {
+	if c, ok := client.(*http.Client); ok {
+		client = withoutRedirects(c)
+	}
+
+	clientOpts := twirp.ClientOptions{}
+	for _, o := range opts {
+		o(&clientOpts)
+	}
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	literalURLs := false
+	_ = clientOpts.ReadOpt("literalURLs", &literalURLs)
+	var pathPrefix string
+	if ok := clientOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
+	serviceURL := sanitizeBaseURL(baseURL)
+	serviceURL += baseServicePath(pathPrefix, "ttab.assets", "Management")
+	urls := [3]string{
+		serviceURL + "Takedown",
+		serviceURL + "RemoveSelectorPin",
+		serviceURL + "SetAudienceDeny",
+	}
+
+	return &managementProtobufClient{
+		client:      client,
+		urls:        urls,
+		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
+		opts:        clientOpts,
+	}
+}
+
+func (c *managementProtobufClient) Takedown(ctx context.Context, in *TakedownRequest) (*TakedownResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "Takedown")
+	caller := c.callTakedown
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *TakedownRequest) (*TakedownResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*TakedownRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*TakedownRequest) when calling interceptor")
+					}
+					return c.callTakedown(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*TakedownResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*TakedownResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementProtobufClient) callTakedown(ctx context.Context, in *TakedownRequest) (*TakedownResponse, error) {
+	out := new(TakedownResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementProtobufClient) RemoveSelectorPin(ctx context.Context, in *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveSelectorPin")
+	caller := c.callRemoveSelectorPin
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveSelectorPinRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveSelectorPinRequest) when calling interceptor")
+					}
+					return c.callRemoveSelectorPin(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveSelectorPinResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveSelectorPinResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementProtobufClient) callRemoveSelectorPin(ctx context.Context, in *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+	out := new(RemoveSelectorPinResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementProtobufClient) SetAudienceDeny(ctx context.Context, in *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "SetAudienceDeny")
+	caller := c.callSetAudienceDeny
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*SetAudienceDenyRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*SetAudienceDenyRequest) when calling interceptor")
+					}
+					return c.callSetAudienceDeny(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*SetAudienceDenyResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*SetAudienceDenyResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementProtobufClient) callSetAudienceDeny(ctx context.Context, in *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+	out := new(SetAudienceDenyResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+// ======================
+// Management JSON Client
+// ======================
+
+type managementJSONClient struct {
+	client      HTTPClient
+	urls        [3]string
+	interceptor twirp.Interceptor
+	opts        twirp.ClientOptions
+}
+
+// NewManagementJSONClient creates a JSON client that implements the Management interface.
+// It communicates using JSON and can be configured with a custom HTTPClient.
+func NewManagementJSONClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) Management {
+	if c, ok := client.(*http.Client); ok {
+		client = withoutRedirects(c)
+	}
+
+	clientOpts := twirp.ClientOptions{}
+	for _, o := range opts {
+		o(&clientOpts)
+	}
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	literalURLs := false
+	_ = clientOpts.ReadOpt("literalURLs", &literalURLs)
+	var pathPrefix string
+	if ok := clientOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
+	serviceURL := sanitizeBaseURL(baseURL)
+	serviceURL += baseServicePath(pathPrefix, "ttab.assets", "Management")
+	urls := [3]string{
+		serviceURL + "Takedown",
+		serviceURL + "RemoveSelectorPin",
+		serviceURL + "SetAudienceDeny",
+	}
+
+	return &managementJSONClient{
+		client:      client,
+		urls:        urls,
+		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
+		opts:        clientOpts,
+	}
+}
+
+func (c *managementJSONClient) Takedown(ctx context.Context, in *TakedownRequest) (*TakedownResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "Takedown")
+	caller := c.callTakedown
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *TakedownRequest) (*TakedownResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*TakedownRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*TakedownRequest) when calling interceptor")
+					}
+					return c.callTakedown(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*TakedownResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*TakedownResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementJSONClient) callTakedown(ctx context.Context, in *TakedownRequest) (*TakedownResponse, error) {
+	out := new(TakedownResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementJSONClient) RemoveSelectorPin(ctx context.Context, in *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveSelectorPin")
+	caller := c.callRemoveSelectorPin
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveSelectorPinRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveSelectorPinRequest) when calling interceptor")
+					}
+					return c.callRemoveSelectorPin(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveSelectorPinResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveSelectorPinResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementJSONClient) callRemoveSelectorPin(ctx context.Context, in *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+	out := new(RemoveSelectorPinResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementJSONClient) SetAudienceDeny(ctx context.Context, in *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "SetAudienceDeny")
+	caller := c.callSetAudienceDeny
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*SetAudienceDenyRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*SetAudienceDenyRequest) when calling interceptor")
+					}
+					return c.callSetAudienceDeny(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*SetAudienceDenyResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*SetAudienceDenyResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementJSONClient) callSetAudienceDeny(ctx context.Context, in *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+	out := new(SetAudienceDenyResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+// =========================
+// Management Server Handler
+// =========================
+
+type managementServer struct {
+	Management
+	interceptor      twirp.Interceptor
+	hooks            *twirp.ServerHooks
+	pathPrefix       string // prefix for routing
+	jsonSkipDefaults bool   // do not include unpopulated fields (default values) in the response
+	jsonCamelCase    bool   // JSON fields are serialized as lowerCamelCase rather than keeping the original proto names
+}
+
+// NewManagementServer builds a TwirpServer that can be used as an http.Handler to handle
+// HTTP requests that are routed to the right method in the provided svc implementation.
+// The opts are twirp.ServerOption modifiers, for example twirp.WithServerHooks(hooks).
+func NewManagementServer(svc Management, opts ...interface{}) TwirpServer {
+	serverOpts := newServerOpts(opts)
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	jsonSkipDefaults := false
+	_ = serverOpts.ReadOpt("jsonSkipDefaults", &jsonSkipDefaults)
+	jsonCamelCase := false
+	_ = serverOpts.ReadOpt("jsonCamelCase", &jsonCamelCase)
+	var pathPrefix string
+	if ok := serverOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	return &managementServer{
+		Management:       svc,
+		hooks:            serverOpts.Hooks,
+		interceptor:      twirp.ChainInterceptors(serverOpts.Interceptors...),
+		pathPrefix:       pathPrefix,
+		jsonSkipDefaults: jsonSkipDefaults,
+		jsonCamelCase:    jsonCamelCase,
+	}
+}
+
+// writeError writes an HTTP response with a valid Twirp error format, and triggers hooks.
+// If err is not a twirp.Error, it will get wrapped with twirp.InternalErrorWith(err)
+func (s *managementServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
+	writeError(ctx, resp, err, s.hooks)
+}
+
+// handleRequestBodyError is used to handle error when the twirp server cannot read request
+func (s *managementServer) handleRequestBodyError(ctx context.Context, resp http.ResponseWriter, msg string, err error) {
+	if context.Canceled == ctx.Err() {
+		s.writeError(ctx, resp, twirp.NewError(twirp.Canceled, "failed to read request: context canceled"))
+		return
+	}
+	if context.DeadlineExceeded == ctx.Err() {
+		s.writeError(ctx, resp, twirp.NewError(twirp.DeadlineExceeded, "failed to read request: deadline exceeded"))
+		return
+	}
+	s.writeError(ctx, resp, twirp.WrapError(malformedRequestError(msg), err))
+}
+
+// ManagementPathPrefix is a convenience constant that may identify URL paths.
+// Should be used with caution, it only matches routes generated by Twirp Go clients,
+// with the default "/twirp" prefix and default CamelCase service and method names.
+// More info: https://twitchtv.github.io/twirp/docs/routing.html
+const ManagementPathPrefix = "/twirp/ttab.assets.Management/"
+
+func (s *managementServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithResponseWriter(ctx, resp)
+
+	var err error
+	ctx, err = callRequestReceived(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	if req.Method != "POST" {
+		msg := fmt.Sprintf("unsupported method %q (only POST is allowed)", req.Method)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+
+	// Verify path format: [<prefix>]/<package>.<Service>/<Method>
+	prefix, pkgService, method := parseTwirpPath(req.URL.Path)
+	if pkgService != "ttab.assets.Management" {
+		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+	if prefix != s.pathPrefix {
+		msg := fmt.Sprintf("invalid path prefix %q, expected %q, on path %q", prefix, s.pathPrefix, req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+
+	switch method {
+	case "Takedown":
+		s.serveTakedown(ctx, resp, req)
+		return
+	case "RemoveSelectorPin":
+		s.serveRemoveSelectorPin(ctx, resp, req)
+		return
+	case "SetAudienceDeny":
+		s.serveSetAudienceDeny(ctx, resp, req)
+		return
+	default:
+		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+}
+
+func (s *managementServer) serveTakedown(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveTakedownJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveTakedownProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *managementServer) serveTakedownJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "Takedown")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(TakedownRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Management.Takedown
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *TakedownRequest) (*TakedownResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*TakedownRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*TakedownRequest) when calling interceptor")
+					}
+					return s.Management.Takedown(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*TakedownResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*TakedownResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *TakedownResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *TakedownResponse and nil error while calling Takedown. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveTakedownProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "Takedown")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(TakedownRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Management.Takedown
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *TakedownRequest) (*TakedownResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*TakedownRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*TakedownRequest) when calling interceptor")
+					}
+					return s.Management.Takedown(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*TakedownResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*TakedownResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *TakedownResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *TakedownResponse and nil error while calling Takedown. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveRemoveSelectorPin(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveRemoveSelectorPinJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveRemoveSelectorPinProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *managementServer) serveRemoveSelectorPinJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveSelectorPin")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(RemoveSelectorPinRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Management.RemoveSelectorPin
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveSelectorPinRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveSelectorPinRequest) when calling interceptor")
+					}
+					return s.Management.RemoveSelectorPin(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveSelectorPinResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveSelectorPinResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *RemoveSelectorPinResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoveSelectorPinResponse and nil error while calling RemoveSelectorPin. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveRemoveSelectorPinProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveSelectorPin")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(RemoveSelectorPinRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Management.RemoveSelectorPin
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *RemoveSelectorPinRequest) (*RemoveSelectorPinResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveSelectorPinRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveSelectorPinRequest) when calling interceptor")
+					}
+					return s.Management.RemoveSelectorPin(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveSelectorPinResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveSelectorPinResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *RemoveSelectorPinResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoveSelectorPinResponse and nil error while calling RemoveSelectorPin. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveSetAudienceDeny(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveSetAudienceDenyJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveSetAudienceDenyProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *managementServer) serveSetAudienceDenyJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "SetAudienceDeny")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(SetAudienceDenyRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Management.SetAudienceDeny
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*SetAudienceDenyRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*SetAudienceDenyRequest) when calling interceptor")
+					}
+					return s.Management.SetAudienceDeny(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*SetAudienceDenyResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*SetAudienceDenyResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *SetAudienceDenyResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *SetAudienceDenyResponse and nil error while calling SetAudienceDeny. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveSetAudienceDenyProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "SetAudienceDeny")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(SetAudienceDenyRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Management.SetAudienceDeny
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *SetAudienceDenyRequest) (*SetAudienceDenyResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*SetAudienceDenyRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*SetAudienceDenyRequest) when calling interceptor")
+					}
+					return s.Management.SetAudienceDeny(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*SetAudienceDenyResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*SetAudienceDenyResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *SetAudienceDenyResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *SetAudienceDenyResponse and nil error while calling SetAudienceDeny. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) ServiceDescriptor() ([]byte, int) {
+	return twirpFileDescriptor0, 1
+}
+
+func (s *managementServer) ProtocGenTwirpVersion() string {
+	return "v8.1.3"
+}
+
+// PathPrefix returns the base service path, in the form: "/<prefix>/<package>.<Service>/"
+// that is everything in a Twirp route except for the <Method>. This can be used for routing,
+// for example to identify the requests that are targeted to this service in a mux.
+func (s *managementServer) PathPrefix() string {
+	return baseServicePath(s.pathPrefix, "ttab.assets", "Management")
+}
+
 // =====
 // Utils
 // =====
@@ -1096,23 +2164,38 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 276 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x51, 0x4f, 0x4b, 0xfb, 0x40,
-	0x10, 0x25, 0xbf, 0xe4, 0x57, 0xec, 0x14, 0x44, 0x16, 0x6d, 0x17, 0x45, 0x08, 0xf1, 0x12, 0xd4,
-	0x26, 0x50, 0x3f, 0x81, 0x05, 0xf1, 0xe0, 0x2d, 0x9e, 0xf4, 0x52, 0x36, 0x71, 0x9a, 0x2e, 0xad,
-	0xbb, 0x31, 0x33, 0x11, 0x7a, 0xf7, 0x83, 0xcb, 0x6e, 0x84, 0x5a, 0x11, 0x6f, 0xfb, 0xfe, 0xec,
-	0xcc, 0xbe, 0xb7, 0x70, 0xac, 0x88, 0x90, 0x29, 0x27, 0x6c, 0xdf, 0x75, 0x85, 0x59, 0xd3, 0x5a,
-	0xb6, 0x62, 0xc4, 0xac, 0xca, 0xac, 0x97, 0x92, 0x09, 0x9c, 0xdc, 0x23, 0x3f, 0xea, 0xda, 0x68,
-	0x53, 0x3f, 0xe0, 0x96, 0x0a, 0x7c, 0xeb, 0x90, 0x38, 0xb9, 0x83, 0xf1, 0x4f, 0x81, 0x1a, 0x6b,
-	0x08, 0xc5, 0x15, 0x44, 0x6b, 0xdc, 0x92, 0x0c, 0xe2, 0x30, 0x1d, 0xcd, 0x26, 0xd9, 0xb7, 0x71,
-	0xd9, 0xce, 0x5f, 0x78, 0x53, 0xf2, 0x11, 0x00, 0xec, 0x48, 0x71, 0x04, 0xe1, 0x5a, 0xbf, 0xc8,
-	0x20, 0x0e, 0xd2, 0x61, 0xe1, 0x8e, 0x62, 0x0c, 0x03, 0xc2, 0xaa, 0x45, 0x96, 0xff, 0x3c, 0xf9,
-	0x85, 0xc4, 0x39, 0x80, 0xb1, 0xbc, 0x28, 0x71, 0x69, 0x5b, 0x94, 0x61, 0x1c, 0xa4, 0x61, 0x31,
-	0x34, 0x96, 0xe7, 0x9e, 0x10, 0x67, 0xe0, 0xc0, 0x42, 0x2d, 0x19, 0x5b, 0x19, 0x79, 0xf5, 0xc0,
-	0x58, 0xbe, 0x75, 0xd8, 0x6d, 0xe9, 0x08, 0xe5, 0xff, 0x7e, 0x4b, 0x47, 0x38, 0x53, 0x10, 0xb9,
-	0x0c, 0xe2, 0x09, 0x0e, 0xf7, 0x53, 0x89, 0x64, 0xef, 0xfd, 0xbf, 0x76, 0x71, 0x7a, 0xf1, 0xa7,
-	0xa7, 0xaf, 0x65, 0x7e, 0xfd, 0x7c, 0x59, 0x6b, 0x5e, 0x75, 0x65, 0x56, 0xd9, 0xd7, 0xdc, 0x5d,
-	0xc8, 0x71, 0x83, 0xcd, 0x4a, 0x19, 0x9e, 0x36, 0x5d, 0xb9, 0xd1, 0xd5, 0x54, 0x35, 0x3a, 0xef,
-	0x87, 0x94, 0x03, 0xff, 0x17, 0x37, 0x9f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xcc, 0xdf, 0xea, 0x6b,
-	0xa3, 0x01, 0x00, 0x00,
+	// 516 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0xdf, 0x6f, 0x12, 0x41,
+	0x10, 0x0e, 0x1c, 0x56, 0x18, 0x0c, 0xe0, 0x46, 0xe1, 0x4a, 0x6d, 0x82, 0xe7, 0x2f, 0xa2, 0x16,
+	0x92, 0xfa, 0xe6, 0x5b, 0x89, 0xa6, 0x31, 0xc6, 0x68, 0x0e, 0x5f, 0x34, 0x26, 0x64, 0xef, 0x76,
+	0x4a, 0x57, 0x60, 0xf6, 0xbc, 0xdd, 0xc3, 0xf0, 0xee, 0xff, 0xe0, 0xbf, 0x6b, 0xee, 0x6e, 0x29,
+	0x3d, 0x4a, 0x6b, 0xdf, 0x6e, 0xbe, 0x99, 0xf9, 0xbe, 0xd9, 0xf9, 0x26, 0x07, 0x0f, 0xb8, 0xd6,
+	0x68, 0xf4, 0x50, 0x63, 0xbc, 0x94, 0x21, 0x0e, 0xa2, 0x58, 0x19, 0xc5, 0xea, 0xc6, 0xf0, 0x60,
+	0x90, 0xa7, 0xbc, 0x0e, 0x3c, 0x3c, 0x45, 0x33, 0x96, 0x53, 0x92, 0x34, 0xfd, 0x88, 0x2b, 0xed,
+	0xe3, 0xaf, 0x04, 0xb5, 0xf1, 0xde, 0x43, 0x7b, 0x3b, 0xa1, 0x23, 0x45, 0x1a, 0xd9, 0x2b, 0xa8,
+	0xcc, 0x70, 0xa5, 0xdd, 0x52, 0xcf, 0xe9, 0xd7, 0x8f, 0x3b, 0x83, 0x4b, 0x74, 0x83, 0x4d, 0xbd,
+	0x9f, 0x15, 0x79, 0x7f, 0x4a, 0x00, 0x1b, 0x90, 0xb5, 0xc0, 0x99, 0x49, 0xe1, 0x96, 0x7a, 0xa5,
+	0x7e, 0xcd, 0x4f, 0x3f, 0x59, 0x1b, 0xf6, 0x34, 0x86, 0x31, 0x1a, 0xb7, 0x9c, 0x81, 0x36, 0x62,
+	0x87, 0x00, 0xa4, 0xcc, 0x24, 0xc0, 0x33, 0x15, 0xa3, 0xeb, 0xf4, 0x4a, 0x7d, 0xc7, 0xaf, 0x91,
+	0x32, 0xa3, 0x0c, 0x60, 0x07, 0x90, 0x06, 0x13, 0x7e, 0x66, 0x30, 0x76, 0x2b, 0x59, 0xb6, 0x4a,
+	0xca, 0x9c, 0xa4, 0x71, 0xaa, 0x92, 0x68, 0x74, 0xef, 0xe4, 0x2a, 0x89, 0x46, 0x8f, 0xa0, 0xf9,
+	0x95, 0xcf, 0x50, 0xa8, 0xdf, 0x64, 0x1f, 0xc8, 0x1a, 0x50, 0x26, 0x6d, 0x27, 0x29, 0x93, 0x4e,
+	0x63, 0x29, 0xec, 0x10, 0x65, 0x29, 0x98, 0x0b, 0x77, 0x97, 0x18, 0x6b, 0xa9, 0x28, 0x53, 0xaf,
+	0xf9, 0xeb, 0x90, 0x3d, 0x86, 0x7b, 0x91, 0xa4, 0x89, 0xc6, 0x39, 0x86, 0x46, 0xe5, 0xf2, 0x35,
+	0xbf, 0x1e, 0x49, 0x1a, 0x5b, 0xc8, 0x13, 0xd0, 0xda, 0xe8, 0xd9, 0xbd, 0xbd, 0x80, 0xa6, 0xc0,
+	0x39, 0x1a, 0x14, 0x13, 0x15, 0xfc, 0xc4, 0xd0, 0xe4, 0xea, 0x8e, 0xdf, 0xb0, 0xf0, 0xe7, 0x1c,
+	0x4d, 0x0b, 0x25, 0x2d, 0xf9, 0x5c, 0x0a, 0x6e, 0xa4, 0xa2, 0xc9, 0xc5, 0x58, 0x8d, 0xcb, 0xf0,
+	0x07, 0xe1, 0xbd, 0x05, 0xd7, 0xc7, 0x85, 0x5a, 0xe2, 0x5a, 0xf7, 0x8b, 0xbc, 0xed, 0xf3, 0xbc,
+	0x03, 0xd8, 0xdf, 0xd1, 0x9b, 0x8f, 0xea, 0x8d, 0xa0, 0x3d, 0x46, 0x73, 0x92, 0x08, 0x89, 0x14,
+	0xe2, 0x3b, 0xa4, 0xd5, 0x9a, 0xb6, 0x05, 0x0e, 0x4f, 0x2e, 0x0c, 0xe4, 0x49, 0x66, 0xa0, 0x40,
+	0x92, 0x98, 0x93, 0x57, 0x7d, 0x1b, 0x79, 0xfb, 0xd0, 0xb9, 0xc2, 0x91, 0xd3, 0x1f, 0x73, 0xa8,
+	0xa4, 0x17, 0xc5, 0xbe, 0x41, 0xa3, 0x78, 0x63, 0xcc, 0x2b, 0x5c, 0xd3, 0xce, 0xcb, 0xec, 0x3e,
+	0xb9, 0xb1, 0xc6, 0x4a, 0xfc, 0x2d, 0x03, 0x7c, 0xe2, 0xc4, 0xa7, 0xb8, 0x40, 0x32, 0xec, 0x14,
+	0xaa, 0x6b, 0x3f, 0xd8, 0xa3, 0x42, 0xff, 0xd6, 0x59, 0x74, 0x0f, 0xaf, 0xc9, 0x5a, 0x13, 0x03,
+	0xb8, 0x7f, 0x65, 0x6d, 0xec, 0x59, 0xa1, 0xe7, 0x3a, 0x4b, 0xba, 0xcf, 0xff, 0x57, 0x66, 0x35,
+	0x7e, 0x40, 0x73, 0x6b, 0x73, 0xac, 0xf8, 0xe6, 0xdd, 0xde, 0x74, 0x9f, 0xde, 0x5c, 0x94, 0xb3,
+	0x8f, 0x5e, 0x7f, 0x7f, 0x39, 0x95, 0xe6, 0x3c, 0x09, 0x06, 0xa1, 0x5a, 0x0c, 0xd3, 0x8e, 0x21,
+	0xce, 0x31, 0x3a, 0xe7, 0x64, 0x8e, 0xa2, 0x24, 0x98, 0xcb, 0xf0, 0x88, 0x47, 0x72, 0x98, 0xb3,
+	0x04, 0x7b, 0xd9, 0x3f, 0xe3, 0xcd, 0xbf, 0x00, 0x00, 0x00, 0xff, 0xff, 0x74, 0xef, 0x7c, 0x46,
+	0x4b, 0x04, 0x00, 0x00,
 }

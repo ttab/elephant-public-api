@@ -36,3 +36,64 @@ message SigningKey {
   // for the long-lived key that signs permanent public URLs.
   string use = 5;
 }
+
+// Management exposes the take-down operations: one authorized call instead
+// of a runbook of raw AWS actions, callable by editorial tooling or event
+// handlers as well as by humans. Note that in the ingest model a take-down
+// only stops new deliveries — customers already hold ingested copies, so
+// the take-down workflow is primarily a customer-notification process with
+// this RPC as one step.
+service Management {
+  // Takedown purges an asset's derivatives from the derivatives bucket
+  // and invalidates its CDN paths. Optionally pins the asset to a single
+  // selector at the edge (the retroactive-crop kill switch): with a pin
+  // set, requests for any other selector are rejected regardless of token
+  // validity.
+  rpc Takedown(TakedownRequest) returns (TakedownResponse);
+  // RemoveSelectorPin removes a selector pin. Safe once every token
+  // minted before the pin was set has expired (the maximum token
+  // lifetime is 30 days) and issuance-time enforcement is in place.
+  rpc RemoveSelectorPin(RemoveSelectorPinRequest) returns (RemoveSelectorPinResponse);
+  // SetAudienceDeny adds or removes an audience deny-list entry at the
+  // edge: coarse revocation of every URL signed for the audience.
+  rpc SetAudienceDeny(SetAudienceDenyRequest) returns (SetAudienceDenyResponse);
+}
+
+message TakedownRequest {
+  // Ns is the source namespace of the asset.
+  string ns = 1;
+  // Id of the asset in the namespace's id scheme.
+  string id = 2;
+  // Version narrows the purge to a single version. Optional; the default
+  // purges every version.
+  string version = 3;
+  // PinSelector pins the asset to this selector string at the edge
+  // (e.g. "c-0.2-0.2-0.5-0.5"). Optional.
+  string pin_selector = 4;
+}
+
+message TakedownResponse {
+  // DeletedObjects is the number of derivatives removed from the bucket.
+  int64 deleted_objects = 1;
+  // InvalidationId of the CDN invalidation, empty when the service runs
+  // without a CDN distribution configured.
+  string invalidation_id = 2;
+}
+
+message RemoveSelectorPinRequest {
+  // Ns is the source namespace of the asset.
+  string ns = 1;
+  // Id of the asset in the namespace's id scheme.
+  string id = 2;
+}
+
+message RemoveSelectorPinResponse {}
+
+message SetAudienceDenyRequest {
+  // Aud is the audience identifier.
+  string aud = 1;
+  // Denied adds the deny entry when true and removes it when false.
+  bool denied = 2;
+}
+
+message SetAudienceDenyResponse {}

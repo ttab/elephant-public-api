@@ -15,6 +15,38 @@
         },
         "type": "object"
       },
+      "ttab.assets.RemoveSelectorPinRequest": {
+        "properties": {
+          "id": {
+            "description": "Id of the asset in the namespace's id scheme.",
+            "type": "string"
+          },
+          "ns": {
+            "description": "Ns is the source namespace of the asset.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.RemoveSelectorPinResponse": {
+        "type": "object"
+      },
+      "ttab.assets.SetAudienceDenyRequest": {
+        "properties": {
+          "aud": {
+            "description": "Aud is the audience identifier.",
+            "type": "string"
+          },
+          "denied": {
+            "description": "Denied adds the deny entry when true and removes it when false.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.SetAudienceDenyResponse": {
+        "type": "object"
+      },
       "ttab.assets.SigningKey": {
         "properties": {
           "kid": {
@@ -35,6 +67,40 @@
           },
           "use": {
             "description": "Use is \"delivery\" for routinely rotated delivery keys or \"public\" for the long-lived key that signs permanent public URLs.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.TakedownRequest": {
+        "properties": {
+          "id": {
+            "description": "Id of the asset in the namespace's id scheme.",
+            "type": "string"
+          },
+          "ns": {
+            "description": "Ns is the source namespace of the asset.",
+            "type": "string"
+          },
+          "pin_selector": {
+            "description": "PinSelector pins the asset to this selector string at the edge (e.g. \"c-0.2-0.2-0.5-0.5\"). Optional.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version narrows the purge to a single version. Optional; the default purges every version.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.TakedownResponse": {
+        "properties": {
+          "deleted_objects": {
+            "description": "DeletedObjects is the number of derivatives removed from the bucket.",
+            "type": "integer"
+          },
+          "invalidation_id": {
+            "description": "InvalidationId of the CDN invalidation, empty when the service runs without a CDN distribution configured.",
             "type": "string"
           }
         },
@@ -92,6 +158,120 @@
           "Keys"
         ]
       }
+    },
+    "/twirp/ttab.assets.Management/RemoveSelectorPin": {
+      "post": {
+        "description": "RemoveSelectorPin removes a selector pin. Safe once every token minted before the pin was set has expired (the maximum token lifetime is 30 days) and issuance-time enforcement is in place.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.RemoveSelectorPinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.RemoveSelectorPinResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RemoveSelectorPin",
+        "tags": [
+          "Management"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/SetAudienceDeny": {
+      "post": {
+        "description": "SetAudienceDeny adds or removes an audience deny-list entry at the edge: coarse revocation of every URL signed for the audience.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.SetAudienceDenyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.SetAudienceDenyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SetAudienceDeny",
+        "tags": [
+          "Management"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/Takedown": {
+      "post": {
+        "description": "Takedown purges an asset's derivatives from the derivatives bucket and invalidates its CDN paths. Optionally pins the asset to a single selector at the edge (the retroactive-crop kill switch): with a pin set, requests for any other selector are rejected regardless of token validity.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.TakedownRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.TakedownResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Takedown",
+        "tags": [
+          "Management"
+        ]
+      }
     }
   },
   "servers": [
@@ -106,6 +286,10 @@
     {
       "description": "Keys serves the asset CDN signing keys to URL-minting services. The asset service is the key authority: it generates and rotates the keys, and both signers and the CDN edge get key material from it, so they can never disagree. Callers authorize with normal client credentials — a scope in their access token grants the key-fetch method, nothing more.",
       "name": "Keys"
+    },
+    {
+      "description": "Management exposes the take-down operations: one authorized call instead of a runbook of raw AWS actions, callable by editorial tooling or event handlers as well as by humans. Note that in the ingest model a take-down only stops new deliveries — customers already hold ingested copies, so the take-down workflow is primarily a customer-notification process with this RPC as one step.",
+      "name": "Management"
     }
   ]
 }
