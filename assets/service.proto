@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package ttab.assets;
+
+option go_package = "github.com/ttab/elephant-public-api/assets";
+
+// Keys serves the asset CDN signing keys to URL-minting services. The
+// asset service is the key authority: it generates and rotates the keys,
+// and both signers and the CDN edge get key material from it, so they can
+// never disagree. Callers authorize with normal client credentials — a
+// scope in their access token grants the key-fetch method, nothing more.
+service Keys {
+  // GetSigningKeys returns the current signing key set: active, upcoming
+  // (pre-distributed before their not_before), and recently expired keys.
+  // Signers cache the set and select the delivery key whose validity
+  // window covers the current time.
+  rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
+}
+
+message GetSigningKeysRequest {}
+
+message GetSigningKeysResponse {
+  repeated SigningKey keys = 1;
+}
+
+message SigningKey {
+  // Kid is the key identifier carried in minted tokens.
+  string kid = 1;
+  // Secret is the hex-encoded HMAC key material.
+  string secret = 2;
+  // NotBefore is the start of the validity window, unix seconds.
+  int64 not_before = 3;
+  // NotAfter is the end of the validity window, unix seconds.
+  int64 not_after = 4;
+  // Use is "delivery" for routinely rotated delivery keys or "public"
+  // for the long-lived key that signs permanent public URLs.
+  string use = 5;
+}

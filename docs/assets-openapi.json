@@ -1,0 +1,111 @@
+{
+  "components": {
+    "schemas": {
+      "ttab.assets.GetSigningKeysRequest": {
+        "type": "object"
+      },
+      "ttab.assets.GetSigningKeysResponse": {
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.assets.SigningKey"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.SigningKey": {
+        "properties": {
+          "kid": {
+            "description": "Kid is the key identifier carried in minted tokens.",
+            "type": "string"
+          },
+          "not_after": {
+            "description": "NotAfter is the end of the validity window, unix seconds.",
+            "type": "integer"
+          },
+          "not_before": {
+            "description": "NotBefore is the start of the validity window, unix seconds.",
+            "type": "integer"
+          },
+          "secret": {
+            "description": "Secret is the hex-encoded HMAC key material.",
+            "type": "string"
+          },
+          "use": {
+            "description": "Use is \"delivery\" for routinely rotated delivery keys or \"public\" for the long-lived key that signs permanent public URLs.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "assets API",
+    "version": "v0.0.0"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/twirp/ttab.assets.Keys/GetSigningKeys": {
+      "post": {
+        "description": "GetSigningKeys returns the current signing key set: active, upcoming (pre-distributed before their not_before), and recently expired keys. Signers cache the set and select the delivery key whose validity window covers the current time.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.GetSigningKeysRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.GetSigningKeysResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetSigningKeys",
+        "tags": [
+          "Keys"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://assets.api.tt.se"
+    },
+    {
+      "url": "https://assets.api.stage.tt.se"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Keys serves the asset CDN signing keys to URL-minting services. The asset service is the key authority: it generates and rotates the keys, and both signers and the CDN edge get key material from it, so they can never disagree. Callers authorize with normal client credentials — a scope in their access token grants the key-fetch method, nothing more.",
+      "name": "Keys"
+    }
+  ]
+}
