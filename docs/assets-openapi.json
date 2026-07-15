@@ -123,7 +123,7 @@
       "ttab.assets.Variant": {
         "properties": {
           "classes": {
-            "description": "Classes are the access classes the variant belongs to; a token's scope must name one of them (or \"all\") for the edge to serve the variant.",
+            "description": "Classes are the class names available as a {variant}-{class} suffix, e.g. \"wm\" makes {variant}-wm a public watermarked rendition.",
             "items": {
               "type": "string"
             },
@@ -144,6 +144,17 @@
           "name": {
             "description": "Name of the variant, used as the variant path segment in asset URLs.",
             "type": "string"
+          },
+          "public": {
+            "description": "Public marks the variant as a public derivative: reachable by any valid signature and usable with non-expiring (exp=0) tokens.",
+            "type": "boolean"
+          },
+          "scopes": {
+            "description": "Scopes are the named access scopes that grant access to the variant (in addition to the reserved _all scope).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"

@@ -47,10 +47,15 @@ message Variant {
   // Fit controls how an image is fitted to the bounding box. Only
   // "inside" is defined: scale down to fit, never upscale.
   string fit = 4;
-  // Classes are the access classes the variant belongs to; a token's
-  // scope must name one of them (or "all") for the edge to serve the
-  // variant.
-  repeated string classes = 5;
+  // Public marks the variant as a public derivative: reachable by any
+  // valid signature and usable with non-expiring (exp=0) tokens.
+  bool public = 5;
+  // Scopes are the named access scopes that grant access to the variant
+  // (in addition to the reserved _all scope).
+  repeated string scopes = 6;
+  // Classes are the class names available as a {variant}-{class} suffix,
+  // e.g. "wm" makes {variant}-wm a public watermarked rendition.
+  repeated string classes = 7;
 }
 
 message SigningKey {
