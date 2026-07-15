@@ -57,6 +57,11 @@ service Management {
   // SetAudienceDeny adds or removes an audience deny-list entry at the
   // edge: coarse revocation of every URL signed for the audience.
   rpc SetAudienceDeny(SetAudienceDenyRequest) returns (SetAudienceDenyResponse);
+  // WarmIntermediate queues population of the cached intermediate for an
+  // asset, so the first derivative request doesn't pay the original
+  // fetch. Fire-and-forget: the response reports queueing, not
+  // completion. Requires the asset_warm or asset_admin scope.
+  rpc WarmIntermediate(WarmIntermediateRequest) returns (WarmIntermediateResponse);
 }
 
 message TakedownRequest {
@@ -97,3 +102,20 @@ message SetAudienceDenyRequest {
 }
 
 message SetAudienceDenyResponse {}
+
+message WarmIntermediateRequest {
+  // Ns is the source namespace of the asset.
+  string ns = 1;
+  // Id of the asset in the namespace's id scheme.
+  string id = 2;
+  // Version of the asset; defaults to the current version ("0").
+  string version = 3;
+}
+
+message WarmIntermediateResponse {
+  // State is "queued" (population is pending, including when it already
+  // was), "cached" (an intermediate already exists), or "disabled" (the
+  // namespace doesn't use the intermediate cache — not an error, so
+  // fire-and-forget callers stay quiet across config changes).
+  string state = 1;
+}

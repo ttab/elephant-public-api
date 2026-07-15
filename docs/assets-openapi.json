@@ -105,6 +105,32 @@
           }
         },
         "type": "object"
+      },
+      "ttab.assets.WarmIntermediateRequest": {
+        "properties": {
+          "id": {
+            "description": "Id of the asset in the namespace's id scheme.",
+            "type": "string"
+          },
+          "ns": {
+            "description": "Ns is the source namespace of the asset.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the asset; defaults to the current version (\"0\").",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.WarmIntermediateResponse": {
+        "properties": {
+          "state": {
+            "description": "State is \"queued\" (population is pending, including when it already was), \"cached\" (an intermediate already exists), or \"disabled\" (the namespace doesn't use the intermediate cache — not an error, so fire-and-forget callers stay quiet across config changes).",
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -268,6 +294,44 @@
           }
         ],
         "summary": "Takedown",
+        "tags": [
+          "Management"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/WarmIntermediate": {
+      "post": {
+        "description": "WarmIntermediate queues population of the cached intermediate for an asset, so the first derivative request doesn't pay the original fetch. Fire-and-forget: the response reports queueing, not completion. Requires the asset_warm or asset_admin scope.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.WarmIntermediateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.WarmIntermediateResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "WarmIntermediate",
         "tags": [
           "Management"
         ]
