@@ -15,6 +15,20 @@
         },
         "type": "object"
       },
+      "ttab.assets.GetVariantsRequest": {
+        "type": "object"
+      },
+      "ttab.assets.GetVariantsResponse": {
+        "properties": {
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.assets.Variant"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "ttab.assets.RemoveSelectorPinRequest": {
         "properties": {
           "id": {
@@ -106,6 +120,34 @@
         },
         "type": "object"
       },
+      "ttab.assets.Variant": {
+        "properties": {
+          "classes": {
+            "description": "Classes are the access classes the variant belongs to; a token's scope must name one of them (or \"all\") for the edge to serve the variant.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fit": {
+            "description": "Fit controls how an image is fitted to the bounding box. Only \"inside\" is defined: scale down to fit, never upscale.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Kind is the asset kind the variant applies to, e.g. \"image\".",
+            "type": "string"
+          },
+          "max": {
+            "description": "Max is the bounding box in pixels (longest side) for image variants.",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the variant, used as the variant path segment in asset URLs.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ttab.assets.WarmIntermediateRequest": {
         "properties": {
           "id": {
@@ -180,6 +222,44 @@
           }
         ],
         "summary": "GetSigningKeys",
+        "tags": [
+          "Keys"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Keys/GetVariants": {
+      "post": {
+        "description": "GetVariants returns the configured rendition variants. The asset service owns variant geometry, so URL-minting services fetch it from here — caching and refreshing in the background like the signing keys — to learn which variants exist and to compute rendition size hints from an asset's source dimensions.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.GetVariantsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.GetVariantsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetVariants",
         "tags": [
           "Keys"
         ]
@@ -348,7 +428,7 @@
   ],
   "tags": [
     {
-      "description": "Keys serves the asset CDN signing keys to URL-minting services. The asset service is the key authority: it generates and rotates the keys, and both signers and the CDN edge get key material from it, so they can never disagree. Callers authorize with normal client credentials — a scope in their access token grants the key-fetch method, nothing more.",
+      "description": "Keys serves the asset CDN signing keys and delivery configuration to URL-minting services. The asset service is the key authority: it generates and rotates the keys, and both signers and the CDN edge get key material from it, so they can never disagree. Callers authorize with normal client credentials — a scope in their access token grants these methods, nothing more.",
       "name": "Keys"
     },
     {

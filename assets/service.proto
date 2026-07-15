@@ -4,23 +4,53 @@ package ttab.assets;
 
 option go_package = "github.com/ttab/elephant-public-api/assets";
 
-// Keys serves the asset CDN signing keys to URL-minting services. The
-// asset service is the key authority: it generates and rotates the keys,
-// and both signers and the CDN edge get key material from it, so they can
-// never disagree. Callers authorize with normal client credentials — a
-// scope in their access token grants the key-fetch method, nothing more.
+// Keys serves the asset CDN signing keys and delivery configuration to
+// URL-minting services. The asset service is the key authority: it
+// generates and rotates the keys, and both signers and the CDN edge get
+// key material from it, so they can never disagree. Callers authorize
+// with normal client credentials — a scope in their access token grants
+// these methods, nothing more.
 service Keys {
   // GetSigningKeys returns the current signing key set: active, upcoming
   // (pre-distributed before their not_before), and recently expired keys.
   // Signers cache the set and select the delivery key whose validity
   // window covers the current time.
   rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
+
+  // GetVariants returns the configured rendition variants. The asset
+  // service owns variant geometry, so URL-minting services fetch it from
+  // here — caching and refreshing in the background like the signing
+  // keys — to learn which variants exist and to compute rendition size
+  // hints from an asset's source dimensions.
+  rpc GetVariants(GetVariantsRequest) returns (GetVariantsResponse);
 }
 
 message GetSigningKeysRequest {}
 
 message GetSigningKeysResponse {
   repeated SigningKey keys = 1;
+}
+
+message GetVariantsRequest {}
+
+message GetVariantsResponse {
+  repeated Variant variants = 1;
+}
+
+message Variant {
+  // Name of the variant, used as the variant path segment in asset URLs.
+  string name = 1;
+  // Kind is the asset kind the variant applies to, e.g. "image".
+  string kind = 2;
+  // Max is the bounding box in pixels (longest side) for image variants.
+  int64 max = 3;
+  // Fit controls how an image is fitted to the bounding box. Only
+  // "inside" is defined: scale down to fit, never upscale.
+  string fit = 4;
+  // Classes are the access classes the variant belongs to; a token's
+  // scope must name one of them (or "all") for the edge to serve the
+  // variant.
+  repeated string classes = 5;
 }
 
 message SigningKey {
