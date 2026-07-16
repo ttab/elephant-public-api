@@ -253,7 +253,7 @@
             "type": "string"
           },
           "url": {
-            "description": "Url is a ready-to-use path: the prefix, the optional \"{variant}.{ext}\" tail, and \"?s={token}\". Prepend the CDN host.",
+            "description": "Url is the ready-to-use asset URL: the prefix, the optional \"{variant}.{ext}\" tail, and \"?s={token}\". Absolute when the service is configured with its external base URL (CDN_BASE_URL); otherwise a path to which the caller prepends the CDN host.",
             "type": "string"
           }
         },

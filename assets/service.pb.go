@@ -145,8 +145,10 @@ type SignURLResponse struct {
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// Path is the signed path prefix, "/v1/{ns}/{id}/{version}/{selector}/".
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// Url is a ready-to-use path: the prefix, the optional "{variant}.{ext}"
-	// tail, and "?s={token}". Prepend the CDN host.
+	// Url is the ready-to-use asset URL: the prefix, the optional
+	// "{variant}.{ext}" tail, and "?s={token}". Absolute when the service is
+	// configured with its external base URL (CDN_BASE_URL); otherwise a path to
+	// which the caller prepends the CDN host.
 	Url string `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	// Kid is the key that signed the token.
 	Kid string `protobuf:"bytes,4,opt,name=kid,proto3" json:"kid,omitempty"`
