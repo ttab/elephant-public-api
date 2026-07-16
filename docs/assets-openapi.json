@@ -12,6 +12,31 @@
       "ttab.assets.AddMetadataFieldResponse": {
         "type": "object"
       },
+      "ttab.assets.DroppedField": {
+        "description": "DroppedField is one metadata field a crop would drop, as reported by InspectCropMetadata.",
+        "properties": {
+          "addable": {
+            "description": "Addable is true when the field can be preserved by adding it to the whitelist; false for structural drops (thumbnails, binary payloads) that are dropped regardless of configuration.",
+            "type": "boolean"
+          },
+          "field": {
+            "$ref": "#/components/schemas/ttab.assets.MetadataField"
+          },
+          "id": {
+            "description": "Id is the raw underlying identifier, always set (e.g. \"ifd0/0x9291\", \"2:0x64\", or an XMP \"namespace local\").",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Reason is why the field drops (\"not in whitelist\", \"binary value\", \"embedded thumbnail\", ...).",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value is a readable representation of the field's value, truncated.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ttab.assets.GetSigningKeysRequest": {
         "type": "object"
       },
@@ -40,6 +65,35 @@
         },
         "type": "object"
       },
+      "ttab.assets.InspectCropMetadataRequest": {
+        "properties": {
+          "id": {
+            "description": "Id of the asset in the namespace's id scheme.",
+            "type": "string"
+          },
+          "ns": {
+            "description": "Ns is the source namespace of the asset.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the asset; defaults to the current version (\"0\").",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.InspectCropMetadataResponse": {
+        "properties": {
+          "dropped": {
+            "description": "Dropped lists the fields a crop would drop, most useful first is not guaranteed — clients should present them grouped by kind.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.assets.DroppedField"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "ttab.assets.ListMetadataFieldsRequest": {
         "type": "object"
       },
@@ -58,6 +112,10 @@
       "ttab.assets.MetadataField": {
         "description": "MetadataField is one recognized field kept on cropped renditions beyond the built-in whitelist. Exactly one group of fields applies per kind.",
         "properties": {
+          "alias": {
+            "description": "Alias references a built-in EXIF/IPTC field by name (e.g. \"DateTimeOriginal\", \"By-line\"), an alternative to spelling out kind, ifd, tag, or dataset when adding a field. Aliases are defined in code and cannot be created through the API. Ignored for XMP.",
+            "type": "string"
+          },
           "dataset": {
             "description": "Dataset is the IPTC-IIM record-2 dataset number for kind \"iptc\".",
             "type": "integer"
@@ -384,6 +442,44 @@
           }
         ],
         "summary": "AddMetadataField",
+        "tags": [
+          "Management"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/InspectCropMetadata": {
+      "post": {
+        "description": "InspectCropMetadata fetches an asset and reports the metadata fields a crop would drop under the current whitelist — known EXIF/IPTC fields with their alias, everything else with its raw id, each with a readable value. A diagnostic for \"why did field X disappear from a cropped image\". Requires asset_admin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.InspectCropMetadataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.InspectCropMetadataResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "InspectCropMetadata",
         "tags": [
           "Management"
         ]

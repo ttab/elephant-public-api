@@ -108,6 +108,12 @@ service Management {
   // RemoveMetadataField removes a configured metadata field. Built-in
   // defaults cannot be removed. Requires asset_admin.
   rpc RemoveMetadataField(RemoveMetadataFieldRequest) returns (RemoveMetadataFieldResponse);
+  // InspectCropMetadata fetches an asset and reports the metadata fields a
+  // crop would drop under the current whitelist — known EXIF/IPTC fields with
+  // their alias, everything else with its raw id, each with a readable value.
+  // A diagnostic for "why did field X disappear from a cropped image".
+  // Requires asset_admin.
+  rpc InspectCropMetadata(InspectCropMetadataRequest) returns (InspectCropMetadataResponse);
 }
 
 // MetadataField is one recognized field kept on cropped renditions beyond the
@@ -131,6 +137,47 @@ message MetadataField {
   // Form is the XMP RDF shape for kind "xmp": "simple", "alt", "seq", or
   // "bag".
   string form = 8;
+  // Alias references a built-in EXIF/IPTC field by name (e.g.
+  // "DateTimeOriginal", "By-line"), an alternative to spelling out kind, ifd,
+  // tag, or dataset when adding a field. Aliases are defined in code and
+  // cannot be created through the API. Ignored for XMP.
+  string alias = 9;
+}
+
+// DroppedField is one metadata field a crop would drop, as reported by
+// InspectCropMetadata.
+message DroppedField {
+  // Field is the concrete descriptor; pass it straight back to
+  // AddMetadataField to start preserving it (when addable). Its alias holds
+  // the human name for known EXIF/IPTC fields, empty for wholly unknown ones.
+  MetadataField field = 1;
+  // Id is the raw underlying identifier, always set (e.g. "ifd0/0x9291",
+  // "2:0x64", or an XMP "namespace local").
+  string id = 2;
+  // Value is a readable representation of the field's value, truncated.
+  string value = 3;
+  // Reason is why the field drops ("not in whitelist", "binary value",
+  // "embedded thumbnail", ...).
+  string reason = 4;
+  // Addable is true when the field can be preserved by adding it to the
+  // whitelist; false for structural drops (thumbnails, binary payloads) that
+  // are dropped regardless of configuration.
+  bool addable = 5;
+}
+
+message InspectCropMetadataRequest {
+  // Ns is the source namespace of the asset.
+  string ns = 1;
+  // Id of the asset in the namespace's id scheme.
+  string id = 2;
+  // Version of the asset; defaults to the current version ("0").
+  string version = 3;
+}
+
+message InspectCropMetadataResponse {
+  // Dropped lists the fields a crop would drop, most useful first is not
+  // guaranteed — clients should present them grouped by kind.
+  repeated DroppedField dropped = 1;
 }
 
 message ListMetadataFieldsRequest {}
