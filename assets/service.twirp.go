@@ -847,6 +847,20 @@ type Management interface {
 	// fetch. Fire-and-forget: the response reports queueing, not
 	// completion. Requires the asset_warm or asset_admin scope.
 	WarmIntermediate(context.Context, *WarmIntermediateRequest) (*WarmIntermediateResponse, error)
+
+	// ListMetadataFields returns the operator-configured metadata fields that
+	// extend the built-in cropped-rendition whitelist (spec §7.5).
+	ListMetadataFields(context.Context, *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error)
+
+	// AddMetadataField adds (or updates) one metadata field to preserve on
+	// cropped renditions, taking effect without a redeploy. It only widens the
+	// recognized-field set; the structural safety filters (no thumbnails, no
+	// binary payloads) are enforced in code regardless. Requires asset_admin.
+	AddMetadataField(context.Context, *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error)
+
+	// RemoveMetadataField removes a configured metadata field. Built-in
+	// defaults cannot be removed. Requires asset_admin.
+	RemoveMetadataField(context.Context, *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error)
 }
 
 // ==========================
@@ -855,7 +869,7 @@ type Management interface {
 
 type managementProtobufClient struct {
 	client      HTTPClient
-	urls        [4]string
+	urls        [7]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -883,11 +897,14 @@ func NewManagementProtobufClient(baseURL string, client HTTPClient, opts ...twir
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "ttab.assets", "Management")
-	urls := [4]string{
+	urls := [7]string{
 		serviceURL + "Takedown",
 		serviceURL + "RemoveSelectorPin",
 		serviceURL + "SetAudienceDeny",
 		serviceURL + "WarmIntermediate",
+		serviceURL + "ListMetadataFields",
+		serviceURL + "AddMetadataField",
+		serviceURL + "RemoveMetadataField",
 	}
 
 	return &managementProtobufClient{
@@ -1082,13 +1099,151 @@ func (c *managementProtobufClient) callWarmIntermediate(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *managementProtobufClient) ListMetadataFields(ctx context.Context, in *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "ListMetadataFields")
+	caller := c.callListMetadataFields
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListMetadataFieldsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListMetadataFieldsRequest) when calling interceptor")
+					}
+					return c.callListMetadataFields(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListMetadataFieldsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListMetadataFieldsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementProtobufClient) callListMetadataFields(ctx context.Context, in *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+	out := new(ListMetadataFieldsResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementProtobufClient) AddMetadataField(ctx context.Context, in *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "AddMetadataField")
+	caller := c.callAddMetadataField
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*AddMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*AddMetadataFieldRequest) when calling interceptor")
+					}
+					return c.callAddMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*AddMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*AddMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementProtobufClient) callAddMetadataField(ctx context.Context, in *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+	out := new(AddMetadataFieldResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementProtobufClient) RemoveMetadataField(ctx context.Context, in *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveMetadataField")
+	caller := c.callRemoveMetadataField
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveMetadataFieldRequest) when calling interceptor")
+					}
+					return c.callRemoveMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementProtobufClient) callRemoveMetadataField(ctx context.Context, in *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+	out := new(RemoveMetadataFieldResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 // ======================
 // Management JSON Client
 // ======================
 
 type managementJSONClient struct {
 	client      HTTPClient
-	urls        [4]string
+	urls        [7]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -1116,11 +1271,14 @@ func NewManagementJSONClient(baseURL string, client HTTPClient, opts ...twirp.Cl
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "ttab.assets", "Management")
-	urls := [4]string{
+	urls := [7]string{
 		serviceURL + "Takedown",
 		serviceURL + "RemoveSelectorPin",
 		serviceURL + "SetAudienceDeny",
 		serviceURL + "WarmIntermediate",
+		serviceURL + "ListMetadataFields",
+		serviceURL + "AddMetadataField",
+		serviceURL + "RemoveMetadataField",
 	}
 
 	return &managementJSONClient{
@@ -1315,6 +1473,144 @@ func (c *managementJSONClient) callWarmIntermediate(ctx context.Context, in *War
 	return out, nil
 }
 
+func (c *managementJSONClient) ListMetadataFields(ctx context.Context, in *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "ListMetadataFields")
+	caller := c.callListMetadataFields
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListMetadataFieldsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListMetadataFieldsRequest) when calling interceptor")
+					}
+					return c.callListMetadataFields(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListMetadataFieldsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListMetadataFieldsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementJSONClient) callListMetadataFields(ctx context.Context, in *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+	out := new(ListMetadataFieldsResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementJSONClient) AddMetadataField(ctx context.Context, in *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "AddMetadataField")
+	caller := c.callAddMetadataField
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*AddMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*AddMetadataFieldRequest) when calling interceptor")
+					}
+					return c.callAddMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*AddMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*AddMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementJSONClient) callAddMetadataField(ctx context.Context, in *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+	out := new(AddMetadataFieldResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *managementJSONClient) RemoveMetadataField(ctx context.Context, in *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "ttab.assets")
+	ctx = ctxsetters.WithServiceName(ctx, "Management")
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveMetadataField")
+	caller := c.callRemoveMetadataField
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveMetadataFieldRequest) when calling interceptor")
+					}
+					return c.callRemoveMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *managementJSONClient) callRemoveMetadataField(ctx context.Context, in *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+	out := new(RemoveMetadataFieldResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 // =========================
 // Management Server Handler
 // =========================
@@ -1423,6 +1719,15 @@ func (s *managementServer) ServeHTTP(resp http.ResponseWriter, req *http.Request
 		return
 	case "WarmIntermediate":
 		s.serveWarmIntermediate(ctx, resp, req)
+		return
+	case "ListMetadataFields":
+		s.serveListMetadataFields(ctx, resp, req)
+		return
+	case "AddMetadataField":
+		s.serveAddMetadataField(ctx, resp, req)
+		return
+	case "RemoveMetadataField":
+		s.serveRemoveMetadataField(ctx, resp, req)
 		return
 	default:
 		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
@@ -2151,6 +2456,546 @@ func (s *managementServer) serveWarmIntermediateProtobuf(ctx context.Context, re
 	callResponseSent(ctx, s.hooks)
 }
 
+func (s *managementServer) serveListMetadataFields(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveListMetadataFieldsJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveListMetadataFieldsProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *managementServer) serveListMetadataFieldsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListMetadataFields")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(ListMetadataFieldsRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Management.ListMetadataFields
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListMetadataFieldsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListMetadataFieldsRequest) when calling interceptor")
+					}
+					return s.Management.ListMetadataFields(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListMetadataFieldsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListMetadataFieldsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListMetadataFieldsResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListMetadataFieldsResponse and nil error while calling ListMetadataFields. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveListMetadataFieldsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListMetadataFields")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(ListMetadataFieldsRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Management.ListMetadataFields
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListMetadataFieldsRequest) (*ListMetadataFieldsResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListMetadataFieldsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListMetadataFieldsRequest) when calling interceptor")
+					}
+					return s.Management.ListMetadataFields(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListMetadataFieldsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListMetadataFieldsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListMetadataFieldsResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListMetadataFieldsResponse and nil error while calling ListMetadataFields. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveAddMetadataField(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveAddMetadataFieldJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveAddMetadataFieldProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *managementServer) serveAddMetadataFieldJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "AddMetadataField")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(AddMetadataFieldRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Management.AddMetadataField
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*AddMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*AddMetadataFieldRequest) when calling interceptor")
+					}
+					return s.Management.AddMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*AddMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*AddMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *AddMetadataFieldResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *AddMetadataFieldResponse and nil error while calling AddMetadataField. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveAddMetadataFieldProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "AddMetadataField")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(AddMetadataFieldRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Management.AddMetadataField
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *AddMetadataFieldRequest) (*AddMetadataFieldResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*AddMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*AddMetadataFieldRequest) when calling interceptor")
+					}
+					return s.Management.AddMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*AddMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*AddMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *AddMetadataFieldResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *AddMetadataFieldResponse and nil error while calling AddMetadataField. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveRemoveMetadataField(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveRemoveMetadataFieldJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveRemoveMetadataFieldProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *managementServer) serveRemoveMetadataFieldJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveMetadataField")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(RemoveMetadataFieldRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Management.RemoveMetadataField
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveMetadataFieldRequest) when calling interceptor")
+					}
+					return s.Management.RemoveMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *RemoveMetadataFieldResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoveMetadataFieldResponse and nil error while calling RemoveMetadataField. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *managementServer) serveRemoveMetadataFieldProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "RemoveMetadataField")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(RemoveMetadataFieldRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Management.RemoveMetadataField
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *RemoveMetadataFieldRequest) (*RemoveMetadataFieldResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*RemoveMetadataFieldRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*RemoveMetadataFieldRequest) when calling interceptor")
+					}
+					return s.Management.RemoveMetadataField(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*RemoveMetadataFieldResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*RemoveMetadataFieldResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *RemoveMetadataFieldResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoveMetadataFieldResponse and nil error while calling RemoveMetadataField. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
 func (s *managementServer) ServiceDescriptor() ([]byte, int) {
 	return twirpFileDescriptor0, 1
 }
@@ -2732,49 +3577,63 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 696 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x55, 0x51, 0x6f, 0xd3, 0x30,
-	0x10, 0x56, 0x9a, 0x6e, 0x6b, 0xaf, 0xa8, 0x2b, 0xa6, 0xac, 0x59, 0xc7, 0x44, 0x09, 0x0c, 0x2a,
-	0x60, 0xed, 0x34, 0xde, 0x78, 0xdb, 0x04, 0xaa, 0x26, 0x84, 0x98, 0x52, 0x04, 0x02, 0x21, 0x55,
-	0x6e, 0x72, 0xeb, 0x4c, 0x5b, 0x3b, 0xc4, 0x4e, 0x61, 0xef, 0xfc, 0x0f, 0x7e, 0x04, 0x7f, 0x8e,
-	0x47, 0xe4, 0xc4, 0xe9, 0x96, 0x6e, 0xdd, 0x90, 0x78, 0xbb, 0xfb, 0xfc, 0xdd, 0x77, 0x5f, 0xec,
-	0xb3, 0x03, 0x75, 0x2a, 0x25, 0x2a, 0xd9, 0x95, 0x18, 0xcd, 0x98, 0x8f, 0x9d, 0x30, 0x12, 0x4a,
-	0x90, 0x8a, 0x52, 0x74, 0xd8, 0x49, 0x97, 0xdc, 0x06, 0xdc, 0xed, 0xa1, 0xea, 0xb3, 0x11, 0x67,
-	0x7c, 0xf4, 0x06, 0xcf, 0xa4, 0x87, 0xdf, 0x62, 0x94, 0xca, 0x7d, 0x0d, 0x1b, 0x8b, 0x0b, 0x32,
-	0x14, 0x5c, 0x22, 0x79, 0x06, 0xc5, 0x31, 0x9e, 0x49, 0xc7, 0x6a, 0xd9, 0xed, 0xca, 0x7e, 0xa3,
-	0x73, 0x41, 0xae, 0x73, 0xce, 0xf7, 0x12, 0x92, 0x5b, 0x07, 0xd2, 0x43, 0xf5, 0x81, 0x46, 0x8c,
-	0x72, 0x35, 0x17, 0xef, 0xc1, 0x9d, 0x1c, 0x6a, 0x94, 0xf7, 0xa0, 0x34, 0x33, 0x98, 0x51, 0xaf,
-	0xe7, 0xd4, 0x4d, 0x81, 0x37, 0x67, 0xb9, 0xbf, 0x2c, 0x58, 0x33, 0x28, 0x21, 0x50, 0xe4, 0x74,
-	0x8a, 0x8e, 0xd5, 0xb2, 0xda, 0x65, 0x2f, 0x89, 0x35, 0x36, 0x66, 0x3c, 0x70, 0x0a, 0x29, 0xa6,
-	0x63, 0x52, 0x03, 0x7b, 0x4a, 0x7f, 0x38, 0x76, 0xcb, 0x6a, 0xdb, 0x9e, 0x0e, 0x35, 0x72, 0xc2,
-	0x94, 0x53, 0x4c, 0x48, 0x3a, 0x24, 0x1b, 0xb0, 0x1a, 0xc6, 0xc3, 0x09, 0xf3, 0x9d, 0x95, 0x96,
-	0xd5, 0x2e, 0x79, 0x26, 0xd3, 0xb8, 0xf4, 0x45, 0x88, 0xd2, 0x59, 0x6d, 0xd9, 0xed, 0xb2, 0x67,
-	0x32, 0xe2, 0xc0, 0x9a, 0x3f, 0xd1, 0x2e, 0xa5, 0xb3, 0x96, 0x2c, 0x64, 0xa9, 0xfb, 0xd3, 0x02,
-	0x38, 0xdf, 0x15, 0xdd, 0x6a, 0xcc, 0x02, 0xe3, 0x51, 0x87, 0x89, 0x24, 0xfa, 0x11, 0x2a, 0x63,
-	0xd2, 0x64, 0x64, 0x1b, 0x80, 0x0b, 0x35, 0x18, 0xe2, 0x89, 0x88, 0xd0, 0xb8, 0x2d, 0x73, 0xa1,
-	0x0e, 0x13, 0x80, 0x6c, 0x81, 0x4e, 0x06, 0xf4, 0x44, 0x61, 0x94, 0x38, 0xb7, 0xbd, 0x12, 0x17,
-	0xea, 0x40, 0xe7, 0xba, 0x4b, 0x2c, 0x31, 0xf1, 0x5e, 0xf6, 0x74, 0xe8, 0x72, 0x58, 0x7f, 0x4f,
-	0xc7, 0x18, 0x88, 0xef, 0xdc, 0x1c, 0x02, 0xa9, 0x42, 0x81, 0x4b, 0xe3, 0xa4, 0xc0, 0xa5, 0xce,
-	0x59, 0xb6, 0x53, 0x05, 0x16, 0xe8, 0x6f, 0x9a, 0x61, 0x24, 0x99, 0xe0, 0x49, 0xf7, 0xb2, 0x97,
-	0xa5, 0xe4, 0x01, 0xdc, 0x0a, 0x19, 0x1f, 0x48, 0x9c, 0xa0, 0xaf, 0x44, 0x64, 0x36, 0xae, 0x12,
-	0x32, 0xde, 0x37, 0x90, 0x1b, 0x40, 0xed, 0xbc, 0x9f, 0x39, 0xde, 0x27, 0xb0, 0x1e, 0xe0, 0x04,
-	0x15, 0x06, 0x03, 0x31, 0xfc, 0x8a, 0xbe, 0x4a, 0xbb, 0xdb, 0x5e, 0xd5, 0xc0, 0xef, 0x52, 0x54,
-	0x13, 0x19, 0x9f, 0xd1, 0x09, 0x0b, 0xa8, 0x62, 0x82, 0x0f, 0xe6, 0xb6, 0xaa, 0x17, 0xe1, 0xa3,
-	0xc0, 0x7d, 0x09, 0x8e, 0x87, 0x53, 0x31, 0xc3, 0xac, 0xef, 0x31, 0xfb, 0xd7, 0xcf, 0x73, 0xb7,
-	0x60, 0xf3, 0x8a, 0xda, 0xd4, 0xaa, 0x7b, 0x08, 0x1b, 0x7d, 0x54, 0x07, 0x71, 0xc0, 0x90, 0xfb,
-	0xf8, 0x0a, 0xf9, 0x59, 0x26, 0x5b, 0x03, 0x9b, 0xc6, 0xf3, 0x03, 0xa4, 0x71, 0x72, 0x80, 0x01,
-	0x72, 0x86, 0xa9, 0x78, 0xc9, 0x33, 0x99, 0xbb, 0x09, 0x8d, 0x4b, 0x1a, 0x46, 0xbe, 0x0f, 0x8d,
-	0x8f, 0x34, 0x9a, 0x1e, 0x71, 0x85, 0xd1, 0x14, 0x03, 0x46, 0x15, 0xfe, 0xf7, 0xa9, 0xb8, 0x7b,
-	0xe0, 0x5c, 0x16, 0x35, 0x5b, 0x5f, 0x87, 0x15, 0xa9, 0xa8, 0xca, 0x2e, 0x47, 0x9a, 0xec, 0xff,
-	0xb6, 0xa0, 0xa8, 0xaf, 0x36, 0xf9, 0x04, 0xd5, 0xfc, 0x65, 0x27, 0x6e, 0xee, 0xe2, 0x5d, 0xf9,
-	0x44, 0x34, 0x1f, 0x5e, 0xcb, 0x31, 0x9d, 0x8f, 0xa1, 0x72, 0xe1, 0xaa, 0x93, 0xfb, 0x8b, 0x35,
-	0x0b, 0x4f, 0x43, 0xb3, 0xb5, 0x9c, 0x90, 0x2a, 0xee, 0xff, 0x29, 0x00, 0xbc, 0xa5, 0x9c, 0x8e,
-	0x70, 0x8a, 0x5c, 0x91, 0x1e, 0x94, 0xb2, 0x49, 0x23, 0xf7, 0x72, 0xc5, 0x0b, 0x03, 0xdf, 0xdc,
-	0x5e, 0xb2, 0x6a, 0x9c, 0x0e, 0xe1, 0xf6, 0xa5, 0x81, 0x20, 0x3b, 0xb9, 0x9a, 0x65, 0xc3, 0xd6,
-	0x7c, 0x7c, 0x13, 0xcd, 0xf4, 0xf8, 0x02, 0xeb, 0x0b, 0x33, 0x41, 0xf2, 0xbb, 0x78, 0xf5, 0xd4,
-	0x35, 0x1f, 0x5d, 0x4f, 0x32, 0xea, 0x03, 0xa8, 0x2d, 0x4e, 0x00, 0xc9, 0x57, 0x2e, 0x99, 0xba,
-	0xe6, 0xce, 0x0d, 0xac, 0xb4, 0xc1, 0xe1, 0xf3, 0xcf, 0x4f, 0x47, 0x4c, 0x9d, 0xc6, 0xc3, 0x8e,
-	0x2f, 0xa6, 0x5d, 0x5d, 0xd2, 0xc5, 0x09, 0x86, 0xa7, 0x94, 0xab, 0xdd, 0xf4, 0x85, 0xdc, 0xa5,
-	0x21, 0xeb, 0xa6, 0x32, 0xc3, 0xd5, 0xe4, 0x7f, 0xf3, 0xe2, 0x6f, 0x00, 0x00, 0x00, 0xff, 0xff,
-	0x0c, 0xa3, 0xd1, 0xfe, 0x87, 0x06, 0x00, 0x00,
+	// 917 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0x5d, 0x6f, 0xeb, 0x44,
+	0x13, 0x96, 0x9b, 0xe6, 0x6b, 0xfa, 0xf6, 0xe3, 0xdd, 0x13, 0x1a, 0xd7, 0x3d, 0x15, 0xc1, 0x70,
+	0x68, 0x04, 0x9c, 0xb4, 0x2a, 0x77, 0xdc, 0xb5, 0x02, 0xaa, 0xea, 0x70, 0xa0, 0x72, 0x11, 0x08,
+	0x84, 0x14, 0x6d, 0xec, 0x71, 0xba, 0xd4, 0x59, 0x1b, 0xef, 0x26, 0xb4, 0xf7, 0xfc, 0x0f, 0xee,
+	0xb9, 0xe5, 0x5f, 0xf0, 0xab, 0xd0, 0x7e, 0x38, 0xa9, 0x9d, 0xa4, 0x45, 0x82, 0xbb, 0x9d, 0xd9,
+	0x67, 0x9e, 0xf9, 0xf0, 0xe3, 0xb1, 0xa1, 0x43, 0x85, 0x40, 0x29, 0x4e, 0x04, 0xe6, 0x33, 0x16,
+	0xe2, 0x20, 0xcb, 0x53, 0x99, 0x92, 0x2d, 0x29, 0xe9, 0x68, 0x60, 0xae, 0xfc, 0x2e, 0xbc, 0x73,
+	0x89, 0xf2, 0x86, 0x8d, 0x39, 0xe3, 0xe3, 0x37, 0xf8, 0x20, 0x02, 0xfc, 0x65, 0x8a, 0x42, 0xfa,
+	0x5f, 0xc0, 0x7e, 0xf5, 0x42, 0x64, 0x29, 0x17, 0x48, 0x3e, 0x86, 0xcd, 0x3b, 0x7c, 0x10, 0xae,
+	0xd3, 0xab, 0xf5, 0xb7, 0xce, 0xba, 0x83, 0x47, 0x74, 0x83, 0x05, 0x3e, 0xd0, 0x20, 0xbf, 0x03,
+	0xe4, 0x12, 0xe5, 0x77, 0x34, 0x67, 0x94, 0xcb, 0x39, 0xf9, 0x25, 0xbc, 0x28, 0x79, 0x2d, 0xf3,
+	0x29, 0xb4, 0x66, 0xd6, 0x67, 0xd9, 0x3b, 0x25, 0x76, 0x1b, 0x10, 0xcc, 0x51, 0xfe, 0xef, 0x0e,
+	0x34, 0xad, 0x97, 0x10, 0xd8, 0xe4, 0x74, 0x82, 0xae, 0xd3, 0x73, 0xfa, 0xed, 0x40, 0x9f, 0x95,
+	0xef, 0x8e, 0xf1, 0xc8, 0xdd, 0x30, 0x3e, 0x75, 0x26, 0x7b, 0x50, 0x9b, 0xd0, 0x7b, 0xb7, 0xd6,
+	0x73, 0xfa, 0xb5, 0x40, 0x1d, 0x95, 0x27, 0x66, 0xd2, 0xdd, 0xd4, 0x20, 0x75, 0x24, 0xfb, 0xd0,
+	0xc8, 0xa6, 0xa3, 0x84, 0x85, 0x6e, 0xbd, 0xe7, 0xf4, 0x5b, 0x81, 0xb5, 0x94, 0x5f, 0x84, 0x69,
+	0x86, 0xc2, 0x6d, 0xf4, 0x6a, 0xfd, 0x76, 0x60, 0x2d, 0xe2, 0x42, 0x33, 0x4c, 0x54, 0x95, 0xc2,
+	0x6d, 0xea, 0x8b, 0xc2, 0xf4, 0x7f, 0x73, 0x00, 0x16, 0x53, 0x51, 0xa9, 0xee, 0x58, 0x64, 0x6b,
+	0x54, 0x47, 0x4d, 0x89, 0x61, 0x8e, 0xd2, 0x16, 0x69, 0x2d, 0x72, 0x04, 0xc0, 0x53, 0x39, 0x1c,
+	0x61, 0x9c, 0xe6, 0x68, 0xab, 0x6d, 0xf3, 0x54, 0x5e, 0x68, 0x07, 0x39, 0x04, 0x65, 0x0c, 0x69,
+	0x2c, 0x31, 0xd7, 0x95, 0xd7, 0x82, 0x16, 0x4f, 0xe5, 0xb9, 0xb2, 0x55, 0x96, 0xa9, 0x40, 0x5d,
+	0x7b, 0x3b, 0x50, 0x47, 0xff, 0x2f, 0x07, 0xb6, 0xdf, 0xa2, 0xa4, 0x11, 0x95, 0xf4, 0x4b, 0x86,
+	0x49, 0x34, 0x1f, 0x8d, 0xf3, 0x68, 0x34, 0x07, 0xd0, 0xc2, 0x7b, 0x16, 0x0f, 0x59, 0x5c, 0x8c,
+	0xac, 0xa9, 0xec, 0xab, 0x58, 0x4f, 0x4d, 0xd2, 0xb1, 0xae, 0x63, 0x3b, 0x50, 0x47, 0xd5, 0xb3,
+	0x62, 0x13, 0x68, 0x26, 0xb7, 0x1d, 0x14, 0x26, 0x79, 0x09, 0x6d, 0x35, 0x7d, 0x91, 0xd1, 0xb0,
+	0x28, 0x62, 0xe1, 0xd0, 0xb3, 0xcd, 0x31, 0x66, 0xf7, 0x6e, 0xc3, 0x34, 0x6c, 0x2c, 0xd2, 0x81,
+	0x7a, 0x92, 0x86, 0x34, 0x71, 0x9b, 0xda, 0x6d, 0x0c, 0x55, 0x66, 0x9c, 0xe6, 0x13, 0xb7, 0x65,
+	0xca, 0x54, 0x67, 0xff, 0x10, 0x0e, 0xbe, 0x62, 0x42, 0x96, 0xfa, 0x99, 0x6b, 0xeb, 0x1a, 0xbc,
+	0x55, 0x97, 0x56, 0x62, 0x67, 0xd0, 0x88, 0xb5, 0xc7, 0x0a, 0xcc, 0x2b, 0x09, 0xac, 0x14, 0x14,
+	0x58, 0xa4, 0xff, 0x06, 0xba, 0xe7, 0x51, 0x54, 0xbe, 0x33, 0xc9, 0xc8, 0x29, 0xd4, 0x35, 0x48,
+	0x4f, 0xf1, 0x69, 0x36, 0x03, 0xf4, 0x3d, 0x70, 0x97, 0xc9, 0x4c, 0x71, 0xfe, 0xd7, 0xe0, 0x05,
+	0x38, 0x49, 0x67, 0xf8, 0x1f, 0xe5, 0x3a, 0x82, 0xc3, 0x95, 0x7c, 0x36, 0x1d, 0x87, 0xdd, 0x6f,
+	0xe9, 0x1d, 0x46, 0xe9, 0xaf, 0xbc, 0xc8, 0xb1, 0x03, 0x1b, 0x5c, 0x58, 0x49, 0x6c, 0x70, 0xa1,
+	0x6c, 0x56, 0x48, 0x61, 0x83, 0x45, 0xea, 0x99, 0xcf, 0x30, 0x17, 0x2c, 0xe5, 0x5a, 0x09, 0xed,
+	0xa0, 0x30, 0xc9, 0x7b, 0xf0, 0xbf, 0x8c, 0xf1, 0xa1, 0xc0, 0x04, 0x43, 0x99, 0xe6, 0xf6, 0x65,
+	0xda, 0xca, 0x18, 0xbf, 0xb1, 0x2e, 0x3f, 0x82, 0xbd, 0x45, 0x3e, 0xfb, 0x3c, 0x8e, 0x61, 0x37,
+	0xc2, 0x04, 0x25, 0x46, 0xc3, 0x74, 0xf4, 0x33, 0x86, 0xd2, 0x64, 0xaf, 0x05, 0x3b, 0xd6, 0xfd,
+	0x8d, 0xf1, 0x2a, 0x20, 0xe3, 0x33, 0x9a, 0xb0, 0x88, 0x4a, 0x96, 0xf2, 0xe1, 0xbc, 0xac, 0x9d,
+	0xc7, 0xee, 0xab, 0xc8, 0xff, 0x0c, 0x5c, 0xd3, 0x74, 0x91, 0xf7, 0x9a, 0xfd, 0xd3, 0xf6, 0x94,
+	0xb0, 0x56, 0xc4, 0xda, 0x71, 0x5d, 0xc0, 0xfe, 0x0d, 0xca, 0xf3, 0x69, 0xc4, 0x90, 0x87, 0xf8,
+	0x39, 0xf2, 0x87, 0x82, 0x76, 0x0f, 0x6a, 0x74, 0x3a, 0x7f, 0xa9, 0xe9, 0x54, 0xbf, 0xd4, 0x11,
+	0x72, 0x86, 0x86, 0xbc, 0x15, 0x58, 0xcb, 0x3f, 0x80, 0xee, 0x12, 0x87, 0xa5, 0xbf, 0x81, 0xee,
+	0xf7, 0x34, 0x9f, 0x5c, 0x71, 0x89, 0xf9, 0x04, 0x23, 0x46, 0x25, 0xfe, 0xeb, 0xa7, 0xe2, 0x9f,
+	0x82, 0xbb, 0x4c, 0x6a, 0x47, 0xdf, 0x81, 0xba, 0x90, 0x54, 0x16, 0x0b, 0xd3, 0x18, 0x67, 0x7f,
+	0x3a, 0xb0, 0xa9, 0xd6, 0x3d, 0xf9, 0x01, 0x76, 0xca, 0x1f, 0x00, 0xe2, 0x97, 0x14, 0xb7, 0xf2,
+	0xb3, 0xe1, 0xbd, 0xff, 0x24, 0xc6, 0x66, 0xbe, 0x86, 0xad, 0x47, 0xeb, 0x9f, 0xbc, 0x5b, 0x8d,
+	0xa9, 0x7c, 0x2e, 0xbc, 0xde, 0x7a, 0x80, 0x61, 0x3c, 0xfb, 0xa3, 0x0e, 0xf0, 0x96, 0x72, 0x3a,
+	0xc6, 0x09, 0x72, 0x49, 0x2e, 0xa1, 0x55, 0x28, 0x8d, 0xbc, 0x2c, 0x05, 0x57, 0x04, 0xef, 0x1d,
+	0xad, 0xb9, 0xb5, 0x95, 0x8e, 0xe0, 0xff, 0x4b, 0x82, 0x20, 0xaf, 0x4a, 0x31, 0xeb, 0xc4, 0xe6,
+	0x7d, 0xf8, 0x1c, 0xcc, 0xe6, 0xf8, 0x09, 0x76, 0x2b, 0x9a, 0x20, 0xe5, 0x29, 0xae, 0x56, 0x9d,
+	0xf7, 0xc1, 0xd3, 0x20, 0xcb, 0x3e, 0x84, 0xbd, 0xaa, 0x02, 0x48, 0x39, 0x72, 0x8d, 0xea, 0xbc,
+	0x57, 0xcf, 0xa0, 0x6c, 0x02, 0x04, 0xb2, 0xbc, 0x6f, 0x49, 0xb9, 0xf9, 0xb5, 0xdb, 0xda, 0x3b,
+	0x7e, 0x16, 0xb7, 0xe8, 0xa3, 0xba, 0x37, 0x2b, 0x7d, 0xac, 0xd9, 0xd1, 0x95, 0x3e, 0xd6, 0x2d,
+	0x5f, 0x72, 0x0b, 0x2f, 0x56, 0x2c, 0x4b, 0x72, 0xbc, 0xe2, 0x29, 0xae, 0x4c, 0xd3, 0x7f, 0x1e,
+	0x68, 0x32, 0x5d, 0x7c, 0xf2, 0xe3, 0x47, 0x63, 0x26, 0x6f, 0xa7, 0xa3, 0x41, 0x98, 0x4e, 0x4e,
+	0x54, 0xd4, 0x09, 0x26, 0x98, 0xdd, 0x52, 0x2e, 0x5f, 0x9b, 0xff, 0x8c, 0xd7, 0x34, 0x63, 0x27,
+	0x86, 0x69, 0xd4, 0xd0, 0x7f, 0x6d, 0x9f, 0xfe, 0x1d, 0x00, 0x00, 0xff, 0xff, 0x75, 0x19, 0x8d,
+	0xa5, 0xcd, 0x09, 0x00, 0x00,
 }

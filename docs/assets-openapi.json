@@ -1,6 +1,17 @@
 {
   "components": {
     "schemas": {
+      "ttab.assets.AddMetadataFieldRequest": {
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/ttab.assets.MetadataField"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.AddMetadataFieldResponse": {
+        "type": "object"
+      },
       "ttab.assets.GetSigningKeysRequest": {
         "type": "object"
       },
@@ -27,6 +38,70 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "ttab.assets.ListMetadataFieldsRequest": {
+        "type": "object"
+      },
+      "ttab.assets.ListMetadataFieldsResponse": {
+        "properties": {
+          "fields": {
+            "description": "Fields are the configured extras (built-in defaults are not listed).",
+            "items": {
+              "$ref": "#/components/schemas/ttab.assets.MetadataField"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.MetadataField": {
+        "description": "MetadataField is one recognized field kept on cropped renditions beyond the built-in whitelist. Exactly one group of fields applies per kind.",
+        "properties": {
+          "dataset": {
+            "description": "Dataset is the IPTC-IIM record-2 dataset number for kind \"iptc\".",
+            "type": "integer"
+          },
+          "exif_ifd": {
+            "description": "ExifIfd selects the EXIF sub-IFD for kind \"exif\": \"ifd0\" or \"exif\".",
+            "type": "string"
+          },
+          "form": {
+            "description": "Form is the XMP RDF shape for kind \"xmp\": \"simple\", \"alt\", \"seq\", or \"bag\".",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Kind is \"exif\", \"iptc\", or \"xmp\".",
+            "type": "string"
+          },
+          "local": {
+            "description": "Local is the XMP property local name for kind \"xmp\".",
+            "type": "string"
+          },
+          "namespace": {
+            "description": "Namespace is the XMP property namespace URI for kind \"xmp\".",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Prefix is the preferred XMP serialization prefix for kind \"xmp\".",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Tag is the EXIF tag id for kind \"exif\" (e.g. 40091). UNDEFINED-typed or oversized values are still dropped by the transform regardless.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.RemoveMetadataFieldRequest": {
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/ttab.assets.MetadataField"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.RemoveMetadataFieldResponse": {
         "type": "object"
       },
       "ttab.assets.RemoveSelectorPinRequest": {
@@ -273,6 +348,120 @@
         "summary": "GetVariants",
         "tags": [
           "Keys"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/AddMetadataField": {
+      "post": {
+        "description": "AddMetadataField adds (or updates) one metadata field to preserve on cropped renditions, taking effect without a redeploy. It only widens the recognized-field set; the structural safety filters (no thumbnails, no binary payloads) are enforced in code regardless. Requires asset_admin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.AddMetadataFieldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.AddMetadataFieldResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "AddMetadataField",
+        "tags": [
+          "Management"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/ListMetadataFields": {
+      "post": {
+        "description": "ListMetadataFields returns the operator-configured metadata fields that extend the built-in cropped-rendition whitelist (spec §7.5).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.ListMetadataFieldsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.ListMetadataFieldsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListMetadataFields",
+        "tags": [
+          "Management"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Management/RemoveMetadataField": {
+      "post": {
+        "description": "RemoveMetadataField removes a configured metadata field. Built-in defaults cannot be removed. Requires asset_admin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.RemoveMetadataFieldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.RemoveMetadataFieldResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RemoveMetadataField",
+        "tags": [
+          "Management"
         ]
       }
     },

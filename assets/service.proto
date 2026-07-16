@@ -97,7 +97,62 @@ service Management {
   // fetch. Fire-and-forget: the response reports queueing, not
   // completion. Requires the asset_warm or asset_admin scope.
   rpc WarmIntermediate(WarmIntermediateRequest) returns (WarmIntermediateResponse);
+  // ListMetadataFields returns the operator-configured metadata fields that
+  // extend the built-in cropped-rendition whitelist (spec §7.5).
+  rpc ListMetadataFields(ListMetadataFieldsRequest) returns (ListMetadataFieldsResponse);
+  // AddMetadataField adds (or updates) one metadata field to preserve on
+  // cropped renditions, taking effect without a redeploy. It only widens the
+  // recognized-field set; the structural safety filters (no thumbnails, no
+  // binary payloads) are enforced in code regardless. Requires asset_admin.
+  rpc AddMetadataField(AddMetadataFieldRequest) returns (AddMetadataFieldResponse);
+  // RemoveMetadataField removes a configured metadata field. Built-in
+  // defaults cannot be removed. Requires asset_admin.
+  rpc RemoveMetadataField(RemoveMetadataFieldRequest) returns (RemoveMetadataFieldResponse);
 }
+
+// MetadataField is one recognized field kept on cropped renditions beyond the
+// built-in whitelist. Exactly one group of fields applies per kind.
+message MetadataField {
+  // Kind is "exif", "iptc", or "xmp".
+  string kind = 1;
+  // ExifIfd selects the EXIF sub-IFD for kind "exif": "ifd0" or "exif".
+  string exif_ifd = 2;
+  // Tag is the EXIF tag id for kind "exif" (e.g. 40091). UNDEFINED-typed or
+  // oversized values are still dropped by the transform regardless.
+  uint32 tag = 3;
+  // Dataset is the IPTC-IIM record-2 dataset number for kind "iptc".
+  uint32 dataset = 4;
+  // Namespace is the XMP property namespace URI for kind "xmp".
+  string namespace = 5;
+  // Prefix is the preferred XMP serialization prefix for kind "xmp".
+  string prefix = 6;
+  // Local is the XMP property local name for kind "xmp".
+  string local = 7;
+  // Form is the XMP RDF shape for kind "xmp": "simple", "alt", "seq", or
+  // "bag".
+  string form = 8;
+}
+
+message ListMetadataFieldsRequest {}
+
+message ListMetadataFieldsResponse {
+  // Fields are the configured extras (built-in defaults are not listed).
+  repeated MetadataField fields = 1;
+}
+
+message AddMetadataFieldRequest {
+  // Field to add or update.
+  MetadataField field = 1;
+}
+
+message AddMetadataFieldResponse {}
+
+message RemoveMetadataFieldRequest {
+  // Field to remove; the kind and its identifying fields must match.
+  MetadataField field = 1;
+}
+
+message RemoveMetadataFieldResponse {}
 
 message TakedownRequest {
   // Ns is the source namespace of the asset.
