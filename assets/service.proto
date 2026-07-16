@@ -23,6 +23,52 @@ service Keys {
   // keys — to learn which variants exist and to compute rendition size
   // hints from an asset's source dimensions.
   rpc GetVariants(GetVariantsRequest) returns (GetVariantsResponse);
+
+  // SignURL mints a signed asset URL server-side from the request
+  // parameters, as a debugging aid — the service picks the appropriate key
+  // (the public key for a non-expiring exp=0 token, the active delivery key
+  // otherwise) and returns the token, path, and canonical string. Production
+  // signers mint URLs themselves from GetSigningKeys; this is for
+  // inspecting and reproducing signatures. Requires asset_keys_read.
+  rpc SignURL(SignURLRequest) returns (SignURLResponse);
+}
+
+message SignURLRequest {
+  // Ns is the source namespace.
+  string ns = 1;
+  // Id of the asset in the namespace's id scheme.
+  string id = 2;
+  // Version of the asset; defaults to the current version ("0").
+  string version = 3;
+  // Selector defaults to "full"; a soft crop is "c-{x}-{y}-{w}-{h}".
+  string selector = 4;
+  // Aud is the audience the token is minted for.
+  string aud = 5;
+  // Scope the token carries (e.g. "web", "_all", "_public").
+  string scope = 6;
+  // Exp is the unix expiry; 0 mints a non-expiring token, signed with the
+  // public key and only valid at the edge for public renditions.
+  int64 exp = 7;
+  // Variant and Ext are optional; when set they are appended as
+  // "{variant}.{ext}" to the returned url (the variant is not part of the
+  // signed prefix).
+  string variant = 8;
+  string ext = 9;
+}
+
+message SignURLResponse {
+  // Token is the value for the "s" query parameter.
+  string token = 1;
+  // Path is the signed path prefix, "/v1/{ns}/{id}/{version}/{selector}/".
+  string path = 2;
+  // Url is a ready-to-use path: the prefix, the optional "{variant}.{ext}"
+  // tail, and "?s={token}". Prepend the CDN host.
+  string url = 3;
+  // Kid is the key that signed the token.
+  string kid = 4;
+  // Canonical is the newline-joined string the MAC covers, for debugging
+  // signature mismatches.
+  string canonical = 5;
 }
 
 message GetSigningKeysRequest {}

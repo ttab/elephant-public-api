@@ -194,6 +194,71 @@
       "ttab.assets.SetAudienceDenyResponse": {
         "type": "object"
       },
+      "ttab.assets.SignURLRequest": {
+        "properties": {
+          "aud": {
+            "description": "Aud is the audience the token is minted for.",
+            "type": "string"
+          },
+          "exp": {
+            "description": "Exp is the unix expiry; 0 mints a non-expiring token, signed with the public key and only valid at the edge for public renditions.",
+            "type": "integer"
+          },
+          "ext": {
+            "type": "string"
+          },
+          "id": {
+            "description": "Id of the asset in the namespace's id scheme.",
+            "type": "string"
+          },
+          "ns": {
+            "description": "Ns is the source namespace.",
+            "type": "string"
+          },
+          "scope": {
+            "description": "Scope the token carries (e.g. \"web\", \"_all\", \"_public\").",
+            "type": "string"
+          },
+          "selector": {
+            "description": "Selector defaults to \"full\"; a soft crop is \"c-{x}-{y}-{w}-{h}\".",
+            "type": "string"
+          },
+          "variant": {
+            "description": "Variant and Ext are optional; when set they are appended as \"{variant}.{ext}\" to the returned url (the variant is not part of the signed prefix).",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the asset; defaults to the current version (\"0\").",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.assets.SignURLResponse": {
+        "properties": {
+          "canonical": {
+            "description": "Canonical is the newline-joined string the MAC covers, for debugging signature mismatches.",
+            "type": "string"
+          },
+          "kid": {
+            "description": "Kid is the key that signed the token.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path is the signed path prefix, \"/v1/{ns}/{id}/{version}/{selector}/\".",
+            "type": "string"
+          },
+          "token": {
+            "description": "Token is the value for the \"s\" query parameter.",
+            "type": "string"
+          },
+          "url": {
+            "description": "Url is a ready-to-use path: the prefix, the optional \"{variant}.{ext}\" tail, and \"?s={token}\". Prepend the CDN host.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ttab.assets.SigningKey": {
         "properties": {
           "kid": {
@@ -404,6 +469,44 @@
           }
         ],
         "summary": "GetVariants",
+        "tags": [
+          "Keys"
+        ]
+      }
+    },
+    "/twirp/ttab.assets.Keys/SignURL": {
+      "post": {
+        "description": "SignURL mints a signed asset URL server-side from the request parameters, as a debugging aid — the service picks the appropriate key (the public key for a non-expiring exp=0 token, the active delivery key otherwise) and returns the token, path, and canonical string. Production signers mint URLs themselves from GetSigningKeys; this is for inspecting and reproducing signatures. Requires asset_keys_read.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.assets.SignURLRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.assets.SignURLResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SignURL",
         "tags": [
           "Keys"
         ]
