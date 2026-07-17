@@ -205,6 +205,7 @@
             "type": "integer"
           },
           "ext": {
+            "description": "Ext is the format extension, e.g. \"jpg\"; empty for \"original\".",
             "type": "string"
           },
           "id": {
@@ -215,16 +216,12 @@
             "description": "Ns is the source namespace.",
             "type": "string"
           },
-          "scope": {
-            "description": "Scope the token carries (e.g. \"web\", \"_all\", \"_public\").",
-            "type": "string"
-          },
           "selector": {
-            "description": "Selector defaults to \"full\"; a soft crop is \"c-{x}-{y}-{w}-{h}\".",
+            "description": "Selector defaults to \"full\"; a soft crop is \"c-{x}-{y}-{w}-{h}\", optionally carrying a focus point \"c-{x}-{y}-{w}-{h}-{fx}-{fy}\".",
             "type": "string"
           },
           "variant": {
-            "description": "Variant and Ext are optional; when set they are appended as \"{variant}.{ext}\" to the returned url (the variant is not part of the signed prefix).",
+            "description": "Variant names the rendition the token authorizes, including any class suffix (e.g. \"preview-wm\"), or \"original\". The signature covers the full path, so the variant is part of what is signed.",
             "type": "string"
           },
           "version": {
@@ -245,7 +242,7 @@
             "type": "string"
           },
           "path": {
-            "description": "Path is the signed path prefix, \"/v1/{ns}/{id}/{version}/{selector}/\".",
+            "description": "Path is the signed request path, \"/v1/{ns}/{id}/{version}/{selector}/{variant}.{ext}\".",
             "type": "string"
           },
           "token": {
@@ -253,7 +250,7 @@
             "type": "string"
           },
           "url": {
-            "description": "Url is the ready-to-use asset URL: the prefix, the optional \"{variant}.{ext}\" tail, and \"?s={token}\". Absolute when the service is configured with its external base URL (CDN_BASE_URL); otherwise a path to which the caller prepends the CDN host.",
+            "description": "Url is the ready-to-use asset URL: the signed path plus \"?s={token}\". Absolute when the service is configured with its external base URL (CDN_BASE_URL); otherwise a path to which the caller prepends the CDN host.",
             "type": "string"
           }
         },
@@ -328,15 +325,18 @@
             "type": "array"
           },
           "fit": {
-            "description": "Fit controls how an image is fitted to the bounding box. Only \"inside\" is defined: scale down to fit, never upscale.",
+            "description": "Fit controls how an image is fitted: \"inside\" scales down into the max bounding box (never upscaling); \"cover\" crops to the width/height aspect around the selector's focus point and scales to that size.",
             "type": "string"
+          },
+          "height": {
+            "type": "integer"
           },
           "kind": {
             "description": "Kind is the asset kind the variant applies to, e.g. \"image\".",
             "type": "string"
           },
           "max": {
-            "description": "Max is the bounding box in pixels (longest side) for image variants.",
+            "description": "Max is the bounding box in pixels (longest side) for fit:inside image variants.",
             "type": "integer"
           },
           "name": {
@@ -344,15 +344,12 @@
             "type": "string"
           },
           "public": {
-            "description": "Public marks the variant as a public derivative: reachable by any valid signature and usable with non-expiring (exp=0) tokens.",
+            "description": "Public marks the variant as a public derivative: reachable with non-expiring (exp=0) tokens.",
             "type": "boolean"
           },
-          "scopes": {
-            "description": "Scopes are the named access scopes that grant access to the variant (in addition to the reserved _all scope).",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
+          "width": {
+            "description": "Width and Height are the fixed output size of fit:cover variants.",
+            "type": "integer"
           }
         },
         "type": "object"
