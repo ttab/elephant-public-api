@@ -201,8 +201,12 @@
             "type": "string"
           },
           "exp": {
-            "description": "Exp is the unix expiry; 0 mints a non-expiring token, signed with the public key and only valid at the edge for public renditions.",
+            "description": "Exp is the unix expiry; 0 mints a non-expiring token, signed with the public key and only valid at the edge for public renditions. Mutually exclusive with exp_after.",
             "type": "integer"
+          },
+          "exp_after": {
+            "description": "ExpAfter sets the expiry as a duration from now, a friendlier alternative to a raw unix exp for a debug endpoint. It accepts Go duration syntax extended with a \"d\" (days) unit, e.g. \"30d\", \"12h\", or \"1d12h\". Mutually exclusive with exp; when both exp and exp_after are unset the token is non-expiring (exp=0).",
+            "type": "string"
           },
           "ext": {
             "description": "Ext is the format extension, e.g. \"jpg\"; empty for \"original\".",

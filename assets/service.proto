@@ -46,7 +46,8 @@ message SignURLRequest {
   // Aud is the audience the token is minted for.
   string aud = 5;
   // Exp is the unix expiry; 0 mints a non-expiring token, signed with the
-  // public key and only valid at the edge for public renditions.
+  // public key and only valid at the edge for public renditions. Mutually
+  // exclusive with exp_after.
   int64 exp = 6;
   // Variant names the rendition the token authorizes, including any class
   // suffix (e.g. "preview-wm"), or "original". The signature covers the
@@ -54,6 +55,12 @@ message SignURLRequest {
   string variant = 7;
   // Ext is the format extension, e.g. "jpg"; empty for "original".
   string ext = 8;
+  // ExpAfter sets the expiry as a duration from now, a friendlier
+  // alternative to a raw unix exp for a debug endpoint. It accepts Go
+  // duration syntax extended with a "d" (days) unit, e.g. "30d", "12h", or
+  // "1d12h". Mutually exclusive with exp; when both exp and exp_after are
+  // unset the token is non-expiring (exp=0).
+  string exp_after = 9;
 }
 
 message SignURLResponse {
