@@ -23,7 +23,12 @@ const (
 
 type GetNewDocumentsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// After returns new documents after the given event ID.
+	// After returns new documents after the given event ID. A negative value
+	// is an offset from the newest event instead: -N returns the last N
+	// events (so at head 20, -5 yields events 16 through 20). The count is
+	// resolved against the log head at call time and capped at the same page
+	// size as a positive read. An offset reaching past the start of the log
+	// is clamped to the beginning.
 	After int64 `protobuf:"varint,1,opt,name=after,proto3" json:"after,omitempty"`
 	// Subset returns a subset of the documents as specified by a map of newsdoc
 	// value extractors keyed by the types that they should be applied to.
