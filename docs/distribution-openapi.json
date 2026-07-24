@@ -151,6 +151,64 @@
         },
         "type": "object"
       },
+      "ttab.distribution.ArchiveChunk": {
+        "properties": {
+          "chunk_id": {
+            "description": "ChunkID is the sequential chunk identifier.",
+            "type": "integer"
+          },
+          "events_url": {
+            "description": "EventsURL is a presigned GET URL for the chunk event zip.",
+            "type": "string"
+          },
+          "first_event_at": {
+            "description": "FirstEventAt is the timestamp of the first event, RFC3339.",
+            "type": "string"
+          },
+          "first_event_id": {
+            "description": "FirstEventID is the first eventlog ID in the chunk.",
+            "type": "integer"
+          },
+          "last_event_at": {
+            "description": "LastEventAt is the timestamp of the last event, RFC3339.",
+            "type": "string"
+          },
+          "last_event_id": {
+            "description": "LastEventID is the last eventlog ID in the chunk.",
+            "type": "integer"
+          },
+          "manifest_hash": {
+            "description": "ManifestHash is the hex-encoded sha256 of the canonical manifest.",
+            "type": "string"
+          },
+          "manifest_url": {
+            "description": "ManifestURL is a presigned GET URL for the signed chunk manifest.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ArchivedDocument": {
+        "properties": {
+          "content_url": {
+            "description": "ContentURL is a presigned GET URL for the canonical document JSON.",
+            "type": "string"
+          },
+          "hash": {
+            "description": "Hash is the hex-encoded sha256 of the canonical document body, for a pre-download integrity check. The document object's own signature (the authoritative verification anchor) is delivered with the object.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version is the latest archived version, or -1 if the document has been tombstoned (in which case there is no content URL).",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ttab.distribution.ConfigGeneration": {
         "properties": {
           "activated_at": {
@@ -360,6 +418,65 @@
         },
         "type": "object"
       },
+      "ttab.distribution.GetArchivedDocumentRequest": {
+        "properties": {
+          "uuid": {
+            "description": "UUID of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version to get a URL for.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetArchivedDocumentResponse": {
+        "properties": {
+          "content_url": {
+            "description": "ContentURL is a presigned GET URL for the canonical document JSON.",
+            "type": "string"
+          },
+          "hash": {
+            "description": "Hash is the hex-encoded sha256 of the canonical document body.",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature covers the document body, for end-to-end verification.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetDocumentRequest": {
+        "properties": {
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves the document with its stored, unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
+            "type": "boolean"
+          },
+          "uuid": {
+            "description": "UUID of the document to get.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version to get, or 0 for the latest version.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.GetDocumentResponse": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
+          "version": {
+            "description": "Version that was returned.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ttab.distribution.GetDocumentTypesRequest": {
         "type": "object"
       },
@@ -380,6 +497,10 @@
           "after": {
             "description": "After returns new documents after the given event ID.",
             "type": "integer"
+          },
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves documents with their stored, unsigned rendition URLs instead of signing rendition links for the caller's audience. Intended for internal consumers that re-sign at their own delivery time; external consumers should leave it unset.",
+            "type": "boolean"
           },
           "load_documents": {
             "description": "LoadDocuments should be set to true if you want the full documents in the response. If subset is used it will override load_documents.",
@@ -480,6 +601,64 @@
           "template": {
             "description": "Template is the template that turns the extracted values into a label.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ListArchiveChunksRequest": {
+        "properties": {
+          "after_chunk_id": {
+            "description": "AfterChunkID lists chunks after the given chunk ID; 0 to start.",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "PageSize defaults to 100.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ListArchiveChunksResponse": {
+        "properties": {
+          "chunks": {
+            "description": "Chunks in this page, in ascending chunk-ID order.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ArchiveChunk"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ListArchivedDocumentsRequest": {
+        "properties": {
+          "cursor": {
+            "description": "Cursor from a previous response; empty to start a new drain.",
+            "type": "string"
+          },
+          "page_size": {
+            "description": "PageSize defaults to 1000.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.ListArchivedDocumentsResponse": {
+        "properties": {
+          "documents": {
+            "description": "Documents in this page.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.ArchivedDocument"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "NextCursor is empty when the catalog has been exhausted.",
+            "type": "string"
+          },
+          "watermark_event_id": {
+            "description": "WatermarkEventID is the last archived event ID as of the start of the drain. A consumer that has drained the catalog should tail Content.GetNewDocuments from this ID: everything up to it is covered by the catalog, everything after it by the tail.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -648,6 +827,120 @@
   },
   "openapi": "3.0.0",
   "paths": {
+    "/twirp/ttab.distribution.Archive/GetArchivedDocument": {
+      "post": {
+        "description": "GetArchivedDocument returns a fresh presigned URL for a specific archived document version. Used to resolve replay bodies and to re-mint a URL a consumer let expire.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetArchivedDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetArchivedDocumentResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetArchivedDocument",
+        "tags": [
+          "Archive"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Archive/ListArchiveChunks": {
+      "post": {
+        "description": "ListArchiveChunks lists archived eventlog chunks in order, for full ordered replay of the history that precedes the hot log.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.ListArchiveChunksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.ListArchiveChunksResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListArchiveChunks",
+        "tags": [
+          "Archive"
+        ]
+      }
+    },
+    "/twirp/ttab.distribution.Archive/ListArchivedDocuments": {
+      "post": {
+        "description": "ListArchivedDocuments enumerates the latest archived version of every document offloaded to the archive, for a current-state snapshot. Pair it with a Content.GetNewDocuments tail from watermark_event_id to reconstruct full current state.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.ListArchivedDocumentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.ListArchivedDocumentsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListArchivedDocuments",
+        "tags": [
+          "Archive"
+        ]
+      }
+    },
     "/twirp/ttab.distribution.Configuration/ActivateConfigGeneration": {
       "post": {
         "description": "ActivateConfigGeneration switches the active configuration to the generation with the given ID.",
@@ -1028,6 +1321,44 @@
         ]
       }
     },
+    "/twirp/ttab.distribution.Content/GetDocument": {
+      "post": {
+        "description": "GetDocument returns a single document, transparently falling back to the archive if the requested version (or the whole document) has been evicted from the hot data set. The document is returned in-band.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.distribution.GetDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.distribution.GetDocumentResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetDocument",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
     "/twirp/ttab.distribution.Content/GetNewDocuments": {
       "post": {
         "requestBody": {
@@ -1080,6 +1411,10 @@
     },
     {
       "name": "Content"
+    },
+    {
+      "description": "Archive exposes the offloaded eventlog history and document versions for bulk export - e.g. building or rebuilding a search index over the full content set. Bodies are delivered as presigned URLs that the consumer fetches directly from object storage; the service only brokers the catalog and mints the URLs. Object keys and the presigning mechanism are internal: consumers address content by identity (uuid, version, chunk_id), never by storage key.",
+      "name": "Archive"
     }
   ]
 }

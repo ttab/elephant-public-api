@@ -46,6 +46,10 @@ service Configuration {
 
 service Content {
   rpc GetNewDocuments(GetNewDocumentsRequest) returns (GetNewDocumentsResponse);
+  // GetDocument returns a single document, transparently falling back to
+  // the archive if the requested version (or the whole document) has been
+  // evicted from the hot data set. The document is returned in-band.
+  rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
 }
 
 message GetNewDocumentsRequest {
@@ -57,6 +61,130 @@ message GetNewDocumentsRequest {
   // LoadDocuments should be set to true if you want the full documents in the
   // response. If subset is used it will override load_documents.
   bool load_documents = 3;
+  // DisableRenditionSigning serves documents with their stored, unsigned
+  // rendition URLs instead of signing rendition links for the caller's
+  // audience. Intended for internal consumers that re-sign at their own
+  // delivery time; external consumers should leave it unset.
+  bool disable_rendition_signing = 4;
+}
+
+message GetDocumentRequest {
+  // UUID of the document to get.
+  string uuid = 1;
+  // Version to get, or 0 for the latest version.
+  int64 version = 2;
+  // DisableRenditionSigning serves the document with its stored, unsigned
+  // rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.
+  bool disable_rendition_signing = 3;
+}
+
+message GetDocumentResponse {
+  // Document is the requested document.
+  newsdoc.Document document = 1;
+  // Version that was returned.
+  int64 version = 2;
+}
+
+// Archive exposes the offloaded eventlog history and document versions for
+// bulk export - e.g. building or rebuilding a search index over the full
+// content set. Bodies are delivered as presigned URLs that the consumer
+// fetches directly from object storage; the service only brokers the
+// catalog and mints the URLs. Object keys and the presigning mechanism are
+// internal: consumers address content by identity (uuid, version,
+// chunk_id), never by storage key.
+service Archive {
+  // ListArchivedDocuments enumerates the latest archived version of every
+  // document offloaded to the archive, for a current-state snapshot. Pair
+  // it with a Content.GetNewDocuments tail from watermark_event_id to
+  // reconstruct full current state.
+  rpc ListArchivedDocuments(ListArchivedDocumentsRequest) returns (ListArchivedDocumentsResponse);
+  // ListArchiveChunks lists archived eventlog chunks in order, for full
+  // ordered replay of the history that precedes the hot log.
+  rpc ListArchiveChunks(ListArchiveChunksRequest) returns (ListArchiveChunksResponse);
+  // GetArchivedDocument returns a fresh presigned URL for a specific
+  // archived document version. Used to resolve replay bodies and to
+  // re-mint a URL a consumer let expire.
+  rpc GetArchivedDocument(GetArchivedDocumentRequest) returns (GetArchivedDocumentResponse);
+}
+
+message ListArchivedDocumentsRequest {
+  // Cursor from a previous response; empty to start a new drain.
+  string cursor = 1;
+  // PageSize defaults to 1000.
+  int64 page_size = 2;
+}
+
+message ListArchivedDocumentsResponse {
+  // Documents in this page.
+  repeated ArchivedDocument documents = 1;
+  // NextCursor is empty when the catalog has been exhausted.
+  string next_cursor = 2;
+  // WatermarkEventID is the last archived event ID as of the start of the
+  // drain. A consumer that has drained the catalog should tail
+  // Content.GetNewDocuments from this ID: everything up to it is covered
+  // by the catalog, everything after it by the tail.
+  int64 watermark_event_id = 3;
+}
+
+message ArchivedDocument {
+  // UUID of the document.
+  string uuid = 1;
+  // Version is the latest archived version, or -1 if the document has been
+  // tombstoned (in which case there is no content URL).
+  int64 version = 2;
+  // ContentURL is a presigned GET URL for the canonical document JSON.
+  string content_url = 3;
+  // Hash is the hex-encoded sha256 of the canonical document body, for a
+  // pre-download integrity check. The document object's own signature (the
+  // authoritative verification anchor) is delivered with the object.
+  string hash = 4;
+}
+
+message ListArchiveChunksRequest {
+  // AfterChunkID lists chunks after the given chunk ID; 0 to start.
+  int64 after_chunk_id = 1;
+  // PageSize defaults to 100.
+  int64 page_size = 2;
+}
+
+message ListArchiveChunksResponse {
+  // Chunks in this page, in ascending chunk-ID order.
+  repeated ArchiveChunk chunks = 1;
+}
+
+message ArchiveChunk {
+  // ChunkID is the sequential chunk identifier.
+  int64 chunk_id = 1;
+  // FirstEventID is the first eventlog ID in the chunk.
+  int64 first_event_id = 2;
+  // LastEventID is the last eventlog ID in the chunk.
+  int64 last_event_id = 3;
+  // FirstEventAt is the timestamp of the first event, RFC3339.
+  string first_event_at = 4;
+  // LastEventAt is the timestamp of the last event, RFC3339.
+  string last_event_at = 5;
+  // ManifestURL is a presigned GET URL for the signed chunk manifest.
+  string manifest_url = 6;
+  // ManifestHash is the hex-encoded sha256 of the canonical manifest.
+  string manifest_hash = 7;
+  // EventsURL is a presigned GET URL for the chunk event zip.
+  string events_url = 8;
+}
+
+message GetArchivedDocumentRequest {
+  // UUID of the document.
+  string uuid = 1;
+  // Version to get a URL for.
+  int64 version = 2;
+}
+
+message GetArchivedDocumentResponse {
+  // ContentURL is a presigned GET URL for the canonical document JSON.
+  string content_url = 1;
+  // Hash is the hex-encoded sha256 of the canonical document body.
+  string hash = 2;
+  // Signature covers the document body, for end-to-end verification.
+  string signature = 3;
 }
 
 message Subsets {
