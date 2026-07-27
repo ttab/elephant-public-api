@@ -66,11 +66,34 @@ message GetNewDocumentsRequest {
   // LoadDocuments should be set to true if you want the full documents in the
   // response. If subset is used it will override load_documents.
   bool load_documents = 3;
-  // DisableRenditionSigning serves documents with their stored, unsigned
-  // rendition URLs instead of signing rendition links for the caller's
-  // audience. Intended for internal consumers that re-sign at their own
+  // DisableRenditionSigning serves documents with generated but unsigned
+  // rendition URLs instead of signing the rendition links for the
+  // caller's audience. Intended for internal consumers that store
+  // canonical content and re-sign for their own audience at their own
   // delivery time; external consumers should leave it unset.
   bool disable_rendition_signing = 4;
+  // Renditions selects the rendition variants to generate per asset kind
+  // (e.g. "image"). An absent kind - or an empty field within a present
+  // entry - falls back to the kind's configured defaults. An entry for a
+  // kind the active configuration doesn't declare is an invalid argument.
+  map<string, RenditionParameters> renditions = 5;
+  // DisableRenditions serves documents without any rendition links: the
+  // stored canonical bytes. This is the only mode whose payload matches
+  // the stored and archived document, so it is what a doc-hash
+  // verification against the transparency log must use. Takes precedence
+  // over disable_rendition_signing, which has no effect when this is set.
+  bool disable_renditions = 6;
+}
+
+// RenditionParameters selects the renditions to generate for one asset
+// kind at delivery time.
+message RenditionParameters {
+  // Variants to generate rendition links for. Empty falls back to the
+  // kind's configured default variants.
+  repeated string variants = 1;
+  // Extension of the generated renditions, e.g. "jpg". Empty falls back
+  // to the kind's configured default extension.
+  string extension = 2;
 }
 
 message GetDocumentRequest {
@@ -78,9 +101,16 @@ message GetDocumentRequest {
   string uuid = 1;
   // Version to get, or 0 for the latest version.
   int64 version = 2;
-  // DisableRenditionSigning serves the document with its stored, unsigned
-  // rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.
+  // DisableRenditionSigning serves the document with generated but
+  // unsigned rendition URLs. See
+  // GetNewDocumentsRequest.disable_rendition_signing.
   bool disable_rendition_signing = 3;
+  // Renditions selects the rendition variants to generate per asset
+  // kind. See GetNewDocumentsRequest.renditions.
+  map<string, RenditionParameters> renditions = 4;
+  // DisableRenditions serves the document without any rendition links.
+  // See GetNewDocumentsRequest.disable_renditions.
+  bool disable_renditions = 5;
 }
 
 message GetDocumentResponse {
@@ -260,6 +290,42 @@ message ConfigGenerationType {
   TypeConfiguration configuration    = 2;
 }
 
+// RenditionSource matches asset references in documents and maps them to
+// an asset CDN namespace. Sources are evaluated in order; the first match
+// wins.
+message RenditionSource {
+  // Name identifies the source within its kind.
+  string name                = 1;
+  // Namespace is the asset CDN namespace to build rendition URLs in.
+  string namespace           = 2;
+  // BlockTypes are the document block types to inspect. Optional,
+  // defaults per kind ("core/image" for the "image" kind).
+  repeated string block_types = 3;
+  // LinkRel is the block link rel that carries the asset reference.
+  // Optional, defaults per kind ("image" for the "image" kind).
+  string link_rel            = 4;
+  // LinkTypes are the accepted types of the asset reference link.
+  repeated string link_types = 5;
+  // URIPattern is an anchored regular expression with exactly one
+  // capture group that extracts the asset ID from the link URI.
+  string uri_pattern         = 6;
+}
+
+// RenditionConfiguration configures delivery-time rendition generation
+// for one asset kind.
+message RenditionConfiguration {
+  // Kind is the asset kind, e.g. "image".
+  string kind                      = 1;
+  // DefaultVariants are the variants generated when a request doesn't
+  // specify any.
+  repeated string default_variants = 2;
+  // DefaultExtension is the extension used when a request doesn't
+  // specify one.
+  string default_extension         = 3;
+  // Sources in evaluation order.
+  repeated RenditionSource sources = 4;
+}
+
 message ConfigGeneration {
   // ID is assigned by the server on registration.
   int64 id                                  = 1;
@@ -274,6 +340,8 @@ message ConfigGeneration {
   repeated ConfigGenerationSchema schemas   = 5;
   // Types configured in the generation.
   repeated ConfigGenerationType types       = 6;
+  // Renditions configured in the generation, one per asset kind.
+  repeated RenditionConfiguration renditions = 7;
 }
 
 message RegisterConfigGenerationRequest {
@@ -287,6 +355,9 @@ message RegisterConfigGenerationRequest {
   // typically register first and activate as a separate step so they can
   // inspect the diff first.
   bool activate                             = 4;
+  // Renditions the generation should contain, one per asset kind. Order
+  // of the sources within each kind is preserved.
+  repeated RenditionConfiguration renditions = 5;
 }
 
 message RegisterConfigGenerationResponse {

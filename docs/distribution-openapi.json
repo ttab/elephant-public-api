@@ -227,6 +227,13 @@
             "description": "ID is assigned by the server on registration.",
             "type": "integer"
           },
+          "renditions": {
+            "description": "Renditions configured in the generation, one per asset kind.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.RenditionConfiguration"
+            },
+            "type": "array"
+          },
           "schemas": {
             "description": "Schemas in the generation.",
             "items": {
@@ -451,8 +458,19 @@
       "ttab.distribution.GetDocumentRequest": {
         "properties": {
           "disable_rendition_signing": {
-            "description": "DisableRenditionSigning serves the document with its stored, unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
+            "description": "DisableRenditionSigning serves the document with generated but unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
             "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves the document without any rendition links. See GetNewDocumentsRequest.disable_renditions.",
+            "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ttab.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind. See GetNewDocumentsRequest.renditions.",
+            "type": "object"
           },
           "uuid": {
             "description": "UUID of the document to get.",
@@ -499,12 +517,23 @@
             "type": "integer"
           },
           "disable_rendition_signing": {
-            "description": "DisableRenditionSigning serves documents with their stored, unsigned rendition URLs instead of signing rendition links for the caller's audience. Intended for internal consumers that re-sign at their own delivery time; external consumers should leave it unset.",
+            "description": "DisableRenditionSigning serves documents with generated but unsigned rendition URLs instead of signing the rendition links for the caller's audience. Intended for internal consumers that store canonical content and re-sign for their own audience at their own delivery time; external consumers should leave it unset.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves documents without any rendition links: the stored canonical bytes. This is the only mode whose payload matches the stored and archived document, so it is what a doc-hash verification against the transparency log must use. Takes precedence over disable_rendition_signing, which has no effect when this is set.",
             "type": "boolean"
           },
           "load_documents": {
             "description": "LoadDocuments should be set to true if you want the full documents in the response. If subset is used it will override load_documents.",
             "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ttab.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind (e.g. \"image\"). An absent kind - or an empty field within a present entry - falls back to the kind's configured defaults. An entry for a kind the active configuration doesn't declare is an invalid argument.",
+            "type": "object"
           },
           "subset": {
             "additionalProperties": {
@@ -698,6 +727,13 @@
             "description": "Description is an optional human-readable tag for the new generation.",
             "type": "string"
           },
+          "renditions": {
+            "description": "Renditions the generation should contain, one per asset kind. Order of the sources within each kind is preserved.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.RenditionConfiguration"
+            },
+            "type": "array"
+          },
           "schemas": {
             "description": "Schemas the generation should contain. Order is preserved.",
             "items": {
@@ -719,6 +755,87 @@
         "properties": {
           "generation": {
             "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.RenditionConfiguration": {
+        "description": "RenditionConfiguration configures delivery-time rendition generation for one asset kind.",
+        "properties": {
+          "default_extension": {
+            "description": "DefaultExtension is the extension used when a request doesn't specify one.",
+            "type": "string"
+          },
+          "default_variants": {
+            "description": "DefaultVariants are the variants generated when a request doesn't specify any.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "description": "Kind is the asset kind, e.g. \"image\".",
+            "type": "string"
+          },
+          "sources": {
+            "description": "Sources in evaluation order.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.distribution.RenditionSource"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.RenditionParameters": {
+        "description": "RenditionParameters selects the renditions to generate for one asset kind at delivery time.",
+        "properties": {
+          "extension": {
+            "description": "Extension of the generated renditions, e.g. \"jpg\". Empty falls back to the kind's configured default extension.",
+            "type": "string"
+          },
+          "variants": {
+            "description": "Variants to generate rendition links for. Empty falls back to the kind's configured default variants.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.distribution.RenditionSource": {
+        "description": "RenditionSource matches asset references in documents and maps them to an asset CDN namespace. Sources are evaluated in order; the first match wins.",
+        "properties": {
+          "block_types": {
+            "description": "BlockTypes are the document block types to inspect. Optional, defaults per kind (\"core/image\" for the \"image\" kind).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "link_rel": {
+            "description": "LinkRel is the block link rel that carries the asset reference. Optional, defaults per kind (\"image\" for the \"image\" kind).",
+            "type": "string"
+          },
+          "link_types": {
+            "description": "LinkTypes are the accepted types of the asset reference link.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Name identifies the source within its kind.",
+            "type": "string"
+          },
+          "namespace": {
+            "description": "Namespace is the asset CDN namespace to build rendition URLs in.",
+            "type": "string"
+          },
+          "uri_pattern": {
+            "description": "URIPattern is an anchored regular expression with exactly one capture group that extracts the asset ID from the link URI.",
+            "type": "string"
           }
         },
         "type": "object"
