@@ -280,6 +280,10 @@
       },
       "ttab.distribution.DocumentEvent": {
         "properties": {
+          "created_at": {
+            "description": "CreatedAt is the event timestamp in the canonical fixed-width RFC 3339 form used by the transparency log (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision) — the same representation that the entry hash is computed over and that archived eventlog chunks carry.",
+            "type": "string"
+          },
           "doc_uuid": {
             "description": "DocUUID is the UUID of the affected document.",
             "type": "string"
@@ -940,7 +944,7 @@
   },
   "info": {
     "title": "distribution API",
-    "version": "v0.0.0"
+    "version": "v0.0.1"
   },
   "openapi": "3.0.0",
   "paths": {

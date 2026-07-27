@@ -56,6 +56,13 @@
       },
       "ttab.assets.GetVariantsResponse": {
         "properties": {
+          "classes": {
+            "description": "Classes declared in the delivery configuration, referenced by name from the variants' classes lists.",
+            "items": {
+              "$ref": "#/components/schemas/ttab.assets.VariantClass"
+            },
+            "type": "array"
+          },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/ttab.assets.Variant"
@@ -358,6 +365,20 @@
         },
         "type": "object"
       },
+      "ttab.assets.VariantClass": {
+        "description": "VariantClass is a modifier applied to a base variant via the {variant}-{class} suffix, e.g. the wm class turning preview into preview-wm.",
+        "properties": {
+          "name": {
+            "description": "Name of the class, used as the {variant}-{class} suffix.",
+            "type": "string"
+          },
+          "public": {
+            "description": "Public marks renditions carrying this class as public derivatives: reachable with non-expiring (exp=0) tokens signed with the public key. A rendition is public when its base variant or its class is public.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ttab.assets.WarmIntermediateRequest": {
         "properties": {
           "id": {
@@ -395,7 +416,7 @@
   },
   "info": {
     "title": "assets API",
-    "version": "v0.0.0"
+    "version": "v0.0.1"
   },
   "openapi": "3.0.0",
   "paths": {

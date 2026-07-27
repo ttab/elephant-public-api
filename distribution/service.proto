@@ -267,6 +267,12 @@ message DocumentEvent {
   string doc_uuid = 3;
   // Version that was published (if this was a publish event).
   int64 version = 4;
+  // CreatedAt is the event timestamp in the canonical fixed-width RFC
+  // 3339 form used by the transparency log
+  // ("2006-01-02T15:04:05.000000Z", UTC, microsecond precision) — the
+  // same representation that the entry hash is computed over and that
+  // archived eventlog chunks carry.
+  string created_at = 5;
 }
 
 message Schema {

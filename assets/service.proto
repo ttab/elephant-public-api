@@ -91,6 +91,22 @@ message GetVariantsRequest {}
 
 message GetVariantsResponse {
   repeated Variant variants = 1;
+  // Classes declared in the delivery configuration, referenced by name
+  // from the variants' classes lists.
+  repeated VariantClass classes = 2;
+}
+
+// VariantClass is a modifier applied to a base variant via the
+// {variant}-{class} suffix, e.g. the wm class turning preview into
+// preview-wm.
+message VariantClass {
+  // Name of the class, used as the {variant}-{class} suffix.
+  string name = 1;
+  // Public marks renditions carrying this class as public derivatives:
+  // reachable with non-expiring (exp=0) tokens signed with the public
+  // key. A rendition is public when its base variant or its class is
+  // public.
+  bool public = 2;
 }
 
 message Variant {
