@@ -1,7 +1,7 @@
 {
   "components": {
     "schemas": {
-      "ttab.hub.ActivatePublishingKeyRequest": {
+      "elephant.hub.ActivatePublishingKeyRequest": {
         "properties": {
           "id": {
             "type": "integer"
@@ -9,13 +9,13 @@
         },
         "type": "object"
       },
-      "ttab.hub.ActivatePublishingKeyResponse": {
+      "elephant.hub.ActivatePublishingKeyResponse": {
         "type": "object"
       },
-      "ttab.hub.AddAllowedPublishingKeyRequest": {
+      "elephant.hub.AddAllowedPublishingKeyRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -27,10 +27,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.AddAllowedPublishingKeyResponse": {
+      "elephant.hub.AddAllowedPublishingKeyResponse": {
         "type": "object"
       },
-      "ttab.hub.ApproveOrganisationRequest": {
+      "elephant.hub.ApproveOrganisationRequest": {
         "properties": {
           "id": {
             "type": "integer"
@@ -38,10 +38,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.ApproveOrganisationResponse": {
+      "elephant.hub.ApproveOrganisationResponse": {
         "type": "object"
       },
-      "ttab.hub.ArtifactInfo": {
+      "elephant.hub.ArtifactInfo": {
         "properties": {
           "created_at": {
             "type": "string"
@@ -50,7 +50,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation (e.g. se.tt.my-plugin).",
@@ -65,12 +65,12 @@
             "type": "boolean"
           },
           "schema_usage": {
-            "$ref": "#/components/schemas/ttab.hub.SchemaUsage"
+            "$ref": "#/components/schemas/elephant.hub.SchemaUsage"
           }
         },
         "type": "object"
       },
-      "ttab.hub.ArtifactKind": {
+      "elephant.hub.ArtifactKind": {
         "enum": [
           "ARTIFACT_KIND_UNSPECIFIED",
           "ARTIFACT_KIND_SCHEMA",
@@ -78,7 +78,7 @@
         ],
         "type": "string"
       },
-      "ttab.hub.ArtifactPublisherInfo": {
+      "elephant.hub.ArtifactPublisherInfo": {
         "properties": {
           "id": {
             "type": "integer"
@@ -95,7 +95,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.AssetInfo": {
+      "elephant.hub.AssetInfo": {
         "properties": {
           "filename": {
             "type": "string"
@@ -106,17 +106,17 @@
         },
         "type": "object"
       },
-      "ttab.hub.BulkPublishItem": {
+      "elephant.hub.BulkPublishItem": {
         "description": "A single item in a bulk publish request.",
         "properties": {
           "assets": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.PublishAsset"
+              "$ref": "#/components/schemas/elephant.hub.PublishAsset"
             },
             "type": "array"
           },
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "manifest": {
             "description": "Raw manifest bytes.",
@@ -133,16 +133,16 @@
         },
         "type": "object"
       },
-      "ttab.hub.BulkPublishVersionRequest": {
+      "elephant.hub.BulkPublishVersionRequest": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.BulkPublishItem"
+              "$ref": "#/components/schemas/elephant.hub.BulkPublishItem"
             },
             "type": "array"
           },
           "signature_type": {
-            "$ref": "#/components/schemas/ttab.hub.SignatureType"
+            "$ref": "#/components/schemas/elephant.hub.SignatureType"
           },
           "signing_identity": {
             "description": "Publishing key fingerprint (shared across all items).",
@@ -155,7 +155,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.BulkPublishVersionResponse": {
+      "elephant.hub.BulkPublishVersionResponse": {
         "properties": {
           "version_ids": {
             "description": "Version IDs in the same order as the request items.",
@@ -167,7 +167,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.DeactivatePublishingKeyRequest": {
+      "elephant.hub.DeactivatePublishingKeyRequest": {
         "properties": {
           "id": {
             "type": "integer"
@@ -175,10 +175,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.DeactivatePublishingKeyResponse": {
+      "elephant.hub.DeactivatePublishingKeyResponse": {
         "type": "object"
       },
-      "ttab.hub.ForgeType": {
+      "elephant.hub.ForgeType": {
         "enum": [
           "FORGE_TYPE_UNSPECIFIED",
           "FORGE_TYPE_GITHUB",
@@ -189,13 +189,13 @@
         ],
         "type": "string"
       },
-      "ttab.hub.GetArtifactAssetRequest": {
+      "elephant.hub.GetArtifactAssetRequest": {
         "properties": {
           "filename": {
             "type": "string"
           },
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -207,7 +207,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.GetArtifactAssetResponse": {
+      "elephant.hub.GetArtifactAssetResponse": {
         "properties": {
           "data": {
             "type": "string"
@@ -221,10 +221,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.GetArtifactRequest": {
+      "elephant.hub.GetArtifactRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -233,24 +233,24 @@
         },
         "type": "object"
       },
-      "ttab.hub.GetArtifactResponse": {
+      "elephant.hub.GetArtifactResponse": {
         "properties": {
           "artifact": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactInfo"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactInfo"
           },
           "versions": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.VersionInfo"
+              "$ref": "#/components/schemas/elephant.hub.VersionInfo"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.hub.GetArtifactVersionRequest": {
+      "elephant.hub.GetArtifactVersionRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -263,14 +263,14 @@
         },
         "type": "object"
       },
-      "ttab.hub.GetArtifactVersionResponse": {
+      "elephant.hub.GetArtifactVersionResponse": {
         "properties": {
           "artifact": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactInfo"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactInfo"
           },
           "assets": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.AssetInfo"
+              "$ref": "#/components/schemas/elephant.hub.AssetInfo"
             },
             "type": "array"
           },
@@ -279,19 +279,19 @@
             "type": "string"
           },
           "version": {
-            "$ref": "#/components/schemas/ttab.hub.VersionInfo"
+            "$ref": "#/components/schemas/elephant.hub.VersionInfo"
           }
         },
         "type": "object"
       },
-      "ttab.hub.GetDocumentationRequest": {
+      "elephant.hub.GetDocumentationRequest": {
         "properties": {
           "filename": {
             "description": "Documentation file path relative to the manifest (e.g. \"README.md\", \"agents/editing.md\").",
             "type": "string"
           },
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -304,7 +304,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.GetDocumentationResponse": {
+      "elephant.hub.GetDocumentationResponse": {
         "properties": {
           "data": {
             "type": "string"
@@ -318,10 +318,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.ListArtifactPermissionsRequest": {
+      "elephant.hub.ListArtifactPermissionsRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -330,49 +330,49 @@
         },
         "type": "object"
       },
-      "ttab.hub.ListArtifactPermissionsResponse": {
+      "elephant.hub.ListArtifactPermissionsResponse": {
         "properties": {
           "allowed_publishing_keys": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.PublishingKeyInfo"
+              "$ref": "#/components/schemas/elephant.hub.PublishingKeyInfo"
             },
             "type": "array"
           },
           "publishers": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.ArtifactPublisherInfo"
+              "$ref": "#/components/schemas/elephant.hub.ArtifactPublisherInfo"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.hub.ListArtifactsRequest": {
+      "elephant.hub.ListArtifactsRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "schema_usage": {
-            "$ref": "#/components/schemas/ttab.hub.SchemaUsage"
+            "$ref": "#/components/schemas/elephant.hub.SchemaUsage"
           }
         },
         "type": "object"
       },
-      "ttab.hub.ListArtifactsResponse": {
+      "elephant.hub.ListArtifactsResponse": {
         "properties": {
           "artifacts": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.ArtifactInfo"
+              "$ref": "#/components/schemas/elephant.hub.ArtifactInfo"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.hub.ListDocumentationRequest": {
+      "elephant.hub.ListDocumentationRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -385,11 +385,11 @@
         },
         "type": "object"
       },
-      "ttab.hub.ListDocumentationResponse": {
+      "elephant.hub.ListDocumentationResponse": {
         "properties": {
           "files": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.AssetInfo"
+              "$ref": "#/components/schemas/elephant.hub.AssetInfo"
             },
             "type": "array"
           },
@@ -400,38 +400,38 @@
         },
         "type": "object"
       },
-      "ttab.hub.ListOrganisationsRequest": {
+      "elephant.hub.ListOrganisationsRequest": {
         "type": "object"
       },
-      "ttab.hub.ListOrganisationsResponse": {
+      "elephant.hub.ListOrganisationsResponse": {
         "properties": {
           "organisations": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.Organisation"
+              "$ref": "#/components/schemas/elephant.hub.Organisation"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.hub.ListPublishingKeysRequest": {
+      "elephant.hub.ListPublishingKeysRequest": {
         "type": "object"
       },
-      "ttab.hub.ListPublishingKeysResponse": {
+      "elephant.hub.ListPublishingKeysResponse": {
         "properties": {
           "publishing_keys": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.PublishingKeyInfo"
+              "$ref": "#/components/schemas/elephant.hub.PublishingKeyInfo"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.hub.OIDCProviderInfo": {
+      "elephant.hub.OIDCProviderInfo": {
         "properties": {
           "forge_type": {
-            "$ref": "#/components/schemas/ttab.hub.ForgeType"
+            "$ref": "#/components/schemas/elephant.hub.ForgeType"
           },
           "id": {
             "type": "integer"
@@ -445,7 +445,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.Organisation": {
+      "elephant.hub.Organisation": {
         "properties": {
           "approved": {
             "type": "boolean"
@@ -472,7 +472,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.PublishAsset": {
+      "elephant.hub.PublishAsset": {
         "description": "An asset to upload alongside a version.",
         "properties": {
           "data": {
@@ -487,16 +487,16 @@
         },
         "type": "object"
       },
-      "ttab.hub.PublishVersionRequest": {
+      "elephant.hub.PublishVersionRequest": {
         "properties": {
           "assets": {
             "items": {
-              "$ref": "#/components/schemas/ttab.hub.PublishAsset"
+              "$ref": "#/components/schemas/elephant.hub.PublishAsset"
             },
             "type": "array"
           },
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "manifest": {
             "description": "Raw manifest bytes.",
@@ -511,7 +511,7 @@
             "type": "string"
           },
           "signature_type": {
-            "$ref": "#/components/schemas/ttab.hub.SignatureType"
+            "$ref": "#/components/schemas/elephant.hub.SignatureType"
           },
           "signing_identity": {
             "description": "Publishing key fingerprint.",
@@ -523,7 +523,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.PublishVersionResponse": {
+      "elephant.hub.PublishVersionResponse": {
         "properties": {
           "version_id": {
             "type": "integer"
@@ -531,7 +531,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.PublishingKeyInfo": {
+      "elephant.hub.PublishingKeyInfo": {
         "properties": {
           "created_at": {
             "type": "string"
@@ -543,7 +543,7 @@
             "type": "integer"
           },
           "status": {
-            "$ref": "#/components/schemas/ttab.hub.PublishingKeyStatus"
+            "$ref": "#/components/schemas/elephant.hub.PublishingKeyStatus"
           },
           "user_email": {
             "type": "string"
@@ -551,7 +551,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.PublishingKeyStatus": {
+      "elephant.hub.PublishingKeyStatus": {
         "enum": [
           "PUBLISHING_KEY_STATUS_UNSPECIFIED",
           "PUBLISHING_KEY_STATUS_PENDING",
@@ -561,7 +561,7 @@
         ],
         "type": "string"
       },
-      "ttab.hub.RegisterOrgPublishingKeyRequest": {
+      "elephant.hub.RegisterOrgPublishingKeyRequest": {
         "properties": {
           "organisation_id": {
             "type": "integer"
@@ -573,7 +573,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.RegisterOrgPublishingKeyResponse": {
+      "elephant.hub.RegisterOrgPublishingKeyResponse": {
         "properties": {
           "id": {
             "type": "integer"
@@ -581,7 +581,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.RegisterPublishingKeyRequest": {
+      "elephant.hub.RegisterPublishingKeyRequest": {
         "properties": {
           "public_key": {
             "description": "Ed25519 public key bytes.",
@@ -590,7 +590,7 @@
         },
         "type": "object"
       },
-      "ttab.hub.RegisterPublishingKeyResponse": {
+      "elephant.hub.RegisterPublishingKeyResponse": {
         "properties": {
           "id": {
             "type": "integer"
@@ -598,10 +598,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.RemoveAllowedPublishingKeyRequest": {
+      "elephant.hub.RemoveAllowedPublishingKeyRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -613,10 +613,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.RemoveAllowedPublishingKeyResponse": {
+      "elephant.hub.RemoveAllowedPublishingKeyResponse": {
         "type": "object"
       },
-      "ttab.hub.RevokePublishingKeyRequest": {
+      "elephant.hub.RevokePublishingKeyRequest": {
         "properties": {
           "id": {
             "type": "integer"
@@ -624,13 +624,13 @@
         },
         "type": "object"
       },
-      "ttab.hub.RevokePublishingKeyResponse": {
+      "elephant.hub.RevokePublishingKeyResponse": {
         "type": "object"
       },
-      "ttab.hub.RevokeVersionRequest": {
+      "elephant.hub.RevokeVersionRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -642,10 +642,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.RevokeVersionResponse": {
+      "elephant.hub.RevokeVersionResponse": {
         "type": "object"
       },
-      "ttab.hub.SchemaUsage": {
+      "elephant.hub.SchemaUsage": {
         "enum": [
           "SCHEMA_USAGE_UNSPECIFIED",
           "SCHEMA_USAGE_EDITORIAL",
@@ -655,10 +655,10 @@
         ],
         "type": "string"
       },
-      "ttab.hub.SetArtifactVisibilityRequest": {
+      "elephant.hub.SetArtifactVisibilityRequest": {
         "properties": {
           "kind": {
-            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
           },
           "name": {
             "description": "Full artifact name in reverse-domain notation.",
@@ -670,10 +670,10 @@
         },
         "type": "object"
       },
-      "ttab.hub.SetArtifactVisibilityResponse": {
+      "elephant.hub.SetArtifactVisibilityResponse": {
         "type": "object"
       },
-      "ttab.hub.SignatureType": {
+      "elephant.hub.SignatureType": {
         "enum": [
           "SIGNATURE_TYPE_UNSPECIFIED",
           "SIGNATURE_TYPE_PUBLISHING_KEY",
@@ -681,7 +681,7 @@
         ],
         "type": "string"
       },
-      "ttab.hub.VersionInfo": {
+      "elephant.hub.VersionInfo": {
         "properties": {
           "created_at": {
             "type": "string"
@@ -693,7 +693,7 @@
             "type": "boolean"
           },
           "signature_type": {
-            "$ref": "#/components/schemas/ttab.hub.SignatureType"
+            "$ref": "#/components/schemas/elephant.hub.SignatureType"
           },
           "signing_identity": {
             "type": "string"
@@ -719,14 +719,14 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/twirp/ttab.hub.Hub/ActivatePublishingKey": {
+    "/twirp/elephant.hub.Hub/ActivatePublishingKey": {
       "post": {
         "description": "ActivatePublishingKey activates a pending or deactivated publishing key.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ActivatePublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.ActivatePublishingKeyRequest"
               }
             }
           }
@@ -736,7 +736,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ActivatePublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ActivatePublishingKeyResponse"
                 }
               }
             },
@@ -757,14 +757,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/AddAllowedPublishingKey": {
+    "/twirp/elephant.hub.Hub/AddAllowedPublishingKey": {
       "post": {
         "description": "AddAllowedPublishingKey adds a publishing key allowed to publish an artifact.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.AddAllowedPublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.AddAllowedPublishingKeyRequest"
               }
             }
           }
@@ -774,7 +774,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.AddAllowedPublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.AddAllowedPublishingKeyResponse"
                 }
               }
             },
@@ -795,14 +795,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/ApproveOrganisation": {
+    "/twirp/elephant.hub.Hub/ApproveOrganisation": {
       "post": {
         "description": "ApproveOrganisation approves an organisation, allowing its members to log in.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ApproveOrganisationRequest"
+                "$ref": "#/components/schemas/elephant.hub.ApproveOrganisationRequest"
               }
             }
           }
@@ -812,7 +812,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ApproveOrganisationResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ApproveOrganisationResponse"
                 }
               }
             },
@@ -833,14 +833,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/BulkPublishVersion": {
+    "/twirp/elephant.hub.Hub/BulkPublishVersion": {
       "post": {
         "description": "BulkPublishVersion publishes new versions of multiple artifacts in a single transaction. All items must use the same version and signing key.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.BulkPublishVersionRequest"
+                "$ref": "#/components/schemas/elephant.hub.BulkPublishVersionRequest"
               }
             }
           }
@@ -850,7 +850,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.BulkPublishVersionResponse"
+                  "$ref": "#/components/schemas/elephant.hub.BulkPublishVersionResponse"
                 }
               }
             },
@@ -871,14 +871,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/DeactivatePublishingKey": {
+    "/twirp/elephant.hub.Hub/DeactivatePublishingKey": {
       "post": {
         "description": "DeactivatePublishingKey deactivates an active publishing key (e.g. for rotation).",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.DeactivatePublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.DeactivatePublishingKeyRequest"
               }
             }
           }
@@ -888,7 +888,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.DeactivatePublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.DeactivatePublishingKeyResponse"
                 }
               }
             },
@@ -909,14 +909,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/GetArtifact": {
+    "/twirp/elephant.hub.Hub/GetArtifact": {
       "post": {
         "description": "GetArtifact returns metadata for a specific artifact.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.GetArtifactRequest"
+                "$ref": "#/components/schemas/elephant.hub.GetArtifactRequest"
               }
             }
           }
@@ -926,7 +926,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.GetArtifactResponse"
+                  "$ref": "#/components/schemas/elephant.hub.GetArtifactResponse"
                 }
               }
             },
@@ -947,14 +947,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/GetArtifactAsset": {
+    "/twirp/elephant.hub.Hub/GetArtifactAsset": {
       "post": {
         "description": "GetArtifactAsset returns the contents of a specific asset file.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.GetArtifactAssetRequest"
+                "$ref": "#/components/schemas/elephant.hub.GetArtifactAssetRequest"
               }
             }
           }
@@ -964,7 +964,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.GetArtifactAssetResponse"
+                  "$ref": "#/components/schemas/elephant.hub.GetArtifactAssetResponse"
                 }
               }
             },
@@ -985,14 +985,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/GetArtifactVersion": {
+    "/twirp/elephant.hub.Hub/GetArtifactVersion": {
       "post": {
         "description": "GetArtifactVersion returns a specific version of an artifact including its manifest.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.GetArtifactVersionRequest"
+                "$ref": "#/components/schemas/elephant.hub.GetArtifactVersionRequest"
               }
             }
           }
@@ -1002,7 +1002,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.GetArtifactVersionResponse"
+                  "$ref": "#/components/schemas/elephant.hub.GetArtifactVersionResponse"
                 }
               }
             },
@@ -1023,14 +1023,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/GetDocumentation": {
+    "/twirp/elephant.hub.Hub/GetDocumentation": {
       "post": {
         "description": "GetDocumentation returns the contents of a specific documentation file.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.GetDocumentationRequest"
+                "$ref": "#/components/schemas/elephant.hub.GetDocumentationRequest"
               }
             }
           }
@@ -1040,7 +1040,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.GetDocumentationResponse"
+                  "$ref": "#/components/schemas/elephant.hub.GetDocumentationResponse"
                 }
               }
             },
@@ -1061,14 +1061,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/ListArtifactPermissions": {
+    "/twirp/elephant.hub.Hub/ListArtifactPermissions": {
       "post": {
         "description": "ListArtifactPermissions lists the publishing keys and CI publishers allowed for an artifact.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ListArtifactPermissionsRequest"
+                "$ref": "#/components/schemas/elephant.hub.ListArtifactPermissionsRequest"
               }
             }
           }
@@ -1078,7 +1078,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ListArtifactPermissionsResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ListArtifactPermissionsResponse"
                 }
               }
             },
@@ -1099,14 +1099,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/ListArtifacts": {
+    "/twirp/elephant.hub.Hub/ListArtifacts": {
       "post": {
         "description": "ListArtifacts returns artifacts, optionally filtered by kind.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ListArtifactsRequest"
+                "$ref": "#/components/schemas/elephant.hub.ListArtifactsRequest"
               }
             }
           }
@@ -1116,7 +1116,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ListArtifactsResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ListArtifactsResponse"
                 }
               }
             },
@@ -1137,14 +1137,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/ListDocumentation": {
+    "/twirp/elephant.hub.Hub/ListDocumentation": {
       "post": {
         "description": "ListDocumentation returns the available documentation files for an artifact version.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ListDocumentationRequest"
+                "$ref": "#/components/schemas/elephant.hub.ListDocumentationRequest"
               }
             }
           }
@@ -1154,7 +1154,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ListDocumentationResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ListDocumentationResponse"
                 }
               }
             },
@@ -1175,14 +1175,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/ListOrganisations": {
+    "/twirp/elephant.hub.Hub/ListOrganisations": {
       "post": {
         "description": "ListOrganisations returns all registered organisations.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ListOrganisationsRequest"
+                "$ref": "#/components/schemas/elephant.hub.ListOrganisationsRequest"
               }
             }
           }
@@ -1192,7 +1192,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ListOrganisationsResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ListOrganisationsResponse"
                 }
               }
             },
@@ -1213,14 +1213,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/ListPublishingKeys": {
+    "/twirp/elephant.hub.Hub/ListPublishingKeys": {
       "post": {
         "description": "ListPublishingKeys lists registered publishing keys.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.ListPublishingKeysRequest"
+                "$ref": "#/components/schemas/elephant.hub.ListPublishingKeysRequest"
               }
             }
           }
@@ -1230,7 +1230,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.ListPublishingKeysResponse"
+                  "$ref": "#/components/schemas/elephant.hub.ListPublishingKeysResponse"
                 }
               }
             },
@@ -1251,14 +1251,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/PublishVersion": {
+    "/twirp/elephant.hub.Hub/PublishVersion": {
       "post": {
         "description": "PublishVersion publishes a new version of a schema or plugin.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.PublishVersionRequest"
+                "$ref": "#/components/schemas/elephant.hub.PublishVersionRequest"
               }
             }
           }
@@ -1268,7 +1268,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.PublishVersionResponse"
+                  "$ref": "#/components/schemas/elephant.hub.PublishVersionResponse"
                 }
               }
             },
@@ -1289,14 +1289,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/RegisterOrgPublishingKey": {
+    "/twirp/elephant.hub.Hub/RegisterOrgPublishingKey": {
       "post": {
         "description": "RegisterOrgPublishingKey registers a CI publishing key owned by an organisation. Requires the caller to be an admin of the target organisation.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.RegisterOrgPublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.RegisterOrgPublishingKeyRequest"
               }
             }
           }
@@ -1306,7 +1306,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.RegisterOrgPublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.RegisterOrgPublishingKeyResponse"
                 }
               }
             },
@@ -1327,14 +1327,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/RegisterPublishingKey": {
+    "/twirp/elephant.hub.Hub/RegisterPublishingKey": {
       "post": {
         "description": "RegisterPublishingKey registers a new publishing key for the authenticated user.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.RegisterPublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.RegisterPublishingKeyRequest"
               }
             }
           }
@@ -1344,7 +1344,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.RegisterPublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.RegisterPublishingKeyResponse"
                 }
               }
             },
@@ -1365,14 +1365,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/RemoveAllowedPublishingKey": {
+    "/twirp/elephant.hub.Hub/RemoveAllowedPublishingKey": {
       "post": {
         "description": "RemoveAllowedPublishingKey removes a publishing key from an artifact's allow list.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.RemoveAllowedPublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.RemoveAllowedPublishingKeyRequest"
               }
             }
           }
@@ -1382,7 +1382,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.RemoveAllowedPublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.RemoveAllowedPublishingKeyResponse"
                 }
               }
             },
@@ -1403,14 +1403,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/RevokePublishingKey": {
+    "/twirp/elephant.hub.Hub/RevokePublishingKey": {
       "post": {
         "description": "RevokePublishingKey permanently revokes a compromised publishing key.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.RevokePublishingKeyRequest"
+                "$ref": "#/components/schemas/elephant.hub.RevokePublishingKeyRequest"
               }
             }
           }
@@ -1420,7 +1420,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.RevokePublishingKeyResponse"
+                  "$ref": "#/components/schemas/elephant.hub.RevokePublishingKeyResponse"
                 }
               }
             },
@@ -1441,14 +1441,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/RevokeVersion": {
+    "/twirp/elephant.hub.Hub/RevokeVersion": {
       "post": {
         "description": "RevokeVersion marks a published version as revoked.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.RevokeVersionRequest"
+                "$ref": "#/components/schemas/elephant.hub.RevokeVersionRequest"
               }
             }
           }
@@ -1458,7 +1458,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.RevokeVersionResponse"
+                  "$ref": "#/components/schemas/elephant.hub.RevokeVersionResponse"
                 }
               }
             },
@@ -1479,14 +1479,14 @@
         ]
       }
     },
-    "/twirp/ttab.hub.Hub/SetArtifactVisibility": {
+    "/twirp/elephant.hub.Hub/SetArtifactVisibility": {
       "post": {
         "description": "SetArtifactVisibility sets whether an artifact is publicly visible.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.hub.SetArtifactVisibilityRequest"
+                "$ref": "#/components/schemas/elephant.hub.SetArtifactVisibilityRequest"
               }
             }
           }
@@ -1496,7 +1496,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.hub.SetArtifactVisibilityResponse"
+                  "$ref": "#/components/schemas/elephant.hub.SetArtifactVisibilityResponse"
                 }
               }
             },

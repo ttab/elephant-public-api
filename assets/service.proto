@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package ttab.assets;
+package elephant.assets;
 
 option go_package = "github.com/ttab/elephant-public-api/assets";
 

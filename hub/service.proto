@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package ttab.hub;
+package elephant.hub;
 
 option go_package = "github.com/ttab/elephant-public-api/hub";
 

@@ -1,6 +1,805 @@
 {
   "components": {
     "schemas": {
+      "elephant.distribution.ActivateConfigGenerationRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the generation to activate.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ActivateConfigGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ArchiveChunk": {
+        "properties": {
+          "chunk_id": {
+            "description": "ChunkID is the sequential chunk identifier.",
+            "type": "integer"
+          },
+          "events_url": {
+            "description": "EventsURL is a presigned GET URL for the chunk event zip.",
+            "type": "string"
+          },
+          "first_event_at": {
+            "description": "FirstEventAt is the timestamp of the first event, RFC3339.",
+            "type": "string"
+          },
+          "first_event_id": {
+            "description": "FirstEventID is the first eventlog ID in the chunk.",
+            "type": "integer"
+          },
+          "last_event_at": {
+            "description": "LastEventAt is the timestamp of the last event, RFC3339.",
+            "type": "string"
+          },
+          "last_event_id": {
+            "description": "LastEventID is the last eventlog ID in the chunk.",
+            "type": "integer"
+          },
+          "manifest_hash": {
+            "description": "ManifestHash is the hex-encoded sha256 of the canonical manifest.",
+            "type": "string"
+          },
+          "manifest_url": {
+            "description": "ManifestURL is a presigned GET URL for the signed chunk manifest.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ArchivedDocument": {
+        "properties": {
+          "content_url": {
+            "description": "ContentURL is a presigned GET URL for the canonical document JSON.",
+            "type": "string"
+          },
+          "hash": {
+            "description": "Hash is the hex-encoded sha256 of the canonical document body, for a pre-download integrity check. The document object's own signature (the authoritative verification anchor) is delivered with the object.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version is the latest archived version, or -1 if the document has been tombstoned (in which case there is no content URL).",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ConfigGeneration": {
+        "properties": {
+          "activated_at": {
+            "description": "ActivatedAt is the time the generation was last activated, RFC3339, or empty if it has never been activated.",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "CreatedAt is the time of registration, RFC3339.",
+            "type": "string"
+          },
+          "description": {
+            "description": "Description is an optional human-readable tag.",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID is assigned by the server on registration.",
+            "type": "integer"
+          },
+          "renditions": {
+            "description": "Renditions configured in the generation, one per asset kind.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionConfiguration"
+            },
+            "type": "array"
+          },
+          "schemas": {
+            "description": "Schemas in the generation.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ConfigGenerationSchema"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types configured in the generation.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ConfigGenerationType"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ConfigGenerationSchema": {
+        "description": "ConfigGenerationSchema references a schema version included in a generation. Spec is optional when the version is already stored; it is required when registering a new (name, version) pair.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ConfigGenerationType": {
+        "description": "ConfigGenerationType configures a document type within a generation.",
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/elephant.distribution.TypeConfiguration"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DocumentEvent": {
+        "properties": {
+          "created_at": {
+            "description": "CreatedAt is the event timestamp in the canonical fixed-width RFC 3339 form used by the transparency log (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision) — the same representation that the entry hash is computed over and that archived eventlog chunks carry.",
+            "type": "string"
+          },
+          "doc_uuid": {
+            "description": "DocUUID is the UUID of the affected document.",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "EventType is either \"published\" or \"unpublished\".",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the event.",
+            "type": "integer"
+          },
+          "version": {
+            "description": "Version that was published (if this was a publish event).",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DocumentItem": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
+          "event": {
+            "$ref": "#/components/schemas/elephant.distribution.DocumentEvent"
+          },
+          "subset": {
+            "description": "Subset is the extracted subset of the document.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ExtractedValues"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ExtractedValue": {
+        "properties": {
+          "annotation": {
+            "description": "Annotations can be used to differentiate between different extracted values.",
+            "type": "string"
+          },
+          "block": {
+            "$ref": "#/components/schemas/newsdoc.Block"
+          },
+          "role": {
+            "description": "Role can be used to differentiate between different extracted values.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value is used for extracted attributes and data values.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ExtractedValues": {
+        "properties": {
+          "extractor": {
+            "description": "Extractor index for the the extractor that produced the values.",
+            "type": "integer"
+          },
+          "values": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.ExtractedValue"
+            },
+            "description": "Values that were extracted.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetActiveConfigGenerationRequest": {
+        "properties": {
+          "known_id": {
+            "description": "KnownId is the generation ID the client already has; the call returns immediately when the active generation differs. Optional.",
+            "type": "integer"
+          },
+          "only_changed": {
+            "description": "OnlyChanged returns an empty response (with Unchanged=true) if the active generation matches KnownId.",
+            "type": "boolean"
+          },
+          "wait_seconds": {
+            "description": "WaitSeconds is the maximum number of seconds to wait for the active generation to differ from KnownId. Defaults to 10. Optional.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetActiveConfigGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+          },
+          "unchanged": {
+            "description": "Unchanged is true if KnownId matched the active generation and OnlyChanged was set.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetAllActiveSchemasRequest": {
+        "properties": {
+          "known": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Known schema versions that the client already has. Optional.",
+            "type": "object"
+          },
+          "only_changed": {
+            "description": "OnlyChanged only returns the schemas that have been changed.",
+            "type": "boolean"
+          },
+          "wait_seconds": {
+            "description": "WaitSeconds is the maximum number of seconds to wait for changes, defaults to 10 seconds. Optional.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetAllActiveSchemasResponse": {
+        "properties": {
+          "removed": {
+            "description": "Removed schemas.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schemas": {
+            "description": "Schemas that currently are active.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.Schema"
+            },
+            "type": "array"
+          },
+          "unchanged": {
+            "description": "Unchanged is set to true if no changes were done compared to known schema versions.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetArchivedDocumentRequest": {
+        "properties": {
+          "uuid": {
+            "description": "UUID of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version to get a URL for.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetArchivedDocumentResponse": {
+        "properties": {
+          "content_url": {
+            "description": "ContentURL is a presigned GET URL for the canonical document JSON.",
+            "type": "string"
+          },
+          "hash": {
+            "description": "Hash is the hex-encoded sha256 of the canonical document body.",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature covers the document body, for end-to-end verification.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDocumentRequest": {
+        "properties": {
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves the document with generated but unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves the document without any rendition links. See GetNewDocumentsRequest.disable_renditions.",
+            "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind. See GetNewDocumentsRequest.renditions.",
+            "type": "object"
+          },
+          "uuid": {
+            "description": "UUID of the document to get.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version to get, or 0 for the latest version.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDocumentResponse": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
+          "version": {
+            "description": "Version that was returned.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDocumentTypesRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.GetDocumentTypesResponse": {
+        "properties": {
+          "types": {
+            "description": "Types that have been defined in the schema.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetNewDocumentsRequest": {
+        "properties": {
+          "after": {
+            "description": "After returns new documents after the given event ID. A negative value is an offset from the newest event instead: -N returns the last N events (so at head 20, -5 yields events 16 through 20). The count is resolved against the log head at call time and capped at the same page size as a positive read. An offset reaching past the start of the log is clamped to the beginning.",
+            "type": "integer"
+          },
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves documents with generated but unsigned rendition URLs instead of signing the rendition links for the caller's audience. Intended for internal consumers that store canonical content and re-sign for their own audience at their own delivery time; external consumers should leave it unset.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves documents without any rendition links: the stored canonical bytes. This is the only mode whose payload matches the stored and archived document, so it is what a doc-hash verification against the transparency log must use. Takes precedence over disable_rendition_signing, which has no effect when this is set.",
+            "type": "boolean"
+          },
+          "load_documents": {
+            "description": "LoadDocuments should be set to true if you want the full documents in the response. If subset is used it will override load_documents.",
+            "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind (e.g. \"image\"). An absent kind - or an empty field within a present entry - falls back to the kind's configured defaults. An entry for a kind the active configuration doesn't declare is an invalid argument.",
+            "type": "object"
+          },
+          "subset": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.Subsets"
+            },
+            "description": "Subset returns a subset of the documents as specified by a map of newsdoc value extractors keyed by the types that they should be applied to.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetNewDocumentsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.DocumentItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetSchemaRequest": {
+        "properties": {
+          "name": {
+            "description": "Name of the schema to get.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the schema to get, optional. The currently active version of the schema will be returned if no version is specified.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetSchemaResponse": {
+        "properties": {
+          "spec": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetSyncStatusRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.GetSyncStatusResponse": {
+        "properties": {
+          "caught_up": {
+            "description": "CaughtUp is true if the sync worker had caught up with the head of the repository eventlog when it last stored its position.",
+            "type": "boolean"
+          },
+          "current": {
+            "description": "Current is the state the sync worker most recently reported, either \"running\" or \"paused\". Empty if the worker has never reported a state.",
+            "type": "string"
+          },
+          "desired": {
+            "description": "Desired is the state the sync worker should be in, either \"running\" or \"paused\".",
+            "type": "string"
+          },
+          "position": {
+            "description": "Position is the repository eventlog ID that the sync worker has processed up to.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetTypeConfigurationRequest": {
+        "properties": {
+          "type": {
+            "description": "Type to get configuration for.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetTypeConfigurationResponse": {
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/elephant.distribution.TypeConfiguration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.LabelExpression": {
+        "properties": {
+          "expression": {
+            "description": "Expression is a newsdoc value extraction expression.",
+            "type": "string"
+          },
+          "template": {
+            "description": "Template is the template that turns the extracted values into a label.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListArchiveChunksRequest": {
+        "properties": {
+          "after_chunk_id": {
+            "description": "AfterChunkID lists chunks after the given chunk ID; 0 to start.",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "PageSize defaults to 100.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListArchiveChunksResponse": {
+        "properties": {
+          "chunks": {
+            "description": "Chunks in this page, in ascending chunk-ID order.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ArchiveChunk"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListArchivedDocumentsRequest": {
+        "properties": {
+          "cursor": {
+            "description": "Cursor from a previous response; empty to start a new drain.",
+            "type": "string"
+          },
+          "page_size": {
+            "description": "PageSize defaults to 1000.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListArchivedDocumentsResponse": {
+        "properties": {
+          "documents": {
+            "description": "Documents in this page.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ArchivedDocument"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "NextCursor is empty when the catalog has been exhausted.",
+            "type": "string"
+          },
+          "watermark_event_id": {
+            "description": "WatermarkEventID is the last archived event ID as of the start of the drain. A consumer that has drained the catalog should tail Content.GetNewDocuments from this ID: everything up to it is covered by the catalog, everything after it by the tail.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListConfigGenerationsRequest": {
+        "properties": {
+          "before": {
+            "description": "Before is the highest generation ID to return; defaults to the latest. Use the smallest returned ID to paginate further into the past.",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "PageSize defaults to 50, max 200.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListConfigGenerationsResponse": {
+        "properties": {
+          "generations": {
+            "description": "Generations without schemas or type configurations populated.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RegisterConfigGenerationRequest": {
+        "properties": {
+          "activate": {
+            "description": "Activate the new generation immediately. Defaults to false; callers typically register first and activate as a separate step so they can inspect the diff first.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Description is an optional human-readable tag for the new generation.",
+            "type": "string"
+          },
+          "renditions": {
+            "description": "Renditions the generation should contain, one per asset kind. Order of the sources within each kind is preserved.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionConfiguration"
+            },
+            "type": "array"
+          },
+          "schemas": {
+            "description": "Schemas the generation should contain. Order is preserved.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ConfigGenerationSchema"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types the generation should contain. Order is preserved.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ConfigGenerationType"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RegisterConfigGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RenditionConfiguration": {
+        "description": "RenditionConfiguration configures delivery-time rendition generation for one asset kind.",
+        "properties": {
+          "default_extension": {
+            "description": "DefaultExtension is the extension used when a request doesn't specify one.",
+            "type": "string"
+          },
+          "default_variants": {
+            "description": "DefaultVariants are the variants generated when a request doesn't specify any.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "description": "Kind is the asset kind, e.g. \"image\".",
+            "type": "string"
+          },
+          "sources": {
+            "description": "Sources in evaluation order.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionSource"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RenditionParameters": {
+        "description": "RenditionParameters selects the renditions to generate for one asset kind at delivery time.",
+        "properties": {
+          "extension": {
+            "description": "Extension of the generated renditions, e.g. \"jpg\". Empty falls back to the kind's configured default extension.",
+            "type": "string"
+          },
+          "variants": {
+            "description": "Variants to generate rendition links for. Empty falls back to the kind's configured default variants.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RenditionSource": {
+        "description": "RenditionSource matches asset references in documents and maps them to an asset CDN namespace. Sources are evaluated in order; the first match wins.",
+        "properties": {
+          "block_types": {
+            "description": "BlockTypes are the document block types to inspect. Optional, defaults per kind (\"core/image\" for the \"image\" kind).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "link_rel": {
+            "description": "LinkRel is the block link rel that carries the asset reference. Optional, defaults per kind (\"image\" for the \"image\" kind).",
+            "type": "string"
+          },
+          "link_types": {
+            "description": "LinkTypes are the accepted types of the asset reference link.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Name identifies the source within its kind.",
+            "type": "string"
+          },
+          "namespace": {
+            "description": "Namespace is the asset CDN namespace to build rendition URLs in.",
+            "type": "string"
+          },
+          "uri_pattern": {
+            "description": "URIPattern is an anchored regular expression with exactly one capture group that extracts the asset ID from the link URI.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.Schema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SetSyncStateRequest": {
+        "properties": {
+          "desired": {
+            "description": "Desired state of the sync worker, either \"running\" or \"paused\".",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SetSyncStateResponse": {
+        "type": "object"
+      },
+      "elephant.distribution.Subsets": {
+        "properties": {
+          "expressions": {
+            "description": "Expressions to use to extract document contents.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TypeConfiguration": {
+        "properties": {
+          "bounded_collection": {
+            "description": "Set to true if this is a collection of documents that are bounded (limited in size). Bounded collections can be fetched by type and language in one go.",
+            "type": "boolean"
+          },
+          "label_expressions": {
+            "description": "LabelExpressions are used to extract labels from documents.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.LabelExpression"
+            },
+            "type": "array"
+          },
+          "time_expressions": {
+            "description": "TimeExpressions are used for extracting time ranges from documents.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.TypeTimeExpression"
+            },
+            "type": "array"
+          },
+          "transform_script": {
+            "description": "TransformScript is the transformation script for this document type.",
+            "type": "string"
+          },
+          "variants": {
+            "description": "Variants are the allowed variants for the document type.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TypeTimeExpression": {
+        "properties": {
+          "expression": {
+            "description": "Expression is a newsdoc value extraction expression.",
+            "type": "string"
+          },
+          "layout": {
+            "description": "Layout is the time/date format to use when parsing. Optional, defaults to RFC3339 or ISO 8601 for values annotated as dates.",
+            "type": "string"
+          },
+          "timezone": {
+            "description": "Timezone is the timezone the time should be parsed in. Optional, most timestamps should include timezone information, if they don't, parsing will fall back to the default timezone that the repository has been configured with.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "newsdoc.Block": {
         "description": "Block is the building block for data embedded in documents. It is used for both content, links and metadata. Blocks have can be nested, but that's nothing to strive for, keep it simple.",
         "properties": {
@@ -133,805 +932,6 @@
           }
         },
         "type": "object"
-      },
-      "ttab.distribution.ActivateConfigGenerationRequest": {
-        "properties": {
-          "id": {
-            "description": "ID of the generation to activate.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ActivateConfigGenerationResponse": {
-        "properties": {
-          "generation": {
-            "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ArchiveChunk": {
-        "properties": {
-          "chunk_id": {
-            "description": "ChunkID is the sequential chunk identifier.",
-            "type": "integer"
-          },
-          "events_url": {
-            "description": "EventsURL is a presigned GET URL for the chunk event zip.",
-            "type": "string"
-          },
-          "first_event_at": {
-            "description": "FirstEventAt is the timestamp of the first event, RFC3339.",
-            "type": "string"
-          },
-          "first_event_id": {
-            "description": "FirstEventID is the first eventlog ID in the chunk.",
-            "type": "integer"
-          },
-          "last_event_at": {
-            "description": "LastEventAt is the timestamp of the last event, RFC3339.",
-            "type": "string"
-          },
-          "last_event_id": {
-            "description": "LastEventID is the last eventlog ID in the chunk.",
-            "type": "integer"
-          },
-          "manifest_hash": {
-            "description": "ManifestHash is the hex-encoded sha256 of the canonical manifest.",
-            "type": "string"
-          },
-          "manifest_url": {
-            "description": "ManifestURL is a presigned GET URL for the signed chunk manifest.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ArchivedDocument": {
-        "properties": {
-          "content_url": {
-            "description": "ContentURL is a presigned GET URL for the canonical document JSON.",
-            "type": "string"
-          },
-          "hash": {
-            "description": "Hash is the hex-encoded sha256 of the canonical document body, for a pre-download integrity check. The document object's own signature (the authoritative verification anchor) is delivered with the object.",
-            "type": "string"
-          },
-          "uuid": {
-            "description": "UUID of the document.",
-            "type": "string"
-          },
-          "version": {
-            "description": "Version is the latest archived version, or -1 if the document has been tombstoned (in which case there is no content URL).",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ConfigGeneration": {
-        "properties": {
-          "activated_at": {
-            "description": "ActivatedAt is the time the generation was last activated, RFC3339, or empty if it has never been activated.",
-            "type": "string"
-          },
-          "created_at": {
-            "description": "CreatedAt is the time of registration, RFC3339.",
-            "type": "string"
-          },
-          "description": {
-            "description": "Description is an optional human-readable tag.",
-            "type": "string"
-          },
-          "id": {
-            "description": "ID is assigned by the server on registration.",
-            "type": "integer"
-          },
-          "renditions": {
-            "description": "Renditions configured in the generation, one per asset kind.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.RenditionConfiguration"
-            },
-            "type": "array"
-          },
-          "schemas": {
-            "description": "Schemas in the generation.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationSchema"
-            },
-            "type": "array"
-          },
-          "types": {
-            "description": "Types configured in the generation.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationType"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ConfigGenerationSchema": {
-        "description": "ConfigGenerationSchema references a schema version included in a generation. Spec is optional when the version is already stored; it is required when registering a new (name, version) pair.",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "spec": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ConfigGenerationType": {
-        "description": "ConfigGenerationType configures a document type within a generation.",
-        "properties": {
-          "configuration": {
-            "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
-          },
-          "type": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.DocumentEvent": {
-        "properties": {
-          "created_at": {
-            "description": "CreatedAt is the event timestamp in the canonical fixed-width RFC 3339 form used by the transparency log (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision) — the same representation that the entry hash is computed over and that archived eventlog chunks carry.",
-            "type": "string"
-          },
-          "doc_uuid": {
-            "description": "DocUUID is the UUID of the affected document.",
-            "type": "string"
-          },
-          "event_type": {
-            "description": "EventType is either \"published\" or \"unpublished\".",
-            "type": "string"
-          },
-          "id": {
-            "description": "ID of the event.",
-            "type": "integer"
-          },
-          "version": {
-            "description": "Version that was published (if this was a publish event).",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.DocumentItem": {
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/newsdoc.Document"
-          },
-          "event": {
-            "$ref": "#/components/schemas/ttab.distribution.DocumentEvent"
-          },
-          "subset": {
-            "description": "Subset is the extracted subset of the document.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ExtractedValues"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ExtractedValue": {
-        "properties": {
-          "annotation": {
-            "description": "Annotations can be used to differentiate between different extracted values.",
-            "type": "string"
-          },
-          "block": {
-            "$ref": "#/components/schemas/newsdoc.Block"
-          },
-          "role": {
-            "description": "Role can be used to differentiate between different extracted values.",
-            "type": "string"
-          },
-          "value": {
-            "description": "Value is used for extracted attributes and data values.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ExtractedValues": {
-        "properties": {
-          "extractor": {
-            "description": "Extractor index for the the extractor that produced the values.",
-            "type": "integer"
-          },
-          "values": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ttab.distribution.ExtractedValue"
-            },
-            "description": "Values that were extracted.",
-            "type": "object"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetActiveConfigGenerationRequest": {
-        "properties": {
-          "known_id": {
-            "description": "KnownId is the generation ID the client already has; the call returns immediately when the active generation differs. Optional.",
-            "type": "integer"
-          },
-          "only_changed": {
-            "description": "OnlyChanged returns an empty response (with Unchanged=true) if the active generation matches KnownId.",
-            "type": "boolean"
-          },
-          "wait_seconds": {
-            "description": "WaitSeconds is the maximum number of seconds to wait for the active generation to differ from KnownId. Defaults to 10. Optional.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetActiveConfigGenerationResponse": {
-        "properties": {
-          "generation": {
-            "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
-          },
-          "unchanged": {
-            "description": "Unchanged is true if KnownId matched the active generation and OnlyChanged was set.",
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetAllActiveSchemasRequest": {
-        "properties": {
-          "known": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "Known schema versions that the client already has. Optional.",
-            "type": "object"
-          },
-          "only_changed": {
-            "description": "OnlyChanged only returns the schemas that have been changed.",
-            "type": "boolean"
-          },
-          "wait_seconds": {
-            "description": "WaitSeconds is the maximum number of seconds to wait for changes, defaults to 10 seconds. Optional.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetAllActiveSchemasResponse": {
-        "properties": {
-          "removed": {
-            "description": "Removed schemas.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "schemas": {
-            "description": "Schemas that currently are active.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.Schema"
-            },
-            "type": "array"
-          },
-          "unchanged": {
-            "description": "Unchanged is set to true if no changes were done compared to known schema versions.",
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetArchivedDocumentRequest": {
-        "properties": {
-          "uuid": {
-            "description": "UUID of the document.",
-            "type": "string"
-          },
-          "version": {
-            "description": "Version to get a URL for.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetArchivedDocumentResponse": {
-        "properties": {
-          "content_url": {
-            "description": "ContentURL is a presigned GET URL for the canonical document JSON.",
-            "type": "string"
-          },
-          "hash": {
-            "description": "Hash is the hex-encoded sha256 of the canonical document body.",
-            "type": "string"
-          },
-          "signature": {
-            "description": "Signature covers the document body, for end-to-end verification.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetDocumentRequest": {
-        "properties": {
-          "disable_rendition_signing": {
-            "description": "DisableRenditionSigning serves the document with generated but unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
-            "type": "boolean"
-          },
-          "disable_renditions": {
-            "description": "DisableRenditions serves the document without any rendition links. See GetNewDocumentsRequest.disable_renditions.",
-            "type": "boolean"
-          },
-          "renditions": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ttab.distribution.RenditionParameters"
-            },
-            "description": "Renditions selects the rendition variants to generate per asset kind. See GetNewDocumentsRequest.renditions.",
-            "type": "object"
-          },
-          "uuid": {
-            "description": "UUID of the document to get.",
-            "type": "string"
-          },
-          "version": {
-            "description": "Version to get, or 0 for the latest version.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetDocumentResponse": {
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/newsdoc.Document"
-          },
-          "version": {
-            "description": "Version that was returned.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetDocumentTypesRequest": {
-        "type": "object"
-      },
-      "ttab.distribution.GetDocumentTypesResponse": {
-        "properties": {
-          "types": {
-            "description": "Types that have been defined in the schema.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetNewDocumentsRequest": {
-        "properties": {
-          "after": {
-            "description": "After returns new documents after the given event ID. A negative value is an offset from the newest event instead: -N returns the last N events (so at head 20, -5 yields events 16 through 20). The count is resolved against the log head at call time and capped at the same page size as a positive read. An offset reaching past the start of the log is clamped to the beginning.",
-            "type": "integer"
-          },
-          "disable_rendition_signing": {
-            "description": "DisableRenditionSigning serves documents with generated but unsigned rendition URLs instead of signing the rendition links for the caller's audience. Intended for internal consumers that store canonical content and re-sign for their own audience at their own delivery time; external consumers should leave it unset.",
-            "type": "boolean"
-          },
-          "disable_renditions": {
-            "description": "DisableRenditions serves documents without any rendition links: the stored canonical bytes. This is the only mode whose payload matches the stored and archived document, so it is what a doc-hash verification against the transparency log must use. Takes precedence over disable_rendition_signing, which has no effect when this is set.",
-            "type": "boolean"
-          },
-          "load_documents": {
-            "description": "LoadDocuments should be set to true if you want the full documents in the response. If subset is used it will override load_documents.",
-            "type": "boolean"
-          },
-          "renditions": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ttab.distribution.RenditionParameters"
-            },
-            "description": "Renditions selects the rendition variants to generate per asset kind (e.g. \"image\"). An absent kind - or an empty field within a present entry - falls back to the kind's configured defaults. An entry for a kind the active configuration doesn't declare is an invalid argument.",
-            "type": "object"
-          },
-          "subset": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ttab.distribution.Subsets"
-            },
-            "description": "Subset returns a subset of the documents as specified by a map of newsdoc value extractors keyed by the types that they should be applied to.",
-            "type": "object"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetNewDocumentsResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.DocumentItem"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetSchemaRequest": {
-        "properties": {
-          "name": {
-            "description": "Name of the schema to get.",
-            "type": "string"
-          },
-          "version": {
-            "description": "Version of the schema to get, optional. The currently active version of the schema will be returned if no version is specified.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetSchemaResponse": {
-        "properties": {
-          "spec": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetSyncStatusRequest": {
-        "type": "object"
-      },
-      "ttab.distribution.GetSyncStatusResponse": {
-        "properties": {
-          "caught_up": {
-            "description": "CaughtUp is true if the sync worker had caught up with the head of the repository eventlog when it last stored its position.",
-            "type": "boolean"
-          },
-          "current": {
-            "description": "Current is the state the sync worker most recently reported, either \"running\" or \"paused\". Empty if the worker has never reported a state.",
-            "type": "string"
-          },
-          "desired": {
-            "description": "Desired is the state the sync worker should be in, either \"running\" or \"paused\".",
-            "type": "string"
-          },
-          "position": {
-            "description": "Position is the repository eventlog ID that the sync worker has processed up to.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetTypeConfigurationRequest": {
-        "properties": {
-          "type": {
-            "description": "Type to get configuration for.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.GetTypeConfigurationResponse": {
-        "properties": {
-          "configuration": {
-            "$ref": "#/components/schemas/ttab.distribution.TypeConfiguration"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.LabelExpression": {
-        "properties": {
-          "expression": {
-            "description": "Expression is a newsdoc value extraction expression.",
-            "type": "string"
-          },
-          "template": {
-            "description": "Template is the template that turns the extracted values into a label.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ListArchiveChunksRequest": {
-        "properties": {
-          "after_chunk_id": {
-            "description": "AfterChunkID lists chunks after the given chunk ID; 0 to start.",
-            "type": "integer"
-          },
-          "page_size": {
-            "description": "PageSize defaults to 100.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ListArchiveChunksResponse": {
-        "properties": {
-          "chunks": {
-            "description": "Chunks in this page, in ascending chunk-ID order.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ArchiveChunk"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ListArchivedDocumentsRequest": {
-        "properties": {
-          "cursor": {
-            "description": "Cursor from a previous response; empty to start a new drain.",
-            "type": "string"
-          },
-          "page_size": {
-            "description": "PageSize defaults to 1000.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ListArchivedDocumentsResponse": {
-        "properties": {
-          "documents": {
-            "description": "Documents in this page.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ArchivedDocument"
-            },
-            "type": "array"
-          },
-          "next_cursor": {
-            "description": "NextCursor is empty when the catalog has been exhausted.",
-            "type": "string"
-          },
-          "watermark_event_id": {
-            "description": "WatermarkEventID is the last archived event ID as of the start of the drain. A consumer that has drained the catalog should tail Content.GetNewDocuments from this ID: everything up to it is covered by the catalog, everything after it by the tail.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ListConfigGenerationsRequest": {
-        "properties": {
-          "before": {
-            "description": "Before is the highest generation ID to return; defaults to the latest. Use the smallest returned ID to paginate further into the past.",
-            "type": "integer"
-          },
-          "page_size": {
-            "description": "PageSize defaults to 50, max 200.",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.ListConfigGenerationsResponse": {
-        "properties": {
-          "generations": {
-            "description": "Generations without schemas or type configurations populated.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.RegisterConfigGenerationRequest": {
-        "properties": {
-          "activate": {
-            "description": "Activate the new generation immediately. Defaults to false; callers typically register first and activate as a separate step so they can inspect the diff first.",
-            "type": "boolean"
-          },
-          "description": {
-            "description": "Description is an optional human-readable tag for the new generation.",
-            "type": "string"
-          },
-          "renditions": {
-            "description": "Renditions the generation should contain, one per asset kind. Order of the sources within each kind is preserved.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.RenditionConfiguration"
-            },
-            "type": "array"
-          },
-          "schemas": {
-            "description": "Schemas the generation should contain. Order is preserved.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationSchema"
-            },
-            "type": "array"
-          },
-          "types": {
-            "description": "Types the generation should contain. Order is preserved.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.ConfigGenerationType"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.RegisterConfigGenerationResponse": {
-        "properties": {
-          "generation": {
-            "$ref": "#/components/schemas/ttab.distribution.ConfigGeneration"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.RenditionConfiguration": {
-        "description": "RenditionConfiguration configures delivery-time rendition generation for one asset kind.",
-        "properties": {
-          "default_extension": {
-            "description": "DefaultExtension is the extension used when a request doesn't specify one.",
-            "type": "string"
-          },
-          "default_variants": {
-            "description": "DefaultVariants are the variants generated when a request doesn't specify any.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "kind": {
-            "description": "Kind is the asset kind, e.g. \"image\".",
-            "type": "string"
-          },
-          "sources": {
-            "description": "Sources in evaluation order.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.RenditionSource"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.RenditionParameters": {
-        "description": "RenditionParameters selects the renditions to generate for one asset kind at delivery time.",
-        "properties": {
-          "extension": {
-            "description": "Extension of the generated renditions, e.g. \"jpg\". Empty falls back to the kind's configured default extension.",
-            "type": "string"
-          },
-          "variants": {
-            "description": "Variants to generate rendition links for. Empty falls back to the kind's configured default variants.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.RenditionSource": {
-        "description": "RenditionSource matches asset references in documents and maps them to an asset CDN namespace. Sources are evaluated in order; the first match wins.",
-        "properties": {
-          "block_types": {
-            "description": "BlockTypes are the document block types to inspect. Optional, defaults per kind (\"core/image\" for the \"image\" kind).",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "link_rel": {
-            "description": "LinkRel is the block link rel that carries the asset reference. Optional, defaults per kind (\"image\" for the \"image\" kind).",
-            "type": "string"
-          },
-          "link_types": {
-            "description": "LinkTypes are the accepted types of the asset reference link.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "name": {
-            "description": "Name identifies the source within its kind.",
-            "type": "string"
-          },
-          "namespace": {
-            "description": "Namespace is the asset CDN namespace to build rendition URLs in.",
-            "type": "string"
-          },
-          "uri_pattern": {
-            "description": "URIPattern is an anchored regular expression with exactly one capture group that extracts the asset ID from the link URI.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.Schema": {
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "spec": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.SetSyncStateRequest": {
-        "properties": {
-          "desired": {
-            "description": "Desired state of the sync worker, either \"running\" or \"paused\".",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.SetSyncStateResponse": {
-        "type": "object"
-      },
-      "ttab.distribution.Subsets": {
-        "properties": {
-          "expressions": {
-            "description": "Expressions to use to extract document contents.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.TypeConfiguration": {
-        "properties": {
-          "bounded_collection": {
-            "description": "Set to true if this is a collection of documents that are bounded (limited in size). Bounded collections can be fetched by type and language in one go.",
-            "type": "boolean"
-          },
-          "label_expressions": {
-            "description": "LabelExpressions are used to extract labels from documents.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.LabelExpression"
-            },
-            "type": "array"
-          },
-          "time_expressions": {
-            "description": "TimeExpressions are used for extracting time ranges from documents.",
-            "items": {
-              "$ref": "#/components/schemas/ttab.distribution.TypeTimeExpression"
-            },
-            "type": "array"
-          },
-          "transform_script": {
-            "description": "TransformScript is the transformation script for this document type.",
-            "type": "string"
-          },
-          "variants": {
-            "description": "Variants are the allowed variants for the document type.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ttab.distribution.TypeTimeExpression": {
-        "properties": {
-          "expression": {
-            "description": "Expression is a newsdoc value extraction expression.",
-            "type": "string"
-          },
-          "layout": {
-            "description": "Layout is the time/date format to use when parsing. Optional, defaults to RFC3339 or ISO 8601 for values annotated as dates.",
-            "type": "string"
-          },
-          "timezone": {
-            "description": "Timezone is the timezone the time should be parsed in. Optional, most timestamps should include timezone information, if they don't, parsing will fall back to the default timezone that the repository has been configured with.",
-            "type": "string"
-          }
-        },
-        "type": "object"
       }
     },
     "securitySchemes": {
@@ -948,14 +948,14 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/twirp/ttab.distribution.Archive/GetArchivedDocument": {
+    "/twirp/elephant.distribution.Archive/GetArchivedDocument": {
       "post": {
         "description": "GetArchivedDocument returns a fresh presigned URL for a specific archived document version. Used to resolve replay bodies and to re-mint a URL a consumer let expire.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetArchivedDocumentRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetArchivedDocumentRequest"
               }
             }
           }
@@ -965,7 +965,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetArchivedDocumentResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetArchivedDocumentResponse"
                 }
               }
             },
@@ -986,14 +986,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Archive/ListArchiveChunks": {
+    "/twirp/elephant.distribution.Archive/ListArchiveChunks": {
       "post": {
         "description": "ListArchiveChunks lists archived eventlog chunks in order, for full ordered replay of the history that precedes the hot log.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.ListArchiveChunksRequest"
+                "$ref": "#/components/schemas/elephant.distribution.ListArchiveChunksRequest"
               }
             }
           }
@@ -1003,7 +1003,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.ListArchiveChunksResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.ListArchiveChunksResponse"
                 }
               }
             },
@@ -1024,14 +1024,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Archive/ListArchivedDocuments": {
+    "/twirp/elephant.distribution.Archive/ListArchivedDocuments": {
       "post": {
         "description": "ListArchivedDocuments enumerates the latest archived version of every document offloaded to the archive, for a current-state snapshot. Pair it with a Content.GetNewDocuments tail from watermark_event_id to reconstruct full current state.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.ListArchivedDocumentsRequest"
+                "$ref": "#/components/schemas/elephant.distribution.ListArchivedDocumentsRequest"
               }
             }
           }
@@ -1041,7 +1041,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.ListArchivedDocumentsResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.ListArchivedDocumentsResponse"
                 }
               }
             },
@@ -1062,14 +1062,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/ActivateConfigGeneration": {
+    "/twirp/elephant.distribution.Configuration/ActivateConfigGeneration": {
       "post": {
         "description": "ActivateConfigGeneration switches the active configuration to the generation with the given ID.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.ActivateConfigGenerationRequest"
+                "$ref": "#/components/schemas/elephant.distribution.ActivateConfigGenerationRequest"
               }
             }
           }
@@ -1079,7 +1079,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.ActivateConfigGenerationResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.ActivateConfigGenerationResponse"
                 }
               }
             },
@@ -1100,14 +1100,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/GetActiveConfigGeneration": {
+    "/twirp/elephant.distribution.Configuration/GetActiveConfigGeneration": {
       "post": {
         "description": "GetActiveConfigGeneration returns the currently active generation, including its schemas and type configurations. Supports long polling for changes.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetActiveConfigGenerationRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetActiveConfigGenerationRequest"
               }
             }
           }
@@ -1117,7 +1117,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetActiveConfigGenerationResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetActiveConfigGenerationResponse"
                 }
               }
             },
@@ -1138,14 +1138,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/GetAllActiveSchemas": {
+    "/twirp/elephant.distribution.Configuration/GetAllActiveSchemas": {
       "post": {
         "description": "GetAllActiveSchemas returns the schemas in the active generation. Supports long polling so clients can watch for changes.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetAllActiveSchemasRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetAllActiveSchemasRequest"
               }
             }
           }
@@ -1155,7 +1155,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetAllActiveSchemasResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetAllActiveSchemasResponse"
                 }
               }
             },
@@ -1176,14 +1176,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/GetDocumentTypes": {
+    "/twirp/elephant.distribution.Configuration/GetDocumentTypes": {
       "post": {
         "description": "GetDocumentTypes lists the document types declared by schemas in the active generation.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetDocumentTypesRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetDocumentTypesRequest"
               }
             }
           }
@@ -1193,7 +1193,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetDocumentTypesResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetDocumentTypesResponse"
                 }
               }
             },
@@ -1214,14 +1214,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/GetSchema": {
+    "/twirp/elephant.distribution.Configuration/GetSchema": {
       "post": {
         "description": "GetSchema retrieves a stored schema spec by name and version.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetSchemaRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetSchemaRequest"
               }
             }
           }
@@ -1231,7 +1231,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetSchemaResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetSchemaResponse"
                 }
               }
             },
@@ -1252,14 +1252,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/GetSyncStatus": {
+    "/twirp/elephant.distribution.Configuration/GetSyncStatus": {
       "post": {
         "description": "GetSyncStatus returns the desired and current state of the distribution sync worker together with its position in the repository eventlog.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetSyncStatusRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetSyncStatusRequest"
               }
             }
           }
@@ -1269,7 +1269,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetSyncStatusResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetSyncStatusResponse"
                 }
               }
             },
@@ -1290,14 +1290,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/GetTypeConfiguration": {
+    "/twirp/elephant.distribution.Configuration/GetTypeConfiguration": {
       "post": {
         "description": "GetTypeConfiguration returns the configuration for a type in the active generation.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetTypeConfigurationRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetTypeConfigurationRequest"
               }
             }
           }
@@ -1307,7 +1307,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetTypeConfigurationResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetTypeConfigurationResponse"
                 }
               }
             },
@@ -1328,14 +1328,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/ListConfigGenerations": {
+    "/twirp/elephant.distribution.Configuration/ListConfigGenerations": {
       "post": {
         "description": "ListConfigGenerations lists historical generations, most recent first.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.ListConfigGenerationsRequest"
+                "$ref": "#/components/schemas/elephant.distribution.ListConfigGenerationsRequest"
               }
             }
           }
@@ -1345,7 +1345,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.ListConfigGenerationsResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.ListConfigGenerationsResponse"
                 }
               }
             },
@@ -1366,14 +1366,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/RegisterConfigGeneration": {
+    "/twirp/elephant.distribution.Configuration/RegisterConfigGeneration": {
       "post": {
         "description": "RegisterConfigGeneration registers a complete configuration set (schemas + type configurations) as a new generation. Existing schema versions can be re-used by name and version without re-supplying the spec; if the spec is supplied for an existing version it must match the stored one. Returns the new generation ID.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.RegisterConfigGenerationRequest"
+                "$ref": "#/components/schemas/elephant.distribution.RegisterConfigGenerationRequest"
               }
             }
           }
@@ -1383,7 +1383,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.RegisterConfigGenerationResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.RegisterConfigGenerationResponse"
                 }
               }
             },
@@ -1404,14 +1404,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Configuration/SetSyncState": {
+    "/twirp/elephant.distribution.Configuration/SetSyncState": {
       "post": {
         "description": "SetSyncState sets the desired state of the distribution sync worker. A cold-started service (no configuration, no sync position) starts out paused so that the repository eventlog isn't consumed - and discarded - before a configuration generation has been activated.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.SetSyncStateRequest"
+                "$ref": "#/components/schemas/elephant.distribution.SetSyncStateRequest"
               }
             }
           }
@@ -1421,7 +1421,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.SetSyncStateResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.SetSyncStateResponse"
                 }
               }
             },
@@ -1442,14 +1442,14 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Content/GetDocument": {
+    "/twirp/elephant.distribution.Content/GetDocument": {
       "post": {
         "description": "GetDocument returns a single document, transparently falling back to the archive if the requested version (or the whole document) has been evicted from the hot data set. The document is returned in-band.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetDocumentRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetDocumentRequest"
               }
             }
           }
@@ -1459,7 +1459,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetDocumentResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetDocumentResponse"
                 }
               }
             },
@@ -1480,13 +1480,13 @@
         ]
       }
     },
-    "/twirp/ttab.distribution.Content/GetNewDocuments": {
+    "/twirp/elephant.distribution.Content/GetNewDocuments": {
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.distribution.GetNewDocumentsRequest"
+                "$ref": "#/components/schemas/elephant.distribution.GetNewDocumentsRequest"
               }
             }
           }
@@ -1496,7 +1496,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.distribution.GetNewDocumentsResponse"
+                  "$ref": "#/components/schemas/elephant.distribution.GetNewDocumentsResponse"
                 }
               }
             },

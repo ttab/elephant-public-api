@@ -1,18 +1,18 @@
 {
   "components": {
     "schemas": {
-      "ttab.assets.AddMetadataFieldRequest": {
+      "elephant.assets.AddMetadataFieldRequest": {
         "properties": {
           "field": {
-            "$ref": "#/components/schemas/ttab.assets.MetadataField"
+            "$ref": "#/components/schemas/elephant.assets.MetadataField"
           }
         },
         "type": "object"
       },
-      "ttab.assets.AddMetadataFieldResponse": {
+      "elephant.assets.AddMetadataFieldResponse": {
         "type": "object"
       },
-      "ttab.assets.DroppedField": {
+      "elephant.assets.DroppedField": {
         "description": "DroppedField is one metadata field a crop would drop, as reported by InspectCropMetadata.",
         "properties": {
           "addable": {
@@ -20,7 +20,7 @@
             "type": "boolean"
           },
           "field": {
-            "$ref": "#/components/schemas/ttab.assets.MetadataField"
+            "$ref": "#/components/schemas/elephant.assets.MetadataField"
           },
           "id": {
             "description": "Id is the raw underlying identifier, always set (e.g. \"ifd0/0x9291\", \"2:0x64\", or an XMP \"namespace local\").",
@@ -37,42 +37,42 @@
         },
         "type": "object"
       },
-      "ttab.assets.GetSigningKeysRequest": {
+      "elephant.assets.GetSigningKeysRequest": {
         "type": "object"
       },
-      "ttab.assets.GetSigningKeysResponse": {
+      "elephant.assets.GetSigningKeysResponse": {
         "properties": {
           "keys": {
             "items": {
-              "$ref": "#/components/schemas/ttab.assets.SigningKey"
+              "$ref": "#/components/schemas/elephant.assets.SigningKey"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.assets.GetVariantsRequest": {
+      "elephant.assets.GetVariantsRequest": {
         "type": "object"
       },
-      "ttab.assets.GetVariantsResponse": {
+      "elephant.assets.GetVariantsResponse": {
         "properties": {
           "classes": {
             "description": "Classes declared in the delivery configuration, referenced by name from the variants' classes lists.",
             "items": {
-              "$ref": "#/components/schemas/ttab.assets.VariantClass"
+              "$ref": "#/components/schemas/elephant.assets.VariantClass"
             },
             "type": "array"
           },
           "variants": {
             "items": {
-              "$ref": "#/components/schemas/ttab.assets.Variant"
+              "$ref": "#/components/schemas/elephant.assets.Variant"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.assets.InspectCropMetadataRequest": {
+      "elephant.assets.InspectCropMetadataRequest": {
         "properties": {
           "id": {
             "description": "Id of the asset in the namespace's id scheme.",
@@ -89,34 +89,34 @@
         },
         "type": "object"
       },
-      "ttab.assets.InspectCropMetadataResponse": {
+      "elephant.assets.InspectCropMetadataResponse": {
         "properties": {
           "dropped": {
             "description": "Dropped lists the fields a crop would drop, most useful first is not guaranteed — clients should present them grouped by kind.",
             "items": {
-              "$ref": "#/components/schemas/ttab.assets.DroppedField"
+              "$ref": "#/components/schemas/elephant.assets.DroppedField"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.assets.ListMetadataFieldsRequest": {
+      "elephant.assets.ListMetadataFieldsRequest": {
         "type": "object"
       },
-      "ttab.assets.ListMetadataFieldsResponse": {
+      "elephant.assets.ListMetadataFieldsResponse": {
         "properties": {
           "fields": {
             "description": "Fields are the configured extras (built-in defaults are not listed).",
             "items": {
-              "$ref": "#/components/schemas/ttab.assets.MetadataField"
+              "$ref": "#/components/schemas/elephant.assets.MetadataField"
             },
             "type": "array"
           }
         },
         "type": "object"
       },
-      "ttab.assets.MetadataField": {
+      "elephant.assets.MetadataField": {
         "description": "MetadataField is one recognized field kept on cropped renditions beyond the built-in whitelist. Exactly one group of fields applies per kind.",
         "properties": {
           "alias": {
@@ -158,18 +158,18 @@
         },
         "type": "object"
       },
-      "ttab.assets.RemoveMetadataFieldRequest": {
+      "elephant.assets.RemoveMetadataFieldRequest": {
         "properties": {
           "field": {
-            "$ref": "#/components/schemas/ttab.assets.MetadataField"
+            "$ref": "#/components/schemas/elephant.assets.MetadataField"
           }
         },
         "type": "object"
       },
-      "ttab.assets.RemoveMetadataFieldResponse": {
+      "elephant.assets.RemoveMetadataFieldResponse": {
         "type": "object"
       },
-      "ttab.assets.RemoveSelectorPinRequest": {
+      "elephant.assets.RemoveSelectorPinRequest": {
         "properties": {
           "id": {
             "description": "Id of the asset in the namespace's id scheme.",
@@ -182,10 +182,10 @@
         },
         "type": "object"
       },
-      "ttab.assets.RemoveSelectorPinResponse": {
+      "elephant.assets.RemoveSelectorPinResponse": {
         "type": "object"
       },
-      "ttab.assets.SetAudienceDenyRequest": {
+      "elephant.assets.SetAudienceDenyRequest": {
         "properties": {
           "aud": {
             "description": "Aud is the audience identifier.",
@@ -198,10 +198,10 @@
         },
         "type": "object"
       },
-      "ttab.assets.SetAudienceDenyResponse": {
+      "elephant.assets.SetAudienceDenyResponse": {
         "type": "object"
       },
-      "ttab.assets.SignURLRequest": {
+      "elephant.assets.SignURLRequest": {
         "properties": {
           "aud": {
             "description": "Aud is the audience the token is minted for.",
@@ -242,7 +242,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.SignURLResponse": {
+      "elephant.assets.SignURLResponse": {
         "properties": {
           "canonical": {
             "description": "Canonical is the newline-joined string the MAC covers, for debugging signature mismatches.",
@@ -267,7 +267,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.SigningKey": {
+      "elephant.assets.SigningKey": {
         "properties": {
           "kid": {
             "description": "Kid is the key identifier carried in minted tokens.",
@@ -292,7 +292,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.TakedownRequest": {
+      "elephant.assets.TakedownRequest": {
         "properties": {
           "id": {
             "description": "Id of the asset in the namespace's id scheme.",
@@ -313,7 +313,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.TakedownResponse": {
+      "elephant.assets.TakedownResponse": {
         "properties": {
           "deleted_objects": {
             "description": "DeletedObjects is the number of derivatives removed from the bucket.",
@@ -326,7 +326,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.Variant": {
+      "elephant.assets.Variant": {
         "properties": {
           "classes": {
             "description": "Classes are the class names available as a {variant}-{class} suffix, e.g. \"wm\" makes {variant}-wm a public watermarked rendition.",
@@ -365,7 +365,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.VariantClass": {
+      "elephant.assets.VariantClass": {
         "description": "VariantClass is a modifier applied to a base variant via the {variant}-{class} suffix, e.g. the wm class turning preview into preview-wm.",
         "properties": {
           "name": {
@@ -379,7 +379,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.WarmIntermediateRequest": {
+      "elephant.assets.WarmIntermediateRequest": {
         "properties": {
           "id": {
             "description": "Id of the asset in the namespace's id scheme.",
@@ -396,7 +396,7 @@
         },
         "type": "object"
       },
-      "ttab.assets.WarmIntermediateResponse": {
+      "elephant.assets.WarmIntermediateResponse": {
         "properties": {
           "state": {
             "description": "State is \"queued\" (population is pending, including when it already was), \"cached\" (an intermediate already exists), or \"disabled\" (the namespace doesn't use the intermediate cache — not an error, so fire-and-forget callers stay quiet across config changes).",
@@ -420,14 +420,14 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/twirp/ttab.assets.Keys/GetSigningKeys": {
+    "/twirp/elephant.assets.Keys/GetSigningKeys": {
       "post": {
         "description": "GetSigningKeys returns the current signing key set: active, upcoming (pre-distributed before their not_before), and recently expired keys. Signers cache the set and select the delivery key whose validity window covers the current time.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.GetSigningKeysRequest"
+                "$ref": "#/components/schemas/elephant.assets.GetSigningKeysRequest"
               }
             }
           }
@@ -437,7 +437,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.GetSigningKeysResponse"
+                  "$ref": "#/components/schemas/elephant.assets.GetSigningKeysResponse"
                 }
               }
             },
@@ -458,14 +458,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Keys/GetVariants": {
+    "/twirp/elephant.assets.Keys/GetVariants": {
       "post": {
         "description": "GetVariants returns the configured rendition variants. The asset service owns variant geometry, so URL-minting services fetch it from here — caching and refreshing in the background like the signing keys — to learn which variants exist and to compute rendition size hints from an asset's source dimensions.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.GetVariantsRequest"
+                "$ref": "#/components/schemas/elephant.assets.GetVariantsRequest"
               }
             }
           }
@@ -475,7 +475,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.GetVariantsResponse"
+                  "$ref": "#/components/schemas/elephant.assets.GetVariantsResponse"
                 }
               }
             },
@@ -496,14 +496,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Keys/SignURL": {
+    "/twirp/elephant.assets.Keys/SignURL": {
       "post": {
         "description": "SignURL mints a signed asset URL server-side from the request parameters, as a debugging aid — the service picks the appropriate key (the public key for a non-expiring exp=0 token, the active delivery key otherwise) and returns the token, path, and canonical string. Production signers mint URLs themselves from GetSigningKeys; this is for inspecting and reproducing signatures. Requires asset_keys_read.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.SignURLRequest"
+                "$ref": "#/components/schemas/elephant.assets.SignURLRequest"
               }
             }
           }
@@ -513,7 +513,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.SignURLResponse"
+                  "$ref": "#/components/schemas/elephant.assets.SignURLResponse"
                 }
               }
             },
@@ -534,14 +534,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/AddMetadataField": {
+    "/twirp/elephant.assets.Management/AddMetadataField": {
       "post": {
         "description": "AddMetadataField adds (or updates) one metadata field to preserve on cropped renditions, taking effect without a redeploy. It only widens the recognized-field set; the structural safety filters (no thumbnails, no binary payloads) are enforced in code regardless. Requires asset_admin.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.AddMetadataFieldRequest"
+                "$ref": "#/components/schemas/elephant.assets.AddMetadataFieldRequest"
               }
             }
           }
@@ -551,7 +551,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.AddMetadataFieldResponse"
+                  "$ref": "#/components/schemas/elephant.assets.AddMetadataFieldResponse"
                 }
               }
             },
@@ -572,14 +572,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/InspectCropMetadata": {
+    "/twirp/elephant.assets.Management/InspectCropMetadata": {
       "post": {
         "description": "InspectCropMetadata fetches an asset and reports the metadata fields a crop would drop under the current whitelist — known EXIF/IPTC fields with their alias, everything else with its raw id, each with a readable value. A diagnostic for \"why did field X disappear from a cropped image\". Requires asset_admin.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.InspectCropMetadataRequest"
+                "$ref": "#/components/schemas/elephant.assets.InspectCropMetadataRequest"
               }
             }
           }
@@ -589,7 +589,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.InspectCropMetadataResponse"
+                  "$ref": "#/components/schemas/elephant.assets.InspectCropMetadataResponse"
                 }
               }
             },
@@ -610,14 +610,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/ListMetadataFields": {
+    "/twirp/elephant.assets.Management/ListMetadataFields": {
       "post": {
         "description": "ListMetadataFields returns the operator-configured metadata fields that extend the built-in cropped-rendition whitelist (spec §7.5).",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.ListMetadataFieldsRequest"
+                "$ref": "#/components/schemas/elephant.assets.ListMetadataFieldsRequest"
               }
             }
           }
@@ -627,7 +627,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.ListMetadataFieldsResponse"
+                  "$ref": "#/components/schemas/elephant.assets.ListMetadataFieldsResponse"
                 }
               }
             },
@@ -648,14 +648,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/RemoveMetadataField": {
+    "/twirp/elephant.assets.Management/RemoveMetadataField": {
       "post": {
         "description": "RemoveMetadataField removes a configured metadata field. Built-in defaults cannot be removed. Requires asset_admin.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.RemoveMetadataFieldRequest"
+                "$ref": "#/components/schemas/elephant.assets.RemoveMetadataFieldRequest"
               }
             }
           }
@@ -665,7 +665,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.RemoveMetadataFieldResponse"
+                  "$ref": "#/components/schemas/elephant.assets.RemoveMetadataFieldResponse"
                 }
               }
             },
@@ -686,14 +686,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/RemoveSelectorPin": {
+    "/twirp/elephant.assets.Management/RemoveSelectorPin": {
       "post": {
         "description": "RemoveSelectorPin removes a selector pin. Safe once every token minted before the pin was set has expired (the maximum token lifetime is 30 days) and issuance-time enforcement is in place.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.RemoveSelectorPinRequest"
+                "$ref": "#/components/schemas/elephant.assets.RemoveSelectorPinRequest"
               }
             }
           }
@@ -703,7 +703,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.RemoveSelectorPinResponse"
+                  "$ref": "#/components/schemas/elephant.assets.RemoveSelectorPinResponse"
                 }
               }
             },
@@ -724,14 +724,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/SetAudienceDeny": {
+    "/twirp/elephant.assets.Management/SetAudienceDeny": {
       "post": {
         "description": "SetAudienceDeny adds or removes an audience deny-list entry at the edge: coarse revocation of every URL signed for the audience.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.SetAudienceDenyRequest"
+                "$ref": "#/components/schemas/elephant.assets.SetAudienceDenyRequest"
               }
             }
           }
@@ -741,7 +741,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.SetAudienceDenyResponse"
+                  "$ref": "#/components/schemas/elephant.assets.SetAudienceDenyResponse"
                 }
               }
             },
@@ -762,14 +762,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/Takedown": {
+    "/twirp/elephant.assets.Management/Takedown": {
       "post": {
         "description": "Takedown purges an asset's derivatives from the derivatives bucket and invalidates its CDN paths. Optionally pins the asset to a single selector at the edge (the retroactive-crop kill switch): with a pin set, requests for any other selector are rejected regardless of token validity.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.TakedownRequest"
+                "$ref": "#/components/schemas/elephant.assets.TakedownRequest"
               }
             }
           }
@@ -779,7 +779,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.TakedownResponse"
+                  "$ref": "#/components/schemas/elephant.assets.TakedownResponse"
                 }
               }
             },
@@ -800,14 +800,14 @@
         ]
       }
     },
-    "/twirp/ttab.assets.Management/WarmIntermediate": {
+    "/twirp/elephant.assets.Management/WarmIntermediate": {
       "post": {
         "description": "WarmIntermediate queues population of the cached intermediate for an asset, so the first derivative request doesn't pay the original fetch. Fire-and-forget: the response reports queueing, not completion. Requires the asset_warm or asset_admin scope.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ttab.assets.WarmIntermediateRequest"
+                "$ref": "#/components/schemas/elephant.assets.WarmIntermediateRequest"
               }
             }
           }
@@ -817,7 +817,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ttab.assets.WarmIntermediateResponse"
+                  "$ref": "#/components/schemas/elephant.assets.WarmIntermediateResponse"
                 }
               }
             },
