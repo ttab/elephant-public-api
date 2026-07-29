@@ -1,0 +1,412 @@
+syntax = "proto3";
+
+package ttab.hub;
+
+option go_package = "github.com/ttab/elephant-public-api/hub";
+
+// Hub provides the API for managing schemas and plugins in the
+// Elephant Hub registry.
+service Hub {
+  // --- Organisation management ---
+
+  // ListOrganisations returns all registered organisations.
+  rpc ListOrganisations(ListOrganisationsRequest) returns (ListOrganisationsResponse);
+  // ApproveOrganisation approves an organisation, allowing its members to log in.
+  rpc ApproveOrganisation(ApproveOrganisationRequest) returns (ApproveOrganisationResponse);
+
+  // --- Artifact browsing ---
+
+  // ListArtifacts returns artifacts, optionally filtered by kind.
+  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
+  // GetArtifact returns metadata for a specific artifact.
+  rpc GetArtifact(GetArtifactRequest) returns (GetArtifactResponse);
+  // GetArtifactVersion returns a specific version of an artifact including its manifest.
+  rpc GetArtifactVersion(GetArtifactVersionRequest) returns (GetArtifactVersionResponse);
+  // GetArtifactAsset returns the contents of a specific asset file.
+  rpc GetArtifactAsset(GetArtifactAssetRequest) returns (GetArtifactAssetResponse);
+
+  // --- Documentation ---
+
+  // ListDocumentation returns the available documentation files for an artifact version.
+  rpc ListDocumentation(ListDocumentationRequest) returns (ListDocumentationResponse);
+  // GetDocumentation returns the contents of a specific documentation file.
+  rpc GetDocumentation(GetDocumentationRequest) returns (GetDocumentationResponse);
+
+  // --- Publishing ---
+
+  // PublishVersion publishes a new version of a schema or plugin.
+  rpc PublishVersion(PublishVersionRequest) returns (PublishVersionResponse);
+  // BulkPublishVersion publishes new versions of multiple artifacts in a
+  // single transaction. All items must use the same version and signing key.
+  rpc BulkPublishVersion(BulkPublishVersionRequest) returns (BulkPublishVersionResponse);
+  // RevokeVersion marks a published version as revoked.
+  rpc RevokeVersion(RevokeVersionRequest) returns (RevokeVersionResponse);
+
+  // --- Publishing key management ---
+
+  // RegisterPublishingKey registers a new publishing key for the authenticated user.
+  rpc RegisterPublishingKey(RegisterPublishingKeyRequest) returns (RegisterPublishingKeyResponse);
+  // RegisterOrgPublishingKey registers a CI publishing key owned by an organisation.
+  // Requires the caller to be an admin of the target organisation.
+  rpc RegisterOrgPublishingKey(RegisterOrgPublishingKeyRequest) returns (RegisterOrgPublishingKeyResponse);
+  // ListPublishingKeys lists registered publishing keys.
+  rpc ListPublishingKeys(ListPublishingKeysRequest) returns (ListPublishingKeysResponse);
+  // DeactivatePublishingKey deactivates an active publishing key (e.g. for rotation).
+  rpc DeactivatePublishingKey(DeactivatePublishingKeyRequest) returns (DeactivatePublishingKeyResponse);
+  // ActivatePublishingKey activates a pending or deactivated publishing key.
+  rpc ActivatePublishingKey(ActivatePublishingKeyRequest) returns (ActivatePublishingKeyResponse);
+  // RevokePublishingKey permanently revokes a compromised publishing key.
+  rpc RevokePublishingKey(RevokePublishingKeyRequest) returns (RevokePublishingKeyResponse);
+
+  // --- Artifact permissions ---
+
+  // AddAllowedPublishingKey adds a publishing key allowed to publish an artifact.
+  rpc AddAllowedPublishingKey(AddAllowedPublishingKeyRequest) returns (AddAllowedPublishingKeyResponse);
+  // RemoveAllowedPublishingKey removes a publishing key from an artifact's allow list.
+  rpc RemoveAllowedPublishingKey(RemoveAllowedPublishingKeyRequest) returns (RemoveAllowedPublishingKeyResponse);
+  // ListArtifactPermissions lists the publishing keys and CI publishers allowed for an artifact.
+  rpc ListArtifactPermissions(ListArtifactPermissionsRequest) returns (ListArtifactPermissionsResponse);
+
+  // --- Visibility ---
+
+  // SetArtifactVisibility sets whether an artifact is publicly visible.
+  rpc SetArtifactVisibility(SetArtifactVisibilityRequest) returns (SetArtifactVisibilityResponse);
+
+}
+
+// --- Enums ---
+
+enum ArtifactKind {
+  ARTIFACT_KIND_UNSPECIFIED = 0;
+  ARTIFACT_KIND_SCHEMA      = 1;
+  ARTIFACT_KIND_PLUGIN      = 2;
+}
+
+enum SignatureType {
+  SIGNATURE_TYPE_UNSPECIFIED    = 0;
+  SIGNATURE_TYPE_PUBLISHING_KEY = 1;
+  // Deprecated: sigstore signing is no longer supported for new publishes.
+  // Kept for reading historical versions.
+  SIGNATURE_TYPE_SIGSTORE       = 2;
+}
+
+enum ForgeType {
+  FORGE_TYPE_UNSPECIFIED = 0;
+  FORGE_TYPE_GITHUB     = 1;
+  FORGE_TYPE_GITLAB     = 2;
+  FORGE_TYPE_FORGEJO    = 3;
+  FORGE_TYPE_BITBUCKET  = 4;
+  FORGE_TYPE_CUSTOM     = 5;
+}
+
+enum PublishingKeyStatus {
+  PUBLISHING_KEY_STATUS_UNSPECIFIED = 0;
+  PUBLISHING_KEY_STATUS_PENDING     = 1;
+  PUBLISHING_KEY_STATUS_ACTIVE      = 2;
+  PUBLISHING_KEY_STATUS_INACTIVE    = 3;
+  PUBLISHING_KEY_STATUS_REVOKED     = 4;
+}
+
+enum SchemaUsage {
+  SCHEMA_USAGE_UNSPECIFIED  = 0;
+  SCHEMA_USAGE_EDITORIAL    = 1;
+  SCHEMA_USAGE_DISTRIBUTION = 2;
+  SCHEMA_USAGE_SETTINGS     = 3;
+  SCHEMA_USAGE_MESSAGES     = 4;
+}
+
+// --- Common types ---
+
+message Organisation {
+  int64  id         = 1;
+  // Organisation URI as carried by the org claim (e.g. core://org/tt).
+  string uri        = 2;
+  string name       = 3;
+  bool   approved   = 4;
+  bool   is_owner   = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+message ArtifactInfo {
+  int64        id           = 1;
+  // URI of the owning organisation (e.g. core://org/tt).
+  string       organisation = 2;
+  ArtifactKind kind         = 3;
+  // Full artifact name in reverse-domain notation (e.g. se.tt.my-plugin).
+  string       name         = 4;
+  string       created_at   = 5;
+  // Whether the artifact is publicly visible. Private artifacts are only
+  // visible to members of the owning organisation.
+  bool         public       = 6;
+  // Schema usage category. Only meaningful when kind is ARTIFACT_KIND_SCHEMA.
+  SchemaUsage  schema_usage = 7;
+}
+
+message VersionInfo {
+  int64         id               = 1;
+  string        version          = 2;
+  SignatureType  signature_type   = 3;
+  string        signing_identity = 4;
+  bool          revoked          = 5;
+  string        created_at       = 6;
+}
+
+message AssetInfo {
+  string filename = 1;
+  string sha256   = 2;
+}
+
+message PublishingKeyInfo {
+  int64              id          = 1;
+  string             fingerprint = 2;
+  string             user_email  = 3;
+  PublishingKeyStatus status      = 4;
+  string             created_at  = 5;
+}
+
+// An asset to upload alongside a version.
+message PublishAsset {
+  string filename = 1;
+  string sha256   = 2;
+  bytes  data     = 3;
+}
+
+// --- Organisation requests/responses ---
+
+message ListOrganisationsRequest {}
+message ListOrganisationsResponse {
+  repeated Organisation organisations = 1;
+}
+
+message ApproveOrganisationRequest {
+  int64 id = 1;
+}
+message ApproveOrganisationResponse {}
+
+// --- Artifact browsing requests/responses ---
+
+message ListArtifactsRequest {
+  // Optional filter by kind.
+  ArtifactKind kind         = 1;
+  // Optional filter by schema usage. Only applies when kind is SCHEMA.
+  SchemaUsage  schema_usage = 2;
+}
+message ListArtifactsResponse {
+  repeated ArtifactInfo artifacts = 1;
+}
+
+message GetArtifactRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+}
+message GetArtifactResponse {
+  ArtifactInfo           artifact = 1;
+  repeated VersionInfo   versions = 2;
+}
+
+message GetArtifactVersionRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+  // Specific version string, or empty for latest.
+  string version    = 3;
+}
+message GetArtifactVersionResponse {
+  ArtifactInfo        artifact = 1;
+  VersionInfo         version  = 2;
+  // Raw manifest bytes.
+  bytes               manifest = 3;
+  repeated AssetInfo  assets   = 4;
+}
+
+message GetArtifactAssetRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+  string version    = 3;
+  string filename   = 4;
+}
+message GetArtifactAssetResponse {
+  string filename = 1;
+  string sha256   = 2;
+  bytes  data     = 3;
+}
+
+// --- Documentation requests/responses ---
+
+message ListDocumentationRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+  // Specific version string (v-prefixed), or empty for latest.
+  string version    = 3;
+}
+message ListDocumentationResponse {
+  // The resolved version.
+  string             version = 1;
+  repeated AssetInfo files   = 2;
+}
+
+message GetDocumentationRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+  // Specific version string (v-prefixed), or empty for latest.
+  string version    = 3;
+  // Documentation file path relative to the manifest (e.g. "README.md", "agents/editing.md").
+  string filename   = 4;
+}
+message GetDocumentationResponse {
+  string filename = 1;
+  string sha256   = 2;
+  bytes  data     = 3;
+}
+
+// --- Publishing requests/responses ---
+
+message PublishVersionRequest {
+  ArtifactKind   kind             = 1;
+  // Full artifact name in reverse-domain notation (e.g. se.tt.my-plugin).
+  string         name             = 2;
+  string         version          = 3;
+  // Raw manifest bytes.
+  bytes          manifest         = 4;
+  SignatureType  signature_type   = 5;
+  // Ed25519 signature bytes.
+  bytes          signature        = 6;
+  // Publishing key fingerprint.
+  string         signing_identity = 7;
+  repeated PublishAsset assets    = 8;
+}
+message PublishVersionResponse {
+  int64 version_id = 1;
+}
+
+// A single item in a bulk publish request.
+message BulkPublishItem {
+  ArtifactKind          kind      = 1;
+  // Full artifact name in reverse-domain notation (e.g. se.tt.my-schema).
+  string                name      = 2;
+  // Raw manifest bytes.
+  bytes                 manifest  = 3;
+  // Ed25519 signature bytes for this manifest.
+  bytes                 signature = 4;
+  repeated PublishAsset assets    = 5;
+}
+
+message BulkPublishVersionRequest {
+  // Version string applied to all items.
+  string                   version          = 1;
+  SignatureType            signature_type   = 2;
+  // Publishing key fingerprint (shared across all items).
+  string                   signing_identity = 3;
+  repeated BulkPublishItem items            = 4;
+}
+
+message BulkPublishVersionResponse {
+  // Version IDs in the same order as the request items.
+  repeated int64 version_ids = 1;
+}
+
+message RevokeVersionRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+  string version    = 3;
+}
+message RevokeVersionResponse {}
+
+// --- Publishing key requests/responses ---
+
+message RegisterPublishingKeyRequest {
+  // Ed25519 public key bytes.
+  bytes public_key = 1;
+}
+message RegisterPublishingKeyResponse {
+  int64 id = 1;
+}
+
+message RegisterOrgPublishingKeyRequest {
+  int64 organisation_id = 1;
+  // Ed25519 public key bytes.
+  bytes public_key      = 2;
+}
+message RegisterOrgPublishingKeyResponse {
+  int64 id = 1;
+}
+
+message ListPublishingKeysRequest {}
+message ListPublishingKeysResponse {
+  repeated PublishingKeyInfo publishing_keys = 1;
+}
+
+message DeactivatePublishingKeyRequest {
+  int64 id = 1;
+}
+message DeactivatePublishingKeyResponse {}
+
+message ActivatePublishingKeyRequest {
+  int64 id = 1;
+}
+message ActivatePublishingKeyResponse {}
+
+message RevokePublishingKeyRequest {
+  int64 id = 1;
+}
+message RevokePublishingKeyResponse {}
+
+// --- Permission requests/responses ---
+
+message AddAllowedPublishingKeyRequest {
+  ArtifactKind kind           = 1;
+  // Full artifact name in reverse-domain notation.
+  string name                 = 2;
+  int64  publishing_key_id    = 3;
+}
+message AddAllowedPublishingKeyResponse {}
+
+message RemoveAllowedPublishingKeyRequest {
+  ArtifactKind kind           = 1;
+  // Full artifact name in reverse-domain notation.
+  string name                 = 2;
+  int64  publishing_key_id    = 3;
+}
+message RemoveAllowedPublishingKeyResponse {}
+
+message ListArtifactPermissionsRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name       = 2;
+}
+message ListArtifactPermissionsResponse {
+  repeated PublishingKeyInfo allowed_publishing_keys = 2;
+  repeated ArtifactPublisherInfo publishers          = 3;
+}
+
+// --- Visibility requests/responses ---
+
+message SetArtifactVisibilityRequest {
+  ArtifactKind kind   = 1;
+  // Full artifact name in reverse-domain notation.
+  string       name   = 2;
+  bool         public = 3;
+}
+message SetArtifactVisibilityResponse {}
+
+// --- OIDC / CI publisher types ---
+
+message OIDCProviderInfo {
+  int64     id         = 1;
+  string    name       = 2;
+  ForgeType forge_type = 3;
+  string    issuer_url = 4;
+}
+
+message ArtifactPublisherInfo {
+  int64  id            = 1;
+  string provider_name = 2;
+  string repository    = 3;
+  string ref_pattern   = 4;
+}

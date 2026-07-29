@@ -1,0 +1,1535 @@
+{
+  "components": {
+    "schemas": {
+      "ttab.hub.ActivatePublishingKeyRequest": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ActivatePublishingKeyResponse": {
+        "type": "object"
+      },
+      "ttab.hub.AddAllowedPublishingKeyRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "publishing_key_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.AddAllowedPublishingKeyResponse": {
+        "type": "object"
+      },
+      "ttab.hub.ApproveOrganisationRequest": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ApproveOrganisationResponse": {
+        "type": "object"
+      },
+      "ttab.hub.ArtifactInfo": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation (e.g. se.tt.my-plugin).",
+            "type": "string"
+          },
+          "organisation": {
+            "description": "URI of the owning organisation (e.g. core://org/tt).",
+            "type": "string"
+          },
+          "public": {
+            "description": "Whether the artifact is publicly visible. Private artifacts are only visible to members of the owning organisation.",
+            "type": "boolean"
+          },
+          "schema_usage": {
+            "$ref": "#/components/schemas/ttab.hub.SchemaUsage"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ArtifactKind": {
+        "enum": [
+          "ARTIFACT_KIND_UNSPECIFIED",
+          "ARTIFACT_KIND_SCHEMA",
+          "ARTIFACT_KIND_PLUGIN"
+        ],
+        "type": "string"
+      },
+      "ttab.hub.ArtifactPublisherInfo": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "provider_name": {
+            "type": "string"
+          },
+          "ref_pattern": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.AssetInfo": {
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.BulkPublishItem": {
+        "description": "A single item in a bulk publish request.",
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.PublishAsset"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "manifest": {
+            "description": "Raw manifest bytes.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation (e.g. se.tt.my-schema).",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Ed25519 signature bytes for this manifest.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.BulkPublishVersionRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.BulkPublishItem"
+            },
+            "type": "array"
+          },
+          "signature_type": {
+            "$ref": "#/components/schemas/ttab.hub.SignatureType"
+          },
+          "signing_identity": {
+            "description": "Publishing key fingerprint (shared across all items).",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version string applied to all items.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.BulkPublishVersionResponse": {
+        "properties": {
+          "version_ids": {
+            "description": "Version IDs in the same order as the request items.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.DeactivatePublishingKeyRequest": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.DeactivatePublishingKeyResponse": {
+        "type": "object"
+      },
+      "ttab.hub.ForgeType": {
+        "enum": [
+          "FORGE_TYPE_UNSPECIFIED",
+          "FORGE_TYPE_GITHUB",
+          "FORGE_TYPE_GITLAB",
+          "FORGE_TYPE_FORGEJO",
+          "FORGE_TYPE_BITBUCKET",
+          "FORGE_TYPE_CUSTOM"
+        ],
+        "type": "string"
+      },
+      "ttab.hub.GetArtifactAssetRequest": {
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetArtifactAssetResponse": {
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetArtifactRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetArtifactResponse": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactInfo"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.VersionInfo"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetArtifactVersionRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Specific version string, or empty for latest.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetArtifactVersionResponse": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactInfo"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.AssetInfo"
+            },
+            "type": "array"
+          },
+          "manifest": {
+            "description": "Raw manifest bytes.",
+            "type": "string"
+          },
+          "version": {
+            "$ref": "#/components/schemas/ttab.hub.VersionInfo"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetDocumentationRequest": {
+        "properties": {
+          "filename": {
+            "description": "Documentation file path relative to the manifest (e.g. \"README.md\", \"agents/editing.md\").",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Specific version string (v-prefixed), or empty for latest.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.GetDocumentationResponse": {
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListArtifactPermissionsRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListArtifactPermissionsResponse": {
+        "properties": {
+          "allowed_publishing_keys": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.PublishingKeyInfo"
+            },
+            "type": "array"
+          },
+          "publishers": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.ArtifactPublisherInfo"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListArtifactsRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "schema_usage": {
+            "$ref": "#/components/schemas/ttab.hub.SchemaUsage"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListArtifactsResponse": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.ArtifactInfo"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListDocumentationRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Specific version string (v-prefixed), or empty for latest.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListDocumentationResponse": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.AssetInfo"
+            },
+            "type": "array"
+          },
+          "version": {
+            "description": "The resolved version.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListOrganisationsRequest": {
+        "type": "object"
+      },
+      "ttab.hub.ListOrganisationsResponse": {
+        "properties": {
+          "organisations": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.Organisation"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.ListPublishingKeysRequest": {
+        "type": "object"
+      },
+      "ttab.hub.ListPublishingKeysResponse": {
+        "properties": {
+          "publishing_keys": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.PublishingKeyInfo"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.OIDCProviderInfo": {
+        "properties": {
+          "forge_type": {
+            "$ref": "#/components/schemas/ttab.hub.ForgeType"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "issuer_url": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.Organisation": {
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "is_owner": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "uri": {
+            "description": "Organisation URI as carried by the org claim (e.g. core://org/tt).",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.PublishAsset": {
+        "description": "An asset to upload alongside a version.",
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.PublishVersionRequest": {
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ttab.hub.PublishAsset"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "manifest": {
+            "description": "Raw manifest bytes.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation (e.g. se.tt.my-plugin).",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Ed25519 signature bytes.",
+            "type": "string"
+          },
+          "signature_type": {
+            "$ref": "#/components/schemas/ttab.hub.SignatureType"
+          },
+          "signing_identity": {
+            "description": "Publishing key fingerprint.",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.PublishVersionResponse": {
+        "properties": {
+          "version_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.PublishingKeyInfo": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ttab.hub.PublishingKeyStatus"
+          },
+          "user_email": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.PublishingKeyStatus": {
+        "enum": [
+          "PUBLISHING_KEY_STATUS_UNSPECIFIED",
+          "PUBLISHING_KEY_STATUS_PENDING",
+          "PUBLISHING_KEY_STATUS_ACTIVE",
+          "PUBLISHING_KEY_STATUS_INACTIVE",
+          "PUBLISHING_KEY_STATUS_REVOKED"
+        ],
+        "type": "string"
+      },
+      "ttab.hub.RegisterOrgPublishingKeyRequest": {
+        "properties": {
+          "organisation_id": {
+            "type": "integer"
+          },
+          "public_key": {
+            "description": "Ed25519 public key bytes.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RegisterOrgPublishingKeyResponse": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RegisterPublishingKeyRequest": {
+        "properties": {
+          "public_key": {
+            "description": "Ed25519 public key bytes.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RegisterPublishingKeyResponse": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RemoveAllowedPublishingKeyRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "publishing_key_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RemoveAllowedPublishingKeyResponse": {
+        "type": "object"
+      },
+      "ttab.hub.RevokePublishingKeyRequest": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RevokePublishingKeyResponse": {
+        "type": "object"
+      },
+      "ttab.hub.RevokeVersionRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.RevokeVersionResponse": {
+        "type": "object"
+      },
+      "ttab.hub.SchemaUsage": {
+        "enum": [
+          "SCHEMA_USAGE_UNSPECIFIED",
+          "SCHEMA_USAGE_EDITORIAL",
+          "SCHEMA_USAGE_DISTRIBUTION",
+          "SCHEMA_USAGE_SETTINGS",
+          "SCHEMA_USAGE_MESSAGES"
+        ],
+        "type": "string"
+      },
+      "ttab.hub.SetArtifactVisibilityRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ttab.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "public": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ttab.hub.SetArtifactVisibilityResponse": {
+        "type": "object"
+      },
+      "ttab.hub.SignatureType": {
+        "enum": [
+          "SIGNATURE_TYPE_UNSPECIFIED",
+          "SIGNATURE_TYPE_PUBLISHING_KEY",
+          "SIGNATURE_TYPE_SIGSTORE"
+        ],
+        "type": "string"
+      },
+      "ttab.hub.VersionInfo": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "signature_type": {
+            "$ref": "#/components/schemas/ttab.hub.SignatureType"
+          },
+          "signing_identity": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "hub API",
+    "version": "v0.0.2"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/twirp/ttab.hub.Hub/ActivatePublishingKey": {
+      "post": {
+        "description": "ActivatePublishingKey activates a pending or deactivated publishing key.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ActivatePublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ActivatePublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ActivatePublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/AddAllowedPublishingKey": {
+      "post": {
+        "description": "AddAllowedPublishingKey adds a publishing key allowed to publish an artifact.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.AddAllowedPublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.AddAllowedPublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "AddAllowedPublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/ApproveOrganisation": {
+      "post": {
+        "description": "ApproveOrganisation approves an organisation, allowing its members to log in.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ApproveOrganisationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ApproveOrganisationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ApproveOrganisation",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/BulkPublishVersion": {
+      "post": {
+        "description": "BulkPublishVersion publishes new versions of multiple artifacts in a single transaction. All items must use the same version and signing key.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.BulkPublishVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.BulkPublishVersionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "BulkPublishVersion",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/DeactivatePublishingKey": {
+      "post": {
+        "description": "DeactivatePublishingKey deactivates an active publishing key (e.g. for rotation).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.DeactivatePublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.DeactivatePublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "DeactivatePublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/GetArtifact": {
+      "post": {
+        "description": "GetArtifact returns metadata for a specific artifact.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.GetArtifactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.GetArtifactResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetArtifact",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/GetArtifactAsset": {
+      "post": {
+        "description": "GetArtifactAsset returns the contents of a specific asset file.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.GetArtifactAssetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.GetArtifactAssetResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetArtifactAsset",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/GetArtifactVersion": {
+      "post": {
+        "description": "GetArtifactVersion returns a specific version of an artifact including its manifest.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.GetArtifactVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.GetArtifactVersionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetArtifactVersion",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/GetDocumentation": {
+      "post": {
+        "description": "GetDocumentation returns the contents of a specific documentation file.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.GetDocumentationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.GetDocumentationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetDocumentation",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/ListArtifactPermissions": {
+      "post": {
+        "description": "ListArtifactPermissions lists the publishing keys and CI publishers allowed for an artifact.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ListArtifactPermissionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ListArtifactPermissionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListArtifactPermissions",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/ListArtifacts": {
+      "post": {
+        "description": "ListArtifacts returns artifacts, optionally filtered by kind.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ListArtifactsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ListArtifactsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListArtifacts",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/ListDocumentation": {
+      "post": {
+        "description": "ListDocumentation returns the available documentation files for an artifact version.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ListDocumentationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ListDocumentationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListDocumentation",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/ListOrganisations": {
+      "post": {
+        "description": "ListOrganisations returns all registered organisations.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ListOrganisationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ListOrganisationsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListOrganisations",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/ListPublishingKeys": {
+      "post": {
+        "description": "ListPublishingKeys lists registered publishing keys.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.ListPublishingKeysRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.ListPublishingKeysResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListPublishingKeys",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/PublishVersion": {
+      "post": {
+        "description": "PublishVersion publishes a new version of a schema or plugin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.PublishVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.PublishVersionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "PublishVersion",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/RegisterOrgPublishingKey": {
+      "post": {
+        "description": "RegisterOrgPublishingKey registers a CI publishing key owned by an organisation. Requires the caller to be an admin of the target organisation.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.RegisterOrgPublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.RegisterOrgPublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RegisterOrgPublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/RegisterPublishingKey": {
+      "post": {
+        "description": "RegisterPublishingKey registers a new publishing key for the authenticated user.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.RegisterPublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.RegisterPublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RegisterPublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/RemoveAllowedPublishingKey": {
+      "post": {
+        "description": "RemoveAllowedPublishingKey removes a publishing key from an artifact's allow list.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.RemoveAllowedPublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.RemoveAllowedPublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RemoveAllowedPublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/RevokePublishingKey": {
+      "post": {
+        "description": "RevokePublishingKey permanently revokes a compromised publishing key.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.RevokePublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.RevokePublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RevokePublishingKey",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/RevokeVersion": {
+      "post": {
+        "description": "RevokeVersion marks a published version as revoked.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.RevokeVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.RevokeVersionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RevokeVersion",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/ttab.hub.Hub/SetArtifactVisibility": {
+      "post": {
+        "description": "SetArtifactVisibility sets whether an artifact is publicly visible.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ttab.hub.SetArtifactVisibilityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ttab.hub.SetArtifactVisibilityResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SetArtifactVisibility",
+        "tags": [
+          "Hub"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://hub.api.tt.se"
+    },
+    {
+      "url": "https://hub.api.stage.tt.se"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Hub provides the API for managing schemas and plugins in the Elephant Hub registry.",
+      "name": "Hub"
+    }
+  ]
+}
