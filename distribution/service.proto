@@ -42,6 +42,105 @@ service Configuration {
   // distribution sync worker together with its position in the
   // repository eventlog.
   rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
+  // EraseDocument erases the content of a document from every store that
+  // holds it: the stored document versions, the archived document objects
+  // and their vector cache, the search index copies, and the placement and
+  // subscription bookkeeping that names it.
+  //
+  // The eventlog is untouched. Its entries carry identifiers and hashes
+  // only, never document content, so the transparency log survives an
+  // erasure with its hash chain intact.
+  //
+  // Erasure is point-in-time. It removes the content that exists when it is
+  // ordered and does not blocklist the UUID: a document re-published
+  // afterwards is a new document and is distributed and indexed normally.
+  //
+  // The call is idempotent and returns the recorded request. A request is
+  // complete once no archived index snapshot holds a copy any more, which
+  // can require the affected partitions to be re-materialized - use
+  // GetErasureStatus to prove completion.
+  rpc EraseDocument(EraseDocumentRequest) returns (EraseDocumentResponse);
+  // GetErasureStatus returns the recorded erasure request for a document,
+  // including the archived partitions that are still awaiting
+  // re-materialization.
+  rpc GetErasureStatus(GetErasureStatusRequest) returns (GetErasureStatusResponse);
+  // RematerializePartition orders an archived index partition to be
+  // rebuilt from the archive: overlay corrections are folded in, deleted
+  // and erased documents are left out, and the result is built with the
+  // current mappings and schemas.
+  //
+  // The call records the order and returns; the rebuild itself runs in the
+  // index tiering job, which owns the snapshot repository and the warm
+  // tier. Call it again to see how far it has got - the response is the
+  // recorded state either way, and ordering a rebuild that is already
+  // under way changes nothing.
+  //
+  // A period of the form "yyyy" orders the rollup of a whole year: the
+  // years quarter partitions are rebuilt into a single yearly one and
+  // their mounts are dropped.
+  rpc RematerializePartition(RematerializePartitionRequest) returns (RematerializePartitionResponse);
+  // CreateIndexGeneration registers a new index generation: a complete set
+  // of search indexes with an index name prefix of its own, built on one of
+  // the OpenSearch clusters the deployment declares.
+  //
+  // The generation is populated by the ordinary backfill - the indexer that
+  // picks it up drains the archive and then tails the eventlog - while the
+  // active generation keeps serving. Subscription matching is suppressed
+  // for the whole build, so creating a generation never re-notifies a
+  // subscription, but the percolator indexes are seeded as it goes, so
+  // matching works from the moment it is activated.
+  //
+  // Use it to rebuild the index from scratch after a mapping change that
+  // cannot be applied to live indexes, or to move the index to another
+  // cluster - which is how an OpenSearch major version upgrade is done:
+  // create a generation on the new cluster, watch it catch up with
+  // ListIndexGenerations, compare results through the generation override
+  // on Search.Query, activate, and delete the old one.
+  rpc CreateIndexGeneration(CreateIndexGenerationRequest) returns (CreateIndexGenerationResponse);
+  // ListIndexGenerations lists the index generations together with the
+  // position each one's indexer has reached in the distribution eventlog
+  // and the current head of that log. That is the catch-up view a rebuild
+  // is followed through: a candidate is ready to be activated once its lag
+  // has come down to a handful of events.
+  rpc ListIndexGenerations(ListIndexGenerationsRequest) returns (ListIndexGenerationsResponse);
+  // ActivateIndexGeneration makes a generation the one that search,
+  // threshold calibration and subscription matching read. The switch is
+  // atomic and exactly one generation is active at a time.
+  //
+  // Activation is refused when the candidate lags the head of the eventlog
+  // by more than a small gate, ten events by default, because a generation
+  // that is behind would answer with stale content the moment it took
+  // over. It is refused on the same gate when the candidate stands that
+  // far above the position the outgoing generation has matched up to,
+  // since that distance is what the matching handover has to replay and an
+  // outgoing generation that is stalled or disabled can be arbitrarily far
+  // behind a candidate that is on the head. Force activates regardless,
+  // which is the right call when the outgoing generation is unreachable
+  // and the wrong one otherwise.
+  //
+  // Subscription matching is handed over rather than dropped. Activation
+  // records the position the outgoing generation had matched up to and
+  // stops its matching there; the incoming generation replays the events
+  // from that position up to its own cursor for matching only. Match rows
+  // are keyed on subscription and event, so replaying an event is
+  // idempotent - but the two generations read the log in different pages,
+  // and a document that occurs more than once in a page is matched under
+  // the last event of that page, so the same document version can end up
+  // recorded under two events. Delivery across a cutover is at-least-once
+  // with the occasional duplicate: deduplicate on the subscription, the
+  // document UUID and the version if that matters to you.
+  rpc ActivateIndexGeneration(ActivateIndexGenerationRequest) returns (ActivateIndexGenerationResponse);
+  // DeleteIndexGeneration deletes an inactive generation. The active
+  // generation cannot be deleted - activate another one first.
+  //
+  // The call records the deletion and returns; the cleanup runs
+  // asynchronously and is scoped by the generation's index prefix: its
+  // document, percolator and overlay indexes, the bookkeeping rows that
+  // name them, its eventlog cursor, and the snapshots under the
+  // generation's base path in the snapshot repository. Nothing outside the
+  // prefix is touched, so deleting a generation can never take content
+  // away from the one that is serving.
+  rpc DeleteIndexGeneration(DeleteIndexGenerationRequest) returns (DeleteIndexGenerationResponse);
 }
 
 service Content {
@@ -83,6 +182,13 @@ message GetNewDocumentsRequest {
   // verification against the transparency log must use. Takes precedence
   // over disable_rendition_signing, which has no effect when this is set.
   bool disable_renditions = 6;
+  // Wait is the maximum time in milliseconds to wait for new events when
+  // the read starts at the head of the log, mirroring the repository
+  // eventlog long poll. Defaults to 2000 and is capped at 8000. A
+  // negative value disables waiting so that at-head reads return an
+  // empty response immediately. Reads that can be answered immediately
+  // are always unaffected.
+  int32 wait_ms = 7;
 }
 
 // RenditionParameters selects the renditions to generate for one asset
@@ -467,6 +573,28 @@ message TypeConfiguration {
   repeated string variants                     = 4;
   // TransformScript is the transformation script for this document type.
   string transform_script                      = 5;
+  // Anchor selects how documents of the type are partitioned across the
+  // search indexes. An empty value is a non-temporal type: one
+  // unpartitioned index per language that is never archived.
+  // "first_published" partitions by the time of the document's first
+  // distribution event, which is immutable, so a document never moves
+  // between partitions. "time_expressions" partitions by the dates
+  // time_expressions extracts from the document, with everything from
+  // the current quarter onwards sharing one index.
+  string anchor                                = 6;
+  // Embeddings enables semantic indexing of the document type: its
+  // documents are chunked and embedded, its indexes are created with a
+  // vector field, and it can be searched and subscribed to by vector.
+  // Independent of the anchor: a non-temporal type can be embedded, and a
+  // partitioned one can be left BM25-only.
+  //
+  // The vector field is set at index creation and cannot be added
+  // afterwards, so enabling this for a type that already has indexes
+  // takes a new index generation. Turning it off leaves the field in
+  // place, unwritten. It also needs a deployment with an embedding
+  // sidecar; without one the type is indexed BM25-only whatever this
+  // says.
+  bool embeddings                              = 7;
 }
 
 message TypeTimeExpression {
@@ -514,6 +642,91 @@ message GetSyncStatusResponse {
   bool caught_up    = 4;
 }
 
+message EraseDocumentRequest {
+  // UUID of the document to erase.
+  string uuid = 1;
+}
+
+message EraseDocumentResponse {
+  // Status of the recorded erasure request.
+  ErasureStatus status = 1;
+}
+
+message GetErasureStatusRequest {
+  // UUID of the document to get the erasure status for.
+  string uuid = 1;
+}
+
+message GetErasureStatusResponse {
+  // Status of the recorded erasure request. Unset if the document has
+  // never been ordered erased.
+  ErasureStatus status = 1;
+}
+
+// ErasureStatus is the state of one document's erasure.
+message ErasureStatus {
+  // UUID of the erased document.
+  string uuid                        = 1;
+  // RequestedAt is when the erasure was ordered, RFC3339. A second
+  // request for the same document supersedes the first and resets this.
+  string requested_at                = 2;
+  // CompletedAt is when the erasure became provable, RFC3339, and empty
+  // while it is outstanding. It is set once no archived index snapshot
+  // holds a copy of the document any more.
+  string completed_at                = 3;
+  // PendingPartitions are the archived index partitions that still hold a
+  // copy. A mounted snapshot is read-only, so the copy in it only goes
+  // away when the partition is re-materialized, and the erasure is
+  // outstanding until every one of these has been.
+  repeated string pending_partitions = 4;
+  // Complete is true when the erasure is provably done, i.e. completed_at
+  // is set.
+  bool complete                      = 5;
+}
+
+message RematerializePartitionRequest {
+  // Type of the partition to rebuild, e.g. "core/article".
+  string type     = 1;
+  // Language segment of the partition, e.g. "sv". This is the index
+  // language series, not a document language attribute.
+  string language = 2;
+  // Period of the partition: "yyyyq[1-4]" for a quarter, or "yyyy" to roll
+  // a whole year of quarters into one partition.
+  string period   = 3;
+}
+
+message RematerializePartitionResponse {
+  // Status of the recorded rebuild.
+  RematerializationStatus status = 1;
+}
+
+// RematerializationStatus is the state of one partition rebuild.
+message RematerializationStatus {
+  // Type, Language and Period identify the partition.
+  string type              = 1;
+  string language          = 2;
+  string period            = 3;
+  // Revision is which generation of the partition the rebuild produces,
+  // counting the copy the original archival produced as zero.
+  int32 revision           = 4;
+  // Phase is the step the rebuild is at, and "done" when it has finished.
+  string phase             = 5;
+  // Trigger is what ordered the rebuild: "manual", "overlay", "erasure" or
+  // "rollup".
+  string trigger           = 6;
+  // Replaced are the mounted archive indexes the rebuild takes over from.
+  repeated string replaced = 7;
+  // Documents is how many documents have been written to the rebuild so
+  // far, and the size of the finished partition once it is done.
+  int64 documents          = 8;
+  // StartedAt and UpdatedAt bound the run, RFC3339.
+  string started_at        = 9;
+  string updated_at        = 10;
+  // Complete is true once the rebuild has finished and the old mounts have
+  // been dropped.
+  bool complete            = 11;
+}
+
 message GetTypeConfigurationRequest {
   // Type to get configuration for.
   string type = 1;
@@ -522,4 +735,109 @@ message GetTypeConfigurationRequest {
 message GetTypeConfigurationResponse {
   // Configuration of the type.
   TypeConfiguration configuration = 1;
+}
+
+// IndexGeneration is one complete set of search indexes: everything under
+// one index name prefix, on one cluster, with an eventlog cursor of its
+// own.
+message IndexGeneration {
+  // Name of the generation. It identifies the generation in these RPCs, in
+  // the generation override on Search.Query, and in metric labels.
+  string name         = 1;
+  // Cluster the generation's indexes live on, named as the deployment
+  // declares it. Clusters are configuration, so their URLs and credentials
+  // are never part of a response.
+  string cluster      = 2;
+  // Prefix is the first segment of every index and alias name the
+  // generation owns, and what scopes it: no two generations share one.
+  string prefix       = 3;
+  // Enabled is whether an indexer is run for the generation. A disabled
+  // generation keeps its indexes but stops consuming the eventlog, and
+  // falls behind for as long as it stays that way.
+  bool enabled        = 4;
+  // Active is whether this is the generation that search, calibration and
+  // subscription matching use.
+  bool active         = 5;
+  // CreatedAt is when the generation was registered, RFC3339.
+  string created_at   = 6;
+  // ActivatedAt is when it was last activated, RFC3339, and empty for a
+  // generation that has never served.
+  string activated_at = 7;
+}
+
+message CreateIndexGenerationRequest {
+  // Name of the generation. A short readable codename is generated when it
+  // is left empty, which is what you want unless the name has to be
+  // predictable.
+  string name    = 1;
+  // Cluster to build the generation on, named as the deployment declares
+  // it. Required. A deployment that only has the one cluster declares it
+  // as "default".
+  string cluster = 2;
+  // Prefix is the first segment of every index and alias name the
+  // generation owns, and defaults to the generation name. It has to be
+  // unique across generations - it is what keeps two generations from
+  // writing to each other's indexes - and a lowercase index name segment:
+  // it starts with a letter or a digit and continues with letters, digits,
+  // underscores or dashes.
+  string prefix  = 3;
+}
+
+message CreateIndexGenerationResponse {
+  // Generation that was created.
+  IndexGeneration generation = 1;
+}
+
+message ListIndexGenerationsRequest {}
+
+message ListIndexGenerationsResponse {
+  // Generations, oldest first.
+  repeated IndexGenerationStatus generations = 1;
+  // EventlogHead is the ID of the last event in the distribution eventlog,
+  // the position a generation that has caught up converges on.
+  int64 eventlog_head                        = 2;
+}
+
+// IndexGenerationStatus is a generation together with how far it has got.
+message IndexGenerationStatus {
+  // Generation the status describes.
+  IndexGeneration generation = 1;
+  // Position is the eventlog ID the generation's indexer has processed up
+  // to, and zero for a generation whose indexer has not stored a position
+  // yet - either because it has not started or because it is still
+  // draining the archive.
+  int64 position             = 2;
+  // Lag is how far the generation is behind the head of the eventlog,
+  // which is what the activation gate is checked against.
+  int64 lag                  = 3;
+}
+
+message ActivateIndexGenerationRequest {
+  // Name of the generation to activate.
+  string name = 1;
+  // Force activates a generation that lags the head of the eventlog by
+  // more than the gate allows.
+  bool force  = 2;
+}
+
+message ActivateIndexGenerationResponse {
+  // Generation as it is after the switch.
+  IndexGeneration generation = 1;
+  // HandoverPosition is the eventlog position the outgoing generation had
+  // matched subscriptions up to. The incoming generation replays matching
+  // from there, so it is also the lower bound of the overlap the two
+  // generations may both have matched - and therefore of the window a
+  // subscription can see the same document version delivered twice.
+  int64 handover_position    = 2;
+}
+
+message DeleteIndexGenerationRequest {
+  // Name of the generation to delete.
+  string name = 1;
+}
+
+message DeleteIndexGenerationResponse {
+  // Generation as it was recorded deleted. The asynchronous cleanup of its
+  // indexes and snapshots may still be running when this is returned.
+  IndexGeneration generation = 1;
 }

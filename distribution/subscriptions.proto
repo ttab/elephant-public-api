@@ -1,0 +1,613 @@
+syntax = "proto3";
+
+import "distribution/search.proto";
+
+package elephant.distribution;
+
+option go_package = "github.com/ttab/elephant-public-api/distribution";
+
+// Subscriptions are standing queries. Instead of polling Search for
+// whatever is new, a client registers what it is interested in once, and
+// the indexer evaluates every document it indexes against the
+// registration. Matches land in a per-subscription log that the client
+// reads with PollMatches; matching latency is indexing latency, a few
+// seconds behind publication.
+//
+// A document matches when the query part matches, if there is one, and
+// every vector clause is satisfied. Clauses are ANDed, the members of a
+// clause are ORed, and a negated clause is satisfied when none of its
+// members pass. OR across a text query and a vector clause is
+// deliberately not expressible - that is two subscriptions.
+//
+// Ownership and expiry are two separate choices. The owner is never taken
+// from the request - it is the organisation claim or the subject of the
+// credentials the call was made with - and owner_tier picks which of the
+// two, defaulting to the organisation. A keep-alive, independently of
+// that, makes the subscription expire when it goes untouched for that
+// long; without one it lives until it is deleted. See
+// CreateSubscriptionRequest.
+//
+// Access requires the "dist_subscribe" scope, which is granted by
+// "dist_admin".
+service Subscriptions {
+  // CreateSubscription registers a new subscription and returns it as
+  // stored, with the ownership and expiry the server assigned to it.
+  // Matching starts at the next indexed document; documents that were
+  // indexed before the call are never matched, use PreviewSubscription to
+  // see what the subscription would have caught.
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
+  // UpdateSubscription replaces the definition of a subscription. The
+  // spec is written whole: fields left out of it are cleared, not kept.
+  // Vector clause members are re-embedded and the query part is
+  // re-translated, so an update takes effect for documents indexed after
+  // it returns. Counts as a touch.
+  rpc UpdateSubscription(UpdateSubscriptionRequest) returns (UpdateSubscriptionResponse);
+  // DeleteSubscription removes a subscription and its match log. Deleting
+  // is permanent and distinct from a subscription expiring: polling a
+  // deleted subscription is a not-found, polling an expired one is a
+  // failed precondition.
+  rpc DeleteSubscription(DeleteSubscriptionRequest) returns (DeleteSubscriptionResponse);
+  // GetSubscription returns a subscription as stored. Counts as a touch.
+  rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
+  // ListSubscriptions lists the subscriptions the caller can see: the
+  // ones owned by the organisation of the caller, and the ones owned by
+  // the calling subject. Listing does not count as a touch, so it is safe
+  // to poll for housekeeping without keeping abandoned subscriptions
+  // alive.
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+  // TouchSubscription resets the keep-alive clock of a subscription
+  // without reading anything else. Ordinary use does not need it -
+  // PollMatches, GetSubscription and UpdateSubscription all count as
+  // touches - it is for clients that hold a subscription open while they
+  // are not polling. Touching a durable subscription is a no-op, it has
+  // no clock to reset.
+  rpc TouchSubscription(TouchSubscriptionRequest) returns (TouchSubscriptionResponse);
+  // PollMatches reads the match log of a subscription, long-polling for
+  // new matches. Delivery is at-least-once and ordered by event ID, which
+  // doubles as the cursor: pass the highest event ID you have processed
+  // as after_event_id on the next call.
+  //
+  // Polling a subscription that has expired is a failed precondition,
+  // not a not-found: the subscription was abandoned rather
+  // than deleted, and the client can tell the two apart and re-create if
+  // it wants to. Counts as a touch, so a client that keeps polling never
+  // expires.
+  rpc PollMatches(PollMatchesRequest) returns (PollMatchesResponse);
+  // CalibrateVectorClause is how a min_similarity gets chosen. It scores
+  // the given clause members against the documents of a recent window and
+  // returns the similarity distribution, the top hits to eyeball, and -
+  // the number the decision is actually made on - the estimated matches
+  // per day at a ladder of candidate thresholds. "At 0.62 this clause
+  // alone would have matched about 14 documents a day last week" is what
+  // a threshold means in practice; a suggested threshold is a volume
+  // target, never a claim about relevance.
+  rpc CalibrateVectorClause(CalibrateVectorClauseRequest) returns (CalibrateVectorClauseResponse);
+  // PreviewSubscription is the dry run of a complete subscription
+  // definition against a recent window: what would have matched, with the
+  // same provenance the match log carries. It is the acceptance test for
+  // a new subscription, and the only practical way to reason about a
+  // negated clause, which is invisible in the results it does not
+  // exclude.
+  rpc PreviewSubscription(PreviewSubscriptionRequest) returns (PreviewSubscriptionResponse);
+}
+
+// SubscriptionSpec is the definition of a subscription: everything about
+// it that the client decides. Ownership, expiry and timestamps are not
+// part of it, they are assigned by the server and read back on
+// Subscription.
+message SubscriptionSpec {
+  // DocumentTypes to evaluate against. Required, at least one: a
+  // subscription always names the types it is about. A type that isn't
+  // indexed is an invalid argument.
+  repeated string document_types = 1;
+  // Language to match, as the language tag documents are indexed under,
+  // e.g. "sv" or "sv-se". Empty matches every language. Unlike a search
+  // query, which is per language series (see Search.Query), leaving the
+  // language out costs nothing here: matching runs per incoming document,
+  // so there is no fan-out.
+  string language = 2;
+  // Query is the structured part of the subscription, in the same query
+  // language as Search.Query. An absent query means the subscription is
+  // vector clauses only, and every document of the named types is a
+  // candidate for them.
+  //
+  // The query is stored as written and translated at registration, so a
+  // subscription keeps working across changes to the translation.
+  QueryV1 query = 3;
+  // VectorClauses are the semantic part of the subscription. All of them
+  // have to be satisfied, and they are ANDed with the query. An empty
+  // list means the subscription is the query alone.
+  repeated VectorClauseV1 vector_clauses = 4;
+  // NotifyOnce suppresses re-notification for a document this
+  // subscription has already matched, whatever the later event on it is.
+  // Off by default, in which case a correction to a matched document is a
+  // new match with its own event type, which is usually what an editorial
+  // consumer wants. Composes with max_age_seconds rather than replacing
+  // it.
+  bool notify_once = 5;
+  // MaxAgeSeconds only matches documents first published within this many
+  // seconds of the event. Zero, the default, matches whatever the query
+  // and the clauses match, however old the document is. Set it on
+  // alert-style subscriptions: an update to a years-old article is a
+  // fresh event and would otherwise fire the alert.
+  int64 max_age_seconds = 6;
+}
+
+// VectorClauseV1 is one semantic condition of a subscription. Its members
+// are ORed: the clause is satisfied when any of them passes, or, when the
+// clause is negated, when none of them does. Several conditions are
+// several clauses, and they are ANDed - "close to A or B, but not about
+// C" is two clauses, one with A and B as members and one negated clause
+// with C.
+message VectorClauseV1 {
+  // Members of the clause, at least one. Each carries its own threshold,
+  // so an OR can be built out of sources that are not equally easy to be
+  // close to.
+  repeated VectorClauseMemberV1 members = 1;
+  // Negate inverts the clause: it is satisfied when no member passes,
+  // i.e. when the document is close to none of them. Use PreviewSubscription
+  // before trusting a negated clause - what it excludes cannot be seen in
+  // what it returns.
+  bool negate = 2;
+}
+
+// VectorClauseMemberV1 is one vector to compare documents against, with
+// the similarity at which it counts as a match. Exactly one source must
+// be set.
+//
+// A member passes when the document has an embedding at or above
+// min_similarity: the document is scored as the highest similarity across
+// its chunk embeddings, so a long document matches on the part of it that
+// is about the member.
+//
+// Prefer text and exemplars over a raw vector. Both are stored with the
+// source and the embedding model they were derived under, which is what
+// lets the server re-embed them and recalibrate their thresholds when the
+// model is upgraded. A raw vector cannot be re-derived, and a member that
+// holds one is paused and flagged for the owner instead.
+message VectorClauseMemberV1 {
+  oneof source {
+    // Text to be close to, embedded server-side with the current model.
+    // The normal choice: a phrase or a paragraph describing the subject
+    // matter of the subscription.
+    string text = 1;
+    // Exemplars are documents that are examples of what to match. Their
+    // stored embeddings are averaged into one vector, so the member is
+    // "like these documents" rather than "like any of these documents" -
+    // for the latter, make each of them a member of its own.
+    ExemplarDocumentsV1 exemplars = 2;
+    // Vector is a raw embedding, for callers that produce their own.
+    // Advanced use: it has to come from the same model and dimension as
+    // the index, and it does not survive a model upgrade. A vector of the
+    // wrong dimension is an invalid argument.
+    RawVectorV1 vector = 3;
+  }
+  // MinSimilarity is the cosine similarity at or above which this member
+  // passes, in [-1, 1], where higher means closer and 1 means identical
+  // direction. The embeddings are normalized, so this is the same dial as
+  // a maximum inner product distance, and it is the same number as
+  // Hit.score for a knn query and KnnQueryV1.min_similarity - which is
+  // how a threshold is found without guessing, see CalibrateVectorClause
+  // and Search.Query.
+  //
+  // Required: absent is an invalid argument. The field is optional so
+  // that a threshold of 0 - close to anything that isn't pointing away -
+  // is distinguishable from not stating one.
+  //
+  // Thresholds are model-dependent and are not portable between
+  // deployments or across an embedding model upgrade. Treat one as
+  // something to recalibrate, not as a constant.
+  optional float min_similarity = 4;
+  // Model is the identifier of the embedding model the stored vector of
+  // this member was derived under. Set by the server on read, ignored on
+  // write.
+  string model = 5;
+}
+
+// ExemplarDocumentsV1 is a set of documents used as an example of what to
+// match, averaged into a single vector.
+message ExemplarDocumentsV1 {
+  // UUIDs of the exemplar documents, at least one. A document that isn't
+  // indexed, or is of a type indexed without embeddings, is an invalid
+  // argument.
+  repeated string uuids = 1;
+}
+
+// RawVectorV1 is an embedding supplied by the caller.
+message RawVectorV1 {
+  // Values of the embedding, which must have the dimension of the index.
+  repeated float values = 1;
+}
+
+// Subscription is a stored subscription: its definition plus everything
+// the server decided about it.
+message Subscription {
+  // ID of the subscription, assigned by the server.
+  string id = 1;
+  // OwnerTier is "org" for an organisation-owned subscription and
+  // "subject" for one owned by the subject that created it.
+  string owner_tier = 2;
+  // Owner is the organisation of the creator for an organisation-owned
+  // subscription, and the subject of the creator for a session
+  // subscription.
+  string owner = 3;
+  // CreatedBy is the subject that created the subscription. Recorded for
+  // audit on organisation-owned subscriptions, where it does not confer
+  // ownership: any client of the organisation can manage and poll them.
+  string created_by = 4;
+  // CreatedAt is when the subscription was created, RFC3339.
+  string created_at = 5;
+  // UpdatedAt is when the definition was last changed, RFC3339. Touches
+  // do not count as changes.
+  string updated_at = 6;
+  // KeepAliveSeconds is the time the subscription survives untouched.
+  // Zero on a durable subscription, which does not expire. Independent
+  // of the ownership tier: either tier can be given a keep-alive, and
+  // either can be durable.
+  int64 keep_alive_seconds = 7;
+  // TouchedAt is when the subscription was last touched, RFC3339. Empty
+  // on a durable subscription, which has no clock to reset.
+  string touched_at = 8;
+  // ExpiresAt is when the subscription is deactivated unless it is
+  // touched before then, RFC3339. Empty on a durable subscription.
+  string expires_at = 9;
+  // DeactivatedAt is when the subscription stopped matching because its
+  // keep-alive ran out, RFC3339. Empty while it is active, and on a
+  // durable subscription, which never lapses. A deactivated
+  // subscription no longer costs anything at match time and is removed
+  // altogether once its match log has expired.
+  string deactivated_at = 10;
+  // Spec is the definition of the subscription.
+  SubscriptionSpec spec = 11;
+}
+
+message CreateSubscriptionRequest {
+  // Subscription to create. Required.
+  SubscriptionSpec subscription = 1;
+  // KeepAliveSeconds makes the subscription expiring: it is deactivated
+  // if nothing touches it for this long, and any authenticated RPC
+  // against it resets the clock. Clamped to at most seven days; a larger
+  // value is clamped, not rejected, and the value that was applied is on
+  // the returned subscription.
+  //
+  // Zero, the default, makes it durable: it lives until it is deleted.
+  // Expiry is independent of ownership — an organisation-owned
+  // subscription can be given a keep-alive, and a subject-owned one can
+  // be durable.
+  int64 keep_alive_seconds = 2;
+  // OwnerTier selects who owns the subscription. "org", the default,
+  // makes it organisation-owned: it belongs to the organisation in the
+  // credentials of the caller, and any client of that organisation can
+  // manage and poll it. That is the tier for saved searches. "subject"
+  // makes it owned by the calling subject alone, which is the tier for
+  // subscriptions that follow one client session.
+  //
+  // The owner itself is never taken from the request: it is the org
+  // claim or the subject of the credentials the call was made with. This
+  // only picks which of the two it is.
+  string owner_tier = 3;
+}
+
+message CreateSubscriptionResponse {
+  // Subscription as stored.
+  Subscription subscription = 1;
+}
+
+message UpdateSubscriptionRequest {
+  // ID of the subscription to update. Required.
+  string id = 1;
+  // Subscription is the new definition, which replaces the stored one in
+  // full. Required.
+  SubscriptionSpec subscription = 2;
+  // KeepAliveSeconds sets a new keep-alive, clamped to at most seven
+  // days. Absent leaves the current one alone; zero removes it and makes
+  // the subscription durable. Applies to both ownership tiers. The
+  // ownership tier itself cannot be changed.
+  optional int64 keep_alive_seconds = 3;
+}
+
+message UpdateSubscriptionResponse {
+  // Subscription as stored after the update.
+  Subscription subscription = 1;
+}
+
+message DeleteSubscriptionRequest {
+  // ID of the subscription to delete. Required. Deleting a subscription
+  // that doesn't exist is not an error.
+  string id = 1;
+}
+
+message DeleteSubscriptionResponse {}
+
+message GetSubscriptionRequest {
+  // ID of the subscription to get. Required.
+  string id = 1;
+}
+
+message GetSubscriptionResponse {
+  // Subscription as stored.
+  Subscription subscription = 1;
+}
+
+message ListSubscriptionsRequest {
+  // OwnerTier filters on ownership: "org" for the subscriptions of the
+  // organisation of the caller, "subject" for those owned by the calling
+  // subject. Empty lists both.
+  string owner_tier = 1;
+  // IncludeDeactivated includes subscriptions that have expired and are
+  // waiting to be reaped. They are left out by default.
+  bool include_deactivated = 2;
+}
+
+message ListSubscriptionsResponse {
+  // Subscriptions the caller can see, most recently created first.
+  repeated Subscription subscriptions = 1;
+}
+
+message TouchSubscriptionRequest {
+  // ID of the subscription to touch. Required.
+  string id = 1;
+}
+
+message TouchSubscriptionResponse {
+  // ExpiresAt is when the subscription is deactivated unless it is
+  // touched again before then, RFC3339. Empty on organisation-owned
+  // subscriptions.
+  string expires_at = 1;
+}
+
+message PollMatchesRequest {
+  // SubscriptionID to read matches for. Required.
+  string subscription_id = 1;
+  // AfterEventID returns matches with a higher event ID than this one.
+  // Start at 0 to read the log from the beginning, and pass the event ID
+  // of the last match you processed on every call after that.
+  int64 after_event_id = 2;
+  // WaitMS is the maximum time in milliseconds to wait for a match when
+  // there is nothing to return yet. Defaults to 2000 and is capped by the
+  // server. A negative value disables waiting, so a caller that is
+  // draining a backlog returns immediately at the end of it. A call that
+  // can be answered from the log doesn't wait.
+  //
+  // Waiting is not a guarantee of getting the whole batch: the server
+  // waits for the first match, gives the rest of the batch a moment to
+  // land, and returns what is there. Keep polling.
+  int32 wait_ms = 3;
+}
+
+message PollMatchesResponse {
+  // Matches in ascending event ID order. Empty when the wait ran out
+  // without anything matching, which is the normal idle response.
+  repeated SubscriptionMatch matches = 1;
+}
+
+// SubscriptionMatch is one document event that matched a subscription.
+// Matches are recorded once per (subscription, event) and delivery is
+// at-least-once, so a client can see the same event twice after a
+// restart; the event ID is what makes it safe to deduplicate.
+message SubscriptionMatch {
+  // EventID is the distribution eventlog ID of the event that matched. It
+  // is the cursor of the match log, and it is the same ID the event has
+  // in Content.GetNewDocuments.
+  int64 event_id = 1;
+  // UUID of the document. Pass it to Content.GetDocument to fetch the
+  // document itself.
+  string uuid = 2;
+  // Version of the document that matched.
+  int64 version = 3;
+  // Type of the document.
+  string type = 4;
+  // EventType is either "published" or "unpublished".
+  string event_type = 5;
+  // EventTime is when the event happened, RFC3339.
+  string event_time = 6;
+  // MatchedAt is when the match was recorded, RFC3339. It normally trails
+  // event_time by seconds; a large gap means the match was made while
+  // catching up after an outage, and whether that is still worth alerting
+  // on is a decision for the client. Nothing is dropped for being late.
+  string matched_at = 7;
+  // Provenance is why the document matched.
+  MatchProvenance provenance = 8;
+}
+
+// MatchProvenance records what fired, so that a match can be explained
+// and so that feedback about it can be routed to the part of the
+// subscription that caused it.
+message MatchProvenance {
+  // QueryMatched is whether the query part of the subscription matched.
+  // False when the subscription has no query part.
+  bool query_matched = 1;
+  // Clauses are the vector clauses of the subscription, in the order they
+  // are stored in, with the similarities they scored.
+  repeated ClauseProvenance clauses = 2;
+}
+
+// ClauseProvenance is the outcome of one vector clause.
+message ClauseProvenance {
+  // ClauseIndex is the position of the clause in
+  // SubscriptionSpec.vector_clauses.
+  int64 clause_index = 1;
+  // Negate is whether the clause is negated, repeated here so that the
+  // provenance can be read without the subscription at hand.
+  bool negate = 2;
+  // Members of the clause with the similarity each of them scored. All
+  // members are reported, not only the ones that passed, so that a near
+  // miss is visible.
+  repeated MemberProvenance members = 3;
+}
+
+// MemberProvenance is the similarity one clause member scored against the
+// document.
+message MemberProvenance {
+  // MemberIndex is the position of the member in VectorClauseV1.members.
+  int64 member_index = 1;
+  // Similarity is the highest cosine similarity between the vector of the
+  // member and the chunk embeddings of the document, on the same scale as
+  // VectorClauseMemberV1.min_similarity.
+  float similarity = 2;
+  // Passed is whether the similarity reached the threshold of the member.
+  // In a negated clause a passing member is what would have excluded the
+  // document, so all of them are false on a match.
+  bool passed = 3;
+}
+
+message CalibrateVectorClauseRequest {
+  // Members to calibrate, scored the way a clause scores them: each
+  // document gets the highest similarity any of the members reaches. Pass
+  // the members of one clause to calibrate it as a whole, or a single
+  // member to calibrate it on its own. At least one is required.
+  //
+  // The min_similarity of a member is not used for scoring. When it is
+  // set it is added to the threshold ladder, so an existing threshold can
+  // be compared against the alternatives.
+  repeated VectorClauseMemberV1 members = 1;
+  // DocumentTypes to score against. Empty scores against every indexed
+  // type the caller can read. Use the types the subscription is going to
+  // name, the volume estimate is only about the documents it will see.
+  repeated string document_types = 2;
+  // Language to score against, as the language tag documents are indexed
+  // under. Empty scores against every language, matching a subscription
+  // that leaves the language out.
+  string language = 3;
+  // WindowDays is the number of days back to score. Defaults to 7 and is
+  // capped by what the recent tier holds. A window shorter than a week
+  // will mistake the weekly publishing rhythm for a trend.
+  int64 window_days = 4;
+  // Thresholds is an explicit ladder of candidate thresholds to estimate
+  // volume at. Empty lets the server pick a ladder from the observed
+  // distribution, which is the normal way to use this.
+  repeated float thresholds = 5;
+  // TopHits is the number of highest-scoring documents to return for
+  // eyeballing. Defaults to 10, and is capped by the server.
+  int64 top_hits = 6;
+  // Floor is the similarity below which documents are not scored at all,
+  // which bounds the work the call does. Documents below it are counted
+  // as non-matches at every rung of the ladder, so a floor above a
+  // candidate threshold would understate its volume and is an invalid
+  // argument. Absent uses a server-chosen floor.
+  optional float floor = 7;
+}
+
+message CalibrateVectorClauseResponse {
+  // WindowStart is the beginning of the scored window, RFC3339.
+  string window_start = 1;
+  // WindowEnd is the end of the scored window, RFC3339.
+  string window_end = 2;
+  // WindowDays is the window that was actually scored, which can be
+  // shorter than the requested one.
+  int64 window_days = 3;
+  // ScoredDocuments is the number of documents in the window that scored
+  // at or above the floor. The percentiles are over these, not over every
+  // document in the window: the distribution of things that are at least
+  // vaguely related is what a threshold is chosen within.
+  int64 scored_documents = 4;
+  // Floor that was applied.
+  float floor = 5;
+  // Percentiles of the similarity distribution over the window, in
+  // ascending order of percentile.
+  repeated SimilarityPercentileV1 percentiles = 6;
+  // TopHits are the highest-scoring documents of the window, most similar
+  // first. Read them to find where the results stop being about what the
+  // clause is about; the similarity there is the threshold worth
+  // estimating volume at.
+  repeated CalibrationHitV1 top_hits = 7;
+  // Thresholds is the ladder: what each candidate threshold would have
+  // matched over the window. This is the number a threshold is chosen on
+  // - a threshold is a volume decision, and matches per day is the volume
+  // it produces. Nothing here says anything about whether the matches are
+  // the right ones; that is what the top hits and PreviewSubscription are
+  // for.
+  repeated ThresholdEstimateV1 thresholds = 8;
+}
+
+// SimilarityPercentileV1 is one point of the similarity distribution.
+message SimilarityPercentileV1 {
+  // Percentile the value is for, e.g. 50, 99 or 99.9.
+  double percentile = 1;
+  // Similarity at that percentile, on the same scale as
+  // VectorClauseMemberV1.min_similarity.
+  float similarity = 2;
+}
+
+// CalibrationHitV1 is one of the documents a calibration scored highest.
+message CalibrationHitV1 {
+  // UUID of the document. Pass it to Content.GetDocument to read it.
+  string uuid = 1;
+  // Type of the document.
+  string type = 2;
+  // Similarity the document scored, i.e. the highest similarity any of
+  // the calibrated members reached against any of its chunks.
+  float similarity = 3;
+  // FirstPublished is when the document was first published, RFC3339.
+  string first_published = 4;
+  // MemberIndex is the position in the calibrated members of the member
+  // that scored highest against this document.
+  int64 member_index = 5;
+}
+
+// ThresholdEstimateV1 is what one candidate threshold would have cost in
+// volume over the calibration window.
+message ThresholdEstimateV1 {
+  // MinSimilarity is the candidate threshold.
+  float min_similarity = 1;
+  // MatchedDocuments is the number of documents in the window that
+  // reached it.
+  int64 matched_documents = 2;
+  // MatchesPerDay is matched_documents spread over the window. It is a
+  // rate over past traffic, not a forecast, and it is per clause: a
+  // subscription that ANDs this clause with a query or another clause
+  // will see fewer.
+  double matches_per_day = 3;
+}
+
+message PreviewSubscriptionRequest {
+  // Subscription definition to dry-run. Required. It is evaluated exactly
+  // as a stored subscription would be, except that notify_once has
+  // nothing to suppress against and is ignored.
+  SubscriptionSpec subscription = 1;
+  // WindowDays is the number of days back to evaluate. Defaults to 7 and
+  // is capped by what the recent tier holds.
+  int64 window_days = 2;
+  // Size is the maximum number of matches to return, most recent first.
+  // Defaults to 50 and is capped by the server. The total is reported
+  // separately, so a preview that returns the first page still says how
+  // much the subscription would have fired.
+  int64 size = 3;
+}
+
+message PreviewSubscriptionResponse {
+  // Total number of documents in the window that would have matched,
+  // which can be more than the number of returned matches, and can be a
+  // lower bound - see HitsTotal.relation.
+  HitsTotal total = 1;
+  // Matches in the window, most recently published first.
+  repeated PreviewMatch matches = 2;
+  // WindowStart is the beginning of the evaluated window, RFC3339.
+  string window_start = 3;
+  // WindowEnd is the end of the evaluated window, RFC3339.
+  string window_end = 4;
+  // MatchesPerDay is total spread over the window, the rate the
+  // subscription would have fired at. A subscription that fires more
+  // often than the surface it feeds can carry needs a tighter threshold,
+  // not a filter on the consuming side.
+  double matches_per_day = 5;
+}
+
+// PreviewMatch is a document that a previewed subscription would have
+// matched. It is the match log entry as it would have looked, minus the
+// event: a preview runs against the indexed documents of the window, not
+// against the events that produced them.
+message PreviewMatch {
+  // UUID of the document. Pass it to Content.GetDocument to read it.
+  string uuid = 1;
+  // Type of the document.
+  string type = 2;
+  // FirstPublished is when the document was first published, RFC3339.
+  // This is what max_age_seconds is evaluated against.
+  string first_published = 3;
+  // Provenance is why the document matched, in the same form the match
+  // log carries. Read it against a negated clause in particular: the
+  // members of a negated clause report how close the document came to
+  // being excluded.
+  MatchProvenance provenance = 4;
+}

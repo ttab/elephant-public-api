@@ -18,6 +18,31 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ActivateIndexGenerationRequest": {
+        "properties": {
+          "force": {
+            "description": "Force activates a generation that lags the head of the eventlog by more than the gate allows.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Name of the generation to activate.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ActivateIndexGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.IndexGeneration"
+          },
+          "handover_position": {
+            "description": "HandoverPosition is the eventlog position the outgoing generation had matched subscriptions up to. The incoming generation replays matching from there, so it is also the lower bound of the overlap the two generations may both have matched - and therefore of the window a subscription can see the same document version delivered twice.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.ArchiveChunk": {
         "properties": {
           "chunk_id": {
@@ -72,6 +97,179 @@
           "version": {
             "description": "Version is the latest archived version, or -1 if the document has been tombstoned (in which case there is no content URL).",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.BoolQueryV1": {
+        "description": "BoolQueryV1 combines subqueries. Must and should contribute to the score, filter and must_not don't.",
+        "properties": {
+          "filter": {
+            "description": "Filter are subqueries that all have to match, without affecting the score of the hit.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+            },
+            "type": "array"
+          },
+          "minimum_should_match": {
+            "description": "MinimumShouldMatch is the number of should subqueries that have to match. Defaults to 1 when the query has no must or filter subqueries, 0 otherwise.",
+            "type": "integer"
+          },
+          "must": {
+            "description": "Must are subqueries that all have to match.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+            },
+            "type": "array"
+          },
+          "must_not": {
+            "description": "MustNot are subqueries that must not match.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+            },
+            "type": "array"
+          },
+          "should": {
+            "description": "Should are subqueries that may match, see minimum_should_match.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CalibrateVectorClauseRequest": {
+        "properties": {
+          "document_types": {
+            "description": "DocumentTypes to score against. Empty scores against every indexed type the caller can read. Use the types the subscription is going to name, the volume estimate is only about the documents it will see.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "description": "Floor is the similarity below which documents are not scored at all, which bounds the work the call does. Documents below it are counted as non-matches at every rung of the ladder, so a floor above a candidate threshold would understate its volume and is an invalid argument. Absent uses a server-chosen floor.",
+            "type": "number"
+          },
+          "language": {
+            "description": "Language to score against, as the language tag documents are indexed under. Empty scores against every language, matching a subscription that leaves the language out.",
+            "type": "string"
+          },
+          "members": {
+            "description": "Members to calibrate, scored the way a clause scores them: each document gets the highest similarity any of the members reaches. Pass the members of one clause to calibrate it as a whole, or a single member to calibrate it on its own. At least one is required.\n The min_similarity of a member is not used for scoring. When it is set it is added to the threshold ladder, so an existing threshold can be compared against the alternatives.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.VectorClauseMemberV1"
+            },
+            "type": "array"
+          },
+          "thresholds": {
+            "description": "Thresholds is an explicit ladder of candidate thresholds to estimate volume at. Empty lets the server pick a ladder from the observed distribution, which is the normal way to use this.",
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "top_hits": {
+            "description": "TopHits is the number of highest-scoring documents to return for eyeballing. Defaults to 10, and is capped by the server.",
+            "type": "integer"
+          },
+          "window_days": {
+            "description": "WindowDays is the number of days back to score. Defaults to 7 and is capped by what the recent tier holds. A window shorter than a week will mistake the weekly publishing rhythm for a trend.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CalibrateVectorClauseResponse": {
+        "properties": {
+          "floor": {
+            "description": "Floor that was applied.",
+            "type": "number"
+          },
+          "percentiles": {
+            "description": "Percentiles of the similarity distribution over the window, in ascending order of percentile.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.SimilarityPercentileV1"
+            },
+            "type": "array"
+          },
+          "scored_documents": {
+            "description": "ScoredDocuments is the number of documents in the window that scored at or above the floor. The percentiles are over these, not over every document in the window: the distribution of things that are at least vaguely related is what a threshold is chosen within.",
+            "type": "integer"
+          },
+          "thresholds": {
+            "description": "Thresholds is the ladder: what each candidate threshold would have matched over the window. This is the number a threshold is chosen on - a threshold is a volume decision, and matches per day is the volume it produces. Nothing here says anything about whether the matches are the right ones; that is what the top hits and PreviewSubscription are for.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ThresholdEstimateV1"
+            },
+            "type": "array"
+          },
+          "top_hits": {
+            "description": "TopHits are the highest-scoring documents of the window, most similar first. Read them to find where the results stop being about what the clause is about; the similarity there is the threshold worth estimating volume at.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.CalibrationHitV1"
+            },
+            "type": "array"
+          },
+          "window_days": {
+            "description": "WindowDays is the window that was actually scored, which can be shorter than the requested one.",
+            "type": "integer"
+          },
+          "window_end": {
+            "description": "WindowEnd is the end of the scored window, RFC3339.",
+            "type": "string"
+          },
+          "window_start": {
+            "description": "WindowStart is the beginning of the scored window, RFC3339.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CalibrationHitV1": {
+        "description": "CalibrationHitV1 is one of the documents a calibration scored highest.",
+        "properties": {
+          "first_published": {
+            "description": "FirstPublished is when the document was first published, RFC3339.",
+            "type": "string"
+          },
+          "member_index": {
+            "description": "MemberIndex is the position in the calibrated members of the member that scored highest against this document.",
+            "type": "integer"
+          },
+          "similarity": {
+            "description": "Similarity the document scored, i.e. the highest similarity any of the calibrated members reached against any of its chunks.",
+            "type": "number"
+          },
+          "type": {
+            "description": "Type of the document.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the document. Pass it to Content.GetDocument to read it.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ClauseProvenance": {
+        "description": "ClauseProvenance is the outcome of one vector clause.",
+        "properties": {
+          "clause_index": {
+            "description": "ClauseIndex is the position of the clause in SubscriptionSpec.vector_clauses.",
+            "type": "integer"
+          },
+          "members": {
+            "description": "Members of the clause with the similarity each of them scored. All members are reported, not only the ones that passed, so that a near miss is visible.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.MemberProvenance"
+            },
+            "type": "array"
+          },
+          "negate": {
+            "description": "Negate is whether the clause is negated, repeated here so that the provenance can be read without the subscription at hand.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -145,6 +343,84 @@
         },
         "type": "object"
       },
+      "elephant.distribution.CreateIndexGenerationRequest": {
+        "properties": {
+          "cluster": {
+            "description": "Cluster to build the generation on, named as the deployment declares it. Required. A deployment that only has the one cluster declares it as \"default\".",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the generation. A short readable codename is generated when it is left empty, which is what you want unless the name has to be predictable.",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Prefix is the first segment of every index and alias name the generation owns, and defaults to the generation name. It has to be unique across generations - it is what keeps two generations from writing to each other's indexes - and a lowercase index name segment: it starts with a letter or a digit and continues with letters, digits, underscores or dashes.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CreateIndexGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.IndexGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CreateSubscriptionRequest": {
+        "properties": {
+          "keep_alive_seconds": {
+            "description": "KeepAliveSeconds makes the subscription expiring: it is deactivated if nothing touches it for this long, and any authenticated RPC against it resets the clock. Clamped to at most seven days; a larger value is clamped, not rejected, and the value that was applied is on the returned subscription.\n Zero, the default, makes it durable: it lives until it is deleted. Expiry is independent of ownership — an organisation-owned subscription can be given a keep-alive, and a subject-owned one can be durable.",
+            "type": "integer"
+          },
+          "owner_tier": {
+            "description": "OwnerTier selects who owns the subscription. \"org\", the default, makes it organisation-owned: it belongs to the organisation in the credentials of the caller, and any client of that organisation can manage and poll it. That is the tier for saved searches. \"subject\" makes it owned by the calling subject alone, which is the tier for subscriptions that follow one client session.\n The owner itself is never taken from the request: it is the org claim or the subject of the credentials the call was made with. This only picks which of the two it is.",
+            "type": "string"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/elephant.distribution.SubscriptionSpec"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CreateSubscriptionResponse": {
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/elephant.distribution.Subscription"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteIndexGenerationRequest": {
+        "properties": {
+          "name": {
+            "description": "Name of the generation to delete.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteIndexGenerationResponse": {
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.IndexGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteSubscriptionRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the subscription to delete. Required. Deleting a subscription that doesn't exist is not an error.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteSubscriptionResponse": {
+        "type": "object"
+      },
       "elephant.distribution.DocumentEvent": {
         "properties": {
           "created_at": {
@@ -188,6 +464,65 @@
         },
         "type": "object"
       },
+      "elephant.distribution.EraseDocumentRequest": {
+        "properties": {
+          "uuid": {
+            "description": "UUID of the document to erase.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.EraseDocumentResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/elephant.distribution.ErasureStatus"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ErasureStatus": {
+        "description": "ErasureStatus is the state of one document's erasure.",
+        "properties": {
+          "complete": {
+            "description": "Complete is true when the erasure is provably done, i.e. completed_at is set.",
+            "type": "boolean"
+          },
+          "completed_at": {
+            "description": "CompletedAt is when the erasure became provable, RFC3339, and empty while it is outstanding. It is set once no archived index snapshot holds a copy of the document any more.",
+            "type": "string"
+          },
+          "pending_partitions": {
+            "description": "PendingPartitions are the archived index partitions that still hold a copy. A mounted snapshot is read-only, so the copy in it only goes away when the partition is re-materialized, and the erasure is outstanding until every one of these has been.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requested_at": {
+            "description": "RequestedAt is when the erasure was ordered, RFC3339. A second request for the same document supersedes the first and resets this.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the erased document.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ExemplarDocumentsV1": {
+        "description": "ExemplarDocumentsV1 is a set of documents used as an example of what to match, averaged into a single vector.",
+        "properties": {
+          "uuids": {
+            "description": "UUIDs of the exemplar documents, at least one. A document that isn't indexed, or is of a type indexed without embeddings, is an invalid argument.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.ExtractedValue": {
         "properties": {
           "annotation": {
@@ -220,6 +555,33 @@
             },
             "description": "Values that were extracted.",
             "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.Fuzziness": {
+        "description": "Fuzziness is the edit distance allowed when matching terms.",
+        "properties": {
+          "auto": {
+            "$ref": "#/components/schemas/elephant.distribution.FuzzinessAuto"
+          },
+          "edits": {
+            "description": "Edits is the maximum allowed Levenshtein edit distance. Valid values are 0, 1 and 2.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.FuzzinessAuto": {
+        "description": "FuzzinessAuto configures automatic fuzziness thresholds. The low and high values are the term length boundaries for the edit distance tiers:\n - Terms shorter than low characters must match exactly (0 edits). - Terms of low to high-1 characters allow at most 1 edit. - Terms of high characters or more allow at most 2 edits.\n Both zero uses the default thresholds, 3 and 6.",
+        "properties": {
+          "high": {
+            "description": "High is the term length where 2 edits start being allowed.",
+            "type": "integer"
+          },
+          "low": {
+            "description": "Low is the term length where 1 edit starts being allowed.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -381,6 +743,44 @@
         },
         "type": "object"
       },
+      "elephant.distribution.GetErasureStatusRequest": {
+        "properties": {
+          "uuid": {
+            "description": "UUID of the document to get the erasure status for.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetErasureStatusResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/elephant.distribution.ErasureStatus"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetMappingsRequest": {
+        "properties": {
+          "document_type": {
+            "description": "DocumentType to get the mappings of. Required.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetMappingsResponse": {
+        "properties": {
+          "properties": {
+            "description": "Properties of the document type, sorted by name.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.MappingProperty"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.GetNewDocumentsRequest": {
         "properties": {
           "after": {
@@ -412,6 +812,10 @@
             },
             "description": "Subset returns a subset of the documents as specified by a map of newsdoc value extractors keyed by the types that they should be applied to.",
             "type": "object"
+          },
+          "wait_ms": {
+            "description": "Wait is the maximum time in milliseconds to wait for new events when the read starts at the head of the log, mirroring the repository eventlog long poll. Defaults to 2000 and is capped at 8000. A negative value disables waiting so that at-head reads return an empty response immediately. Reads that can be answered immediately are always unaffected.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -447,6 +851,23 @@
           },
           "version": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetSubscriptionRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the subscription to get. Required.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetSubscriptionResponse": {
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/elephant.distribution.Subscription"
           }
         },
         "type": "object"
@@ -488,6 +909,116 @@
         "properties": {
           "configuration": {
             "$ref": "#/components/schemas/elephant.distribution.TypeConfiguration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.Hit": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.StringValues"
+            },
+            "description": "Fields are the values of the requested fields, keyed by field name. Fields without a value for the document are absent.",
+            "type": "object"
+          },
+          "id": {
+            "description": "ID is the UUID of the document. Pass it to Content.GetDocument to fetch the document itself.",
+            "type": "string"
+          },
+          "score": {
+            "description": "Score is the relevance score of the hit. Only meaningful for hits ordered by relevance; a sorted query leaves it at zero.\n For a knn query the score is the cosine similarity of the document to the query vector, in [-1, 1] and on the same scale as KnnQueryV1.min_similarity: the server converts it out of OpenSearch's score space so that the two can be compared directly. For a text query it is an unbounded BM25 score, comparable between hits of the same query and meaningless between queries.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.HitsTotal": {
+        "description": "HitsTotal is the number of matching documents. The count is exact up to a server-side limit, above which it is reported as a lower bound.",
+        "properties": {
+          "relation": {
+            "description": "Relation is \"eq\" when value is the exact number of matches, and \"gte\" when the matches were only counted up to value.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value is the number of matching documents, interpreted according to relation.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.IndexGeneration": {
+        "description": "IndexGeneration is one complete set of search indexes: everything under one index name prefix, on one cluster, with an eventlog cursor of its own.",
+        "properties": {
+          "activated_at": {
+            "description": "ActivatedAt is when it was last activated, RFC3339, and empty for a generation that has never served.",
+            "type": "string"
+          },
+          "active": {
+            "description": "Active is whether this is the generation that search, calibration and subscription matching use.",
+            "type": "boolean"
+          },
+          "cluster": {
+            "description": "Cluster the generation's indexes live on, named as the deployment declares it. Clusters are configuration, so their URLs and credentials are never part of a response.",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "CreatedAt is when the generation was registered, RFC3339.",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Enabled is whether an indexer is run for the generation. A disabled generation keeps its indexes but stops consuming the eventlog, and falls behind for as long as it stays that way.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Name of the generation. It identifies the generation in these RPCs, in the generation override on Search.Query, and in metric labels.",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Prefix is the first segment of every index and alias name the generation owns, and what scopes it: no two generations share one.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.IndexGenerationStatus": {
+        "description": "IndexGenerationStatus is a generation together with how far it has got.",
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/elephant.distribution.IndexGeneration"
+          },
+          "lag": {
+            "description": "Lag is how far the generation is behind the head of the eventlog, which is what the activation gate is checked against.",
+            "type": "integer"
+          },
+          "position": {
+            "description": "Position is the eventlog ID the generation's indexer has processed up to, and zero for a generation whose indexer has not stored a position yet - either because it has not started or because it is still draining the archive.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.KnnQueryV1": {
+        "description": "KnnQueryV1 is a semantic query: it looks up the documents whose embeddings are closest to a query vector, rather than the documents that contain the query terms.\n The clause has two independent choices, and the server validates both - the fields are plain fields rather than oneofs so that the combinations can be relaxed later without renumbering, but an invalid combination is rejected as an invalid argument, it is never guessed at.\n 1. Where the query vector comes from: exactly one of text and vector. 2. How many neighbours come back: exactly one of k and min_similarity.\n Similarity is cosine similarity throughout, in the range [-1, 1], where higher means closer and 1 means identical direction. The embeddings are normalized, so this is the same dial as maximum inner product; the server converts from OpenSearch's own score space so that both min_similarity and the per-hit scores are stated as cosine similarity. Hit.score for a knn hit is therefore directly comparable to min_similarity, which is how a threshold is found: run a k query, look at where the results stop being relevant, and read the threshold off the scores.\n Thresholds are model-dependent and are not portable between deployments or across an embedding model upgrade. Treat a min_similarity value as something to recalibrate, not as a constant.",
+        "properties": {
+          "k": {
+            "description": "K is the number of nearest neighbours to retrieve. The hits come back ordered by similarity, and there are always k of them (fewer only when the filtered candidate set is smaller), no matter how poor the last ones are - a k query has no relevance floor. Mutually exclusive with min_similarity, and one of the two must be set.",
+            "type": "integer"
+          },
+          "min_similarity": {
+            "description": "MinSimilarity turns the clause into a radial query: every document at or above this cosine similarity is a hit, however many that turns out to be, up to size. Use it when \"everything that is at least this close\" is the question - it makes a result set that does not silently pad itself with weak matches the way a fixed k does, and it is the same predicate that subscriptions match on, so a query is how a subscription threshold is previewed.\n Cosine similarity in [-1, 1]; higher is closer. Mutually exclusive with k, and one of the two must be set. The field is optional so that a floor of 0 - every document that isn't pointing away from the query - can be asked for, and is distinct from not asking for a radial query at all.",
+            "type": "number"
+          },
+          "text": {
+            "description": "Text to search for, embedded server-side with the current embedding model. This is the normal way to run a semantic query, and the only one that survives a model upgrade unchanged, since the server re-embeds the text with whatever model is current.",
+            "type": "string"
+          },
+          "vector": {
+            "description": "Vector to search for, as a raw embedding. Advanced use: the caller has to produce it with the same model and dimension as the index, and a model upgrade invalidates it. Prefer text unless the vector comes from somewhere the server cannot re-derive it from. A vector of the wrong dimension is an invalid argument.",
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -588,6 +1119,466 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ListIndexGenerationsRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.ListIndexGenerationsResponse": {
+        "properties": {
+          "eventlog_head": {
+            "description": "EventlogHead is the ID of the last event in the distribution eventlog, the position a generation that has caught up converges on.",
+            "type": "integer"
+          },
+          "generations": {
+            "description": "Generations, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.IndexGenerationStatus"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListSubscriptionsRequest": {
+        "properties": {
+          "include_deactivated": {
+            "description": "IncludeDeactivated includes subscriptions that have expired and are waiting to be reaped. They are left out by default.",
+            "type": "boolean"
+          },
+          "owner_tier": {
+            "description": "OwnerTier filters on ownership: \"org\" for the subscriptions of the organisation of the caller, \"subject\" for those owned by the calling subject. Empty lists both.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListSubscriptionsResponse": {
+        "properties": {
+          "subscriptions": {
+            "description": "Subscriptions the caller can see, most recently created first.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.Subscription"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MappingField": {
+        "description": "MappingField is an alternative indexing of a property.",
+        "properties": {
+          "name": {
+            "description": "Name of the field, appended to the property name with a dot to query it.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the field, from the same vocabulary as the property type, plus \"prefix\" for fields analysed for prefix matching.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MappingProperty": {
+        "description": "MappingProperty is a searchable field of a document type.",
+        "properties": {
+          "fields": {
+            "description": "Fields are alternative indexings of the property, queried as \"name.field\". A text property commonly has a \"keyword\" field for exact matching and sorting, and a \"prefix\" field for as-you-type matching.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.MappingField"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Name of the property, as used in queries.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path is the property that an alias property points to. Empty for everything but aliases.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the property: \"text\", \"keyword\", \"date\", \"long\", \"double\", \"boolean\", or \"alias\" for a property that is another name for the property named by path.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MatchAllQueryV1": {
+        "description": "MatchAllQueryV1 matches every document. Useful as the base of a query that only filters, and for browsing a type by sort order.",
+        "type": "object"
+      },
+      "elephant.distribution.MatchPhraseQueryV1": {
+        "description": "MatchPhraseQueryV1 matches analysed text where the terms occur in the given order, next to each other.",
+        "properties": {
+          "field": {
+            "description": "Field to match against.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value to match as a phrase.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MatchProvenance": {
+        "description": "MatchProvenance records what fired, so that a match can be explained and so that feedback about it can be routed to the part of the subscription that caused it.",
+        "properties": {
+          "clauses": {
+            "description": "Clauses are the vector clauses of the subscription, in the order they are stored in, with the similarities they scored.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ClauseProvenance"
+            },
+            "type": "array"
+          },
+          "query_matched": {
+            "description": "QueryMatched is whether the query part of the subscription matched. False when the subscription has no query part.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MatchQueryV1": {
+        "description": "MatchQueryV1 matches analysed text: the value is run through the analyser of the field, and a document matches if any of the resulting terms do.",
+        "properties": {
+          "boost": {
+            "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
+            "type": "number"
+          },
+          "field": {
+            "description": "Field to match against.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value to match.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MemberProvenance": {
+        "description": "MemberProvenance is the similarity one clause member scored against the document.",
+        "properties": {
+          "member_index": {
+            "description": "MemberIndex is the position of the member in VectorClauseV1.members.",
+            "type": "integer"
+          },
+          "passed": {
+            "description": "Passed is whether the similarity reached the threshold of the member. In a negated clause a passing member is what would have excluded the document, so all of them are false on a match.",
+            "type": "boolean"
+          },
+          "similarity": {
+            "description": "Similarity is the highest cosine similarity between the vector of the member and the chunk embeddings of the document, on the same scale as VectorClauseMemberV1.min_similarity.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.MultiMatchQueryV1": {
+        "description": "MultiMatchQueryV1 matches analysed text against several fields at once.",
+        "properties": {
+          "boolean_and": {
+            "description": "BooleanAnd requires all terms of the query to match.",
+            "type": "boolean"
+          },
+          "boost": {
+            "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
+            "type": "number"
+          },
+          "fields": {
+            "description": "Fields to match against. A field can carry a boost as a \"^\"-suffix, e.g. \"document.title^3\".",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fuzziness": {
+            "$ref": "#/components/schemas/elephant.distribution.Fuzziness"
+          },
+          "minimum_should_match": {
+            "description": "MinimumShouldMatch is the number of query terms that must match when the terms are combined with \"or\". Takes the full minimum-should-match expression syntax, e.g. \"2\" or \"75%\".",
+            "type": "string"
+          },
+          "prefix_length": {
+            "description": "PrefixLength is the number of leading characters that fuzzy matching leaves unchanged. Defaults to 0.",
+            "type": "integer"
+          },
+          "query": {
+            "description": "Query text to match.",
+            "type": "string"
+          },
+          "tie_breaker": {
+            "description": "TieBreaker is how much the score of matches in other fields than the best-scoring one contributes, between 0 and 1. Defaults to 0, i.e. only the best field counts.",
+            "type": "number"
+          },
+          "type": {
+            "description": "Type is the multi-match query type. Valid values are best_fields, most_fields, cross_fields, phrase, phrase_prefix and bool_prefix. Defaults to best_fields.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PollMatchesRequest": {
+        "properties": {
+          "after_event_id": {
+            "description": "AfterEventID returns matches with a higher event ID than this one. Start at 0 to read the log from the beginning, and pass the event ID of the last match you processed on every call after that.",
+            "type": "integer"
+          },
+          "subscription_id": {
+            "description": "SubscriptionID to read matches for. Required.",
+            "type": "string"
+          },
+          "wait_ms": {
+            "description": "WaitMS is the maximum time in milliseconds to wait for a match when there is nothing to return yet. Defaults to 2000 and is capped by the server. A negative value disables waiting, so a caller that is draining a backlog returns immediately at the end of it. A call that can be answered from the log doesn't wait.\n Waiting is not a guarantee of getting the whole batch: the server waits for the first match, gives the rest of the batch a moment to land, and returns what is there. Keep polling.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PollMatchesResponse": {
+        "properties": {
+          "matches": {
+            "description": "Matches in ascending event ID order. Empty when the wait ran out without anything matching, which is the normal idle response.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.SubscriptionMatch"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PrefixQueryV1": {
+        "description": "PrefixQueryV1 matches values that start with the given value. Run it against a keyword field, or against a field that the mappings report as \"prefix\": those are analysed for prefix matching and are much cheaper to search as you type.",
+        "properties": {
+          "boost": {
+            "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
+            "type": "number"
+          },
+          "case_insensitive": {
+            "description": "CaseInsensitive matches regardless of case.",
+            "type": "boolean"
+          },
+          "field": {
+            "description": "Field to match against.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value that the field must start with.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PreviewMatch": {
+        "description": "PreviewMatch is a document that a previewed subscription would have matched. It is the match log entry as it would have looked, minus the event: a preview runs against the indexed documents of the window, not against the events that produced them.",
+        "properties": {
+          "first_published": {
+            "description": "FirstPublished is when the document was first published, RFC3339. This is what max_age_seconds is evaluated against.",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchProvenance"
+          },
+          "type": {
+            "description": "Type of the document.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the document. Pass it to Content.GetDocument to read it.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PreviewSubscriptionRequest": {
+        "properties": {
+          "size": {
+            "description": "Size is the maximum number of matches to return, most recent first. Defaults to 50 and is capped by the server. The total is reported separately, so a preview that returns the first page still says how much the subscription would have fired.",
+            "type": "integer"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/elephant.distribution.SubscriptionSpec"
+          },
+          "window_days": {
+            "description": "WindowDays is the number of days back to evaluate. Defaults to 7 and is capped by what the recent tier holds.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PreviewSubscriptionResponse": {
+        "properties": {
+          "matches": {
+            "description": "Matches in the window, most recently published first.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.PreviewMatch"
+            },
+            "type": "array"
+          },
+          "matches_per_day": {
+            "description": "MatchesPerDay is total spread over the window, the rate the subscription would have fired at. A subscription that fires more often than the surface it feeds can carry needs a tighter threshold, not a filter on the consuming side.",
+            "type": "number"
+          },
+          "total": {
+            "$ref": "#/components/schemas/elephant.distribution.HitsTotal"
+          },
+          "window_end": {
+            "description": "WindowEnd is the end of the evaluated window, RFC3339.",
+            "type": "string"
+          },
+          "window_start": {
+            "description": "WindowStart is the beginning of the evaluated window, RFC3339.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.QueryRequest": {
+        "properties": {
+          "document_types": {
+            "description": "DocumentTypes to search. Empty searches all types the caller can read. A type that isn't indexed is an invalid argument.\n For a semantic query (knn) the empty list is every indexed type that carries embeddings: the types that don't are skipped rather than refused, since a deployment normally indexes entity registries that have no vectors beside the temporal types that do. A type that is named explicitly is still an invalid argument when it has no embeddings - it is a question that cannot be answered, and an empty result would look like one.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fields": {
+            "description": "Fields to return with each hit, named as flat index fields (e.g. \"document.title\"). Empty returns hits without field values, which is the cheapest form when the caller only needs the UUIDs.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "from": {
+            "description": "From is the number of hits to skip, for paging through a result set. Deep paging is bounded by the server; use a narrower query or a sort on a stable field instead of paging far into a large result.",
+            "type": "integer"
+          },
+          "generation": {
+            "description": "Generation answers the query from a named index generation instead of the active one, naming it as Configuration.ListIndexGenerations does. Empty is the active generation, and the only value an ordinary caller may send: naming a generation requires the \"dist_admin\" scope.\n It is the validation surface for a rebuild or a move to another cluster. A candidate generation is built and kept up to date while the active one serves, and this is how real queries are pointed at it and the results compared before it is activated. A generation that doesn't exist, or one whose cluster is unreachable, is an error rather than a silent fall back to the active generation - a comparison that quietly queried the wrong index set would be worse than no comparison.",
+            "type": "string"
+          },
+          "knn": {
+            "$ref": "#/components/schemas/elephant.distribution.KnnQueryV1"
+          },
+          "language": {
+            "description": "Language to search, as the language tag the documents are indexed under, e.g. \"sv\" or \"sv-se\". Required: a query targets exactly one language series so that fan-out stays explicit. An unknown language is an invalid argument.",
+            "type": "string"
+          },
+          "query": {
+            "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+          },
+          "size": {
+            "description": "Size is the maximum number of hits to return. Defaults to 50, and is capped by the server.",
+            "type": "integer"
+          },
+          "sort": {
+            "description": "Sort order of the hits. Empty sorts by relevance, descending.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.SortV1"
+            },
+            "type": "array"
+          },
+          "tier": {
+            "description": "Tier to search: \"recent\" for the rolling recent window, \"all\" for the recent window plus the archive. Empty defaults to \"recent\". Any other value is an invalid argument.\n \"recent\" is not \"whatever the cluster happens to hold locally\". It applies an implicit window on the document's anchor timestamp, so that recent means the same thing on the first day of a quarter as on the last. For document types anchored on when they happened - news, and everything else dated by publication - that window is a first_published no older than the configured recent window, 30 days by default. Types that aren't partitioned by time, the entity registries such as sections and authors, are never windowed and are returned in full by both tiers.\n \"all\" searches the archive set as well. The archive is served from snapshots mounted on separate nodes, so it answers more slowly, and the higher latency is accepted rather than worked around - which is why it is an explicit choice and not the default. Scope an archive query with a range on the anchor field whenever you can: given a range, the server resolves the query to the archived partitions that intersect it instead of fanning out over every quarter ever indexed.\n A document that has been corrected after its partition was archived exists in both tiers. Hits are collapsed on the document UUID, and the field values reported are those of the highest indexed version, so a cross-tier query never returns the same document twice and never reports the superseded copy's values.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.QueryResponse": {
+        "properties": {
+          "hits": {
+            "description": "Hits in the requested order, at most size of them.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.Hit"
+            },
+            "type": "array"
+          },
+          "total": {
+            "$ref": "#/components/schemas/elephant.distribution.HitsTotal"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.QueryV1": {
+        "description": "QueryV1 is a single query clause. Exactly one of the conditions must be set; an empty QueryV1 is an invalid argument.",
+        "properties": {
+          "bool": {
+            "$ref": "#/components/schemas/elephant.distribution.BoolQueryV1"
+          },
+          "exists": {
+            "description": "Exists matches documents that have a value for the named field.",
+            "type": "string"
+          },
+          "match": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchQueryV1"
+          },
+          "match_all": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchAllQueryV1"
+          },
+          "match_phrase": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchPhraseQueryV1"
+          },
+          "multi_match": {
+            "$ref": "#/components/schemas/elephant.distribution.MultiMatchQueryV1"
+          },
+          "prefix": {
+            "$ref": "#/components/schemas/elephant.distribution.PrefixQueryV1"
+          },
+          "query_string": {
+            "description": "QueryString is a query in the query string mini-language. Use it for user-entered search expressions; prefer the structured clauses for queries the client builds itself.",
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/components/schemas/elephant.distribution.RangeQueryV1"
+          },
+          "term": {
+            "$ref": "#/components/schemas/elephant.distribution.TermQueryV1"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/elephant.distribution.TermsQueryV1"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RangeQueryV1": {
+        "description": "RangeQueryV1 matches a field against an interval. The bounds are written as strings and parsed according to the type of the field, so a date field takes RFC 3339 timestamps and a numeric field takes numbers. At least one bound must be set; combining a lower and an upper bound gives a closed interval.",
+        "properties": {
+          "field": {
+            "description": "Field to match against.",
+            "type": "string"
+          },
+          "gt": {
+            "description": "Gt is an exclusive lower bound.",
+            "type": "string"
+          },
+          "gte": {
+            "description": "Gte is an inclusive lower bound.",
+            "type": "string"
+          },
+          "lt": {
+            "description": "Lt is an exclusive upper bound.",
+            "type": "string"
+          },
+          "lte": {
+            "description": "Lte is an inclusive upper bound.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RawVectorV1": {
+        "description": "RawVectorV1 is an embedding supplied by the caller.",
+        "properties": {
+          "values": {
+            "description": "Values of the embedding, which must have the dimension of the index.",
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.RegisterConfigGenerationRequest": {
         "properties": {
           "activate": {
@@ -626,6 +1617,81 @@
         "properties": {
           "generation": {
             "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RematerializationStatus": {
+        "description": "RematerializationStatus is the state of one partition rebuild.",
+        "properties": {
+          "complete": {
+            "description": "Complete is true once the rebuild has finished and the old mounts have been dropped.",
+            "type": "boolean"
+          },
+          "documents": {
+            "description": "Documents is how many documents have been written to the rebuild so far, and the size of the finished partition once it is done.",
+            "type": "integer"
+          },
+          "language": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "phase": {
+            "description": "Phase is the step the rebuild is at, and \"done\" when it has finished.",
+            "type": "string"
+          },
+          "replaced": {
+            "description": "Replaced are the mounted archive indexes the rebuild takes over from.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "description": "Revision is which generation of the partition the rebuild produces, counting the copy the original archival produced as zero.",
+            "type": "integer"
+          },
+          "started_at": {
+            "description": "StartedAt and UpdatedAt bound the run, RFC3339.",
+            "type": "string"
+          },
+          "trigger": {
+            "description": "Trigger is what ordered the rebuild: \"manual\", \"overlay\", \"erasure\" or \"rollup\".",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type, Language and Period identify the partition.",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RematerializePartitionRequest": {
+        "properties": {
+          "language": {
+            "description": "Language segment of the partition, e.g. \"sv\". This is the index language series, not a document language attribute.",
+            "type": "string"
+          },
+          "period": {
+            "description": "Period of the partition: \"yyyyq[1-4]\" for a quarter, or \"yyyy\" to roll a whole year of quarters into one partition.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the partition to rebuild, e.g. \"core/article\".",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RematerializePartitionResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/elephant.distribution.RematerializationStatus"
           }
         },
         "type": "object"
@@ -737,6 +1803,168 @@
       "elephant.distribution.SetSyncStateResponse": {
         "type": "object"
       },
+      "elephant.distribution.SimilarityPercentileV1": {
+        "description": "SimilarityPercentileV1 is one point of the similarity distribution.",
+        "properties": {
+          "percentile": {
+            "description": "Percentile the value is for, e.g. 50, 99 or 99.9.",
+            "type": "number"
+          },
+          "similarity": {
+            "description": "Similarity at that percentile, on the same scale as VectorClauseMemberV1.min_similarity.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SortV1": {
+        "description": "SortV1 sorts the hits on a field. Sort on keyword, date, boolean or numeric fields; text fields aren't sortable.",
+        "properties": {
+          "desc": {
+            "description": "Desc sorts in descending order instead of ascending.",
+            "type": "boolean"
+          },
+          "field": {
+            "description": "Field to sort on.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.StringValues": {
+        "description": "StringValues is the value of a flat index field. All field values are carried as strings regardless of the type of the field; dates are RFC 3339. A field is always a list because flattening a document collapses repeated blocks into parallel lists - values of the same block instance can't be paired up across fields.",
+        "properties": {
+          "values": {
+            "description": "Values of the field, in index order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.Subscription": {
+        "description": "Subscription is a stored subscription: its definition plus everything the server decided about it.",
+        "properties": {
+          "created_at": {
+            "description": "CreatedAt is when the subscription was created, RFC3339.",
+            "type": "string"
+          },
+          "created_by": {
+            "description": "CreatedBy is the subject that created the subscription. Recorded for audit on organisation-owned subscriptions, where it does not confer ownership: any client of the organisation can manage and poll them.",
+            "type": "string"
+          },
+          "deactivated_at": {
+            "description": "DeactivatedAt is when the subscription stopped matching because its keep-alive ran out, RFC3339. Empty while it is active, and on a durable subscription, which never lapses. A deactivated subscription no longer costs anything at match time and is removed altogether once its match log has expired.",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "ExpiresAt is when the subscription is deactivated unless it is touched before then, RFC3339. Empty on a durable subscription.",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the subscription, assigned by the server.",
+            "type": "string"
+          },
+          "keep_alive_seconds": {
+            "description": "KeepAliveSeconds is the time the subscription survives untouched. Zero on a durable subscription, which does not expire. Independent of the ownership tier: either tier can be given a keep-alive, and either can be durable.",
+            "type": "integer"
+          },
+          "owner": {
+            "description": "Owner is the organisation of the creator for an organisation-owned subscription, and the subject of the creator for a session subscription.",
+            "type": "string"
+          },
+          "owner_tier": {
+            "description": "OwnerTier is \"org\" for an organisation-owned subscription and \"subject\" for one owned by the subject that created it.",
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/elephant.distribution.SubscriptionSpec"
+          },
+          "touched_at": {
+            "description": "TouchedAt is when the subscription was last touched, RFC3339. Empty on a durable subscription, which has no clock to reset.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "UpdatedAt is when the definition was last changed, RFC3339. Touches do not count as changes.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SubscriptionMatch": {
+        "description": "SubscriptionMatch is one document event that matched a subscription. Matches are recorded once per (subscription, event) and delivery is at-least-once, so a client can see the same event twice after a restart; the event ID is what makes it safe to deduplicate.",
+        "properties": {
+          "event_id": {
+            "description": "EventID is the distribution eventlog ID of the event that matched. It is the cursor of the match log, and it is the same ID the event has in Content.GetNewDocuments.",
+            "type": "integer"
+          },
+          "event_time": {
+            "description": "EventTime is when the event happened, RFC3339.",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "EventType is either \"published\" or \"unpublished\".",
+            "type": "string"
+          },
+          "matched_at": {
+            "description": "MatchedAt is when the match was recorded, RFC3339. It normally trails event_time by seconds; a large gap means the match was made while catching up after an outage, and whether that is still worth alerting on is a decision for the client. Nothing is dropped for being late.",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchProvenance"
+          },
+          "type": {
+            "description": "Type of the document.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the document. Pass it to Content.GetDocument to fetch the document itself.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the document that matched.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SubscriptionSpec": {
+        "description": "SubscriptionSpec is the definition of a subscription: everything about it that the client decides. Ownership, expiry and timestamps are not part of it, they are assigned by the server and read back on Subscription.",
+        "properties": {
+          "document_types": {
+            "description": "DocumentTypes to evaluate against. Required, at least one: a subscription always names the types it is about. A type that isn't indexed is an invalid argument.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "language": {
+            "description": "Language to match, as the language tag documents are indexed under, e.g. \"sv\" or \"sv-se\". Empty matches every language. Unlike a search query, which is per language series (see Search.Query), leaving the language out costs nothing here: matching runs per incoming document, so there is no fan-out.",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "MaxAgeSeconds only matches documents first published within this many seconds of the event. Zero, the default, matches whatever the query and the clauses match, however old the document is. Set it on alert-style subscriptions: an update to a years-old article is a fresh event and would otherwise fire the alert.",
+            "type": "integer"
+          },
+          "notify_once": {
+            "description": "NotifyOnce suppresses re-notification for a document this subscription has already matched, whatever the later event on it is. Off by default, in which case a correction to a matched document is a new match with its own event type, which is usually what an editorial consumer wants. Composes with max_age_seconds rather than replacing it.",
+            "type": "boolean"
+          },
+          "query": {
+            "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+          },
+          "vector_clauses": {
+            "description": "VectorClauses are the semantic part of the subscription. All of them have to be satisfied, and they are ANDed with the query. An empty list means the subscription is the query alone.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.VectorClauseV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.Subsets": {
         "properties": {
           "expressions": {
@@ -749,10 +1977,93 @@
         },
         "type": "object"
       },
+      "elephant.distribution.TermQueryV1": {
+        "description": "TermQueryV1 matches an exact, unanalysed value. Use it for keyword, boolean, date and numeric fields; a term query against a text field matches individual analysed tokens, which is rarely what you want.",
+        "properties": {
+          "boost": {
+            "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
+            "type": "number"
+          },
+          "field": {
+            "description": "Field to match against.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value that the field must have.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TermsQueryV1": {
+        "description": "TermsQueryV1 matches documents where the field has any of the values.",
+        "properties": {
+          "boost": {
+            "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
+            "type": "number"
+          },
+          "field": {
+            "description": "Field to match against.",
+            "type": "string"
+          },
+          "values": {
+            "description": "Values, any one of which is a match.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ThresholdEstimateV1": {
+        "description": "ThresholdEstimateV1 is what one candidate threshold would have cost in volume over the calibration window.",
+        "properties": {
+          "matched_documents": {
+            "description": "MatchedDocuments is the number of documents in the window that reached it.",
+            "type": "integer"
+          },
+          "matches_per_day": {
+            "description": "MatchesPerDay is matched_documents spread over the window. It is a rate over past traffic, not a forecast, and it is per clause: a subscription that ANDs this clause with a query or another clause will see fewer.",
+            "type": "number"
+          },
+          "min_similarity": {
+            "description": "MinSimilarity is the candidate threshold.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TouchSubscriptionRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the subscription to touch. Required.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TouchSubscriptionResponse": {
+        "properties": {
+          "expires_at": {
+            "description": "ExpiresAt is when the subscription is deactivated unless it is touched again before then, RFC3339. Empty on organisation-owned subscriptions.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.TypeConfiguration": {
         "properties": {
+          "anchor": {
+            "description": "Anchor selects how documents of the type are partitioned across the search indexes. An empty value is a non-temporal type: one unpartitioned index per language that is never archived. \"first_published\" partitions by the time of the document's first distribution event, which is immutable, so a document never moves between partitions. \"time_expressions\" partitions by the dates time_expressions extracts from the document, with everything from the current quarter onwards sharing one index.",
+            "type": "string"
+          },
           "bounded_collection": {
             "description": "Set to true if this is a collection of documents that are bounded (limited in size). Bounded collections can be fetched by type and language in one go.",
+            "type": "boolean"
+          },
+          "embeddings": {
+            "description": "Embeddings enables semantic indexing of the document type: its documents are chunked and embedded, its indexes are created with a vector field, and it can be searched and subscribed to by vector. Independent of the anchor: a non-temporal type can be embedded, and a partitioned one can be left BM25-only.\n The vector field is set at index creation and cannot be added afterwards, so enabling this for a type that already has indexes takes a new index generation. Turning it off leaves the field in place, unwritten. It also needs a deployment with an embedding sidecar; without one the type is indexed BM25-only whatever this says.",
             "type": "boolean"
           },
           "label_expressions": {
@@ -796,6 +2107,71 @@
           "timezone": {
             "description": "Timezone is the timezone the time should be parsed in. Optional, most timestamps should include timezone information, if they don't, parsing will fall back to the default timezone that the repository has been configured with.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.UpdateSubscriptionRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the subscription to update. Required.",
+            "type": "string"
+          },
+          "keep_alive_seconds": {
+            "description": "KeepAliveSeconds sets a new keep-alive, clamped to at most seven days. Absent leaves the current one alone; zero removes it and makes the subscription durable. Applies to both ownership tiers. The ownership tier itself cannot be changed.",
+            "type": "integer"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/elephant.distribution.SubscriptionSpec"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.UpdateSubscriptionResponse": {
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/elephant.distribution.Subscription"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.VectorClauseMemberV1": {
+        "description": "VectorClauseMemberV1 is one vector to compare documents against, with the similarity at which it counts as a match. Exactly one source must be set.\n A member passes when the document has an embedding at or above min_similarity: the document is scored as the highest similarity across its chunk embeddings, so a long document matches on the part of it that is about the member.\n Prefer text and exemplars over a raw vector. Both are stored with the source and the embedding model they were derived under, which is what lets the server re-embed them and recalibrate their thresholds when the model is upgraded. A raw vector cannot be re-derived, and a member that holds one is paused and flagged for the owner instead.",
+        "properties": {
+          "exemplars": {
+            "$ref": "#/components/schemas/elephant.distribution.ExemplarDocumentsV1"
+          },
+          "min_similarity": {
+            "description": "MinSimilarity is the cosine similarity at or above which this member passes, in [-1, 1], where higher means closer and 1 means identical direction. The embeddings are normalized, so this is the same dial as a maximum inner product distance, and it is the same number as Hit.score for a knn query and KnnQueryV1.min_similarity - which is how a threshold is found without guessing, see CalibrateVectorClause and Search.Query.\n Required: absent is an invalid argument. The field is optional so that a threshold of 0 - close to anything that isn't pointing away - is distinguishable from not stating one.\n Thresholds are model-dependent and are not portable between deployments or across an embedding model upgrade. Treat one as something to recalibrate, not as a constant.",
+            "type": "number"
+          },
+          "model": {
+            "description": "Model is the identifier of the embedding model the stored vector of this member was derived under. Set by the server on read, ignored on write.",
+            "type": "string"
+          },
+          "text": {
+            "description": "Text to be close to, embedded server-side with the current model. The normal choice: a phrase or a paragraph describing the subject matter of the subscription.",
+            "type": "string"
+          },
+          "vector": {
+            "$ref": "#/components/schemas/elephant.distribution.RawVectorV1"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.VectorClauseV1": {
+        "description": "VectorClauseV1 is one semantic condition of a subscription. Its members are ORed: the clause is satisfied when any of them passes, or, when the clause is negated, when none of them does. Several conditions are several clauses, and they are ANDed - \"close to A or B, but not about C\" is two clauses, one with A and B as members and one negated clause with C.",
+        "properties": {
+          "members": {
+            "description": "Members of the clause, at least one. Each carries its own threshold, so an OR can be built out of sources that are not equally easy to be close to.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.VectorClauseMemberV1"
+            },
+            "type": "array"
+          },
+          "negate": {
+            "description": "Negate inverts the clause: it is satisfied when no member passes, i.e. when the document is close to none of them. Use PreviewSubscription before trusting a negated clause - what it excludes cannot be seen in what it returns.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -944,7 +2320,7 @@
   },
   "info": {
     "title": "distribution API",
-    "version": "v0.0.2"
+    "version": "v0.0.3"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1100,6 +2476,158 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Configuration/ActivateIndexGeneration": {
+      "post": {
+        "description": "ActivateIndexGeneration makes a generation the one that search, threshold calibration and subscription matching read. The switch is atomic and exactly one generation is active at a time.\n Activation is refused when the candidate lags the head of the eventlog by more than a small gate, ten events by default, because a generation that is behind would answer with stale content the moment it took over. It is refused on the same gate when the candidate stands that far above the position the outgoing generation has matched up to, since that distance is what the matching handover has to replay and an outgoing generation that is stalled or disabled can be arbitrarily far behind a candidate that is on the head. Force activates regardless, which is the right call when the outgoing generation is unreachable and the wrong one otherwise.\n Subscription matching is handed over rather than dropped. Activation records the position the outgoing generation had matched up to and stops its matching there; the incoming generation replays the events from that position up to its own cursor for matching only. Match rows are keyed on subscription and event, so replaying an event is idempotent - but the two generations read the log in different pages, and a document that occurs more than once in a page is matched under the last event of that page, so the same document version can end up recorded under two events. Delivery across a cutover is at-least-once with the occasional duplicate: deduplicate on the subscription, the document UUID and the version if that matters to you.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ActivateIndexGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ActivateIndexGenerationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ActivateIndexGeneration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Configuration/CreateIndexGeneration": {
+      "post": {
+        "description": "CreateIndexGeneration registers a new index generation: a complete set of search indexes with an index name prefix of its own, built on one of the OpenSearch clusters the deployment declares.\n The generation is populated by the ordinary backfill - the indexer that picks it up drains the archive and then tails the eventlog - while the active generation keeps serving. Subscription matching is suppressed for the whole build, so creating a generation never re-notifies a subscription, but the percolator indexes are seeded as it goes, so matching works from the moment it is activated.\n Use it to rebuild the index from scratch after a mapping change that cannot be applied to live indexes, or to move the index to another cluster - which is how an OpenSearch major version upgrade is done: create a generation on the new cluster, watch it catch up with ListIndexGenerations, compare results through the generation override on Search.Query, activate, and delete the old one.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.CreateIndexGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.CreateIndexGenerationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "CreateIndexGeneration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Configuration/DeleteIndexGeneration": {
+      "post": {
+        "description": "DeleteIndexGeneration deletes an inactive generation. The active generation cannot be deleted - activate another one first.\n The call records the deletion and returns; the cleanup runs asynchronously and is scoped by the generation's index prefix: its document, percolator and overlay indexes, the bookkeeping rows that name them, its eventlog cursor, and the snapshots under the generation's base path in the snapshot repository. Nothing outside the prefix is touched, so deleting a generation can never take content away from the one that is serving.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.DeleteIndexGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.DeleteIndexGenerationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "DeleteIndexGeneration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Configuration/EraseDocument": {
+      "post": {
+        "description": "EraseDocument erases the content of a document from every store that holds it: the stored document versions, the archived document objects and their vector cache, the search index copies, and the placement and subscription bookkeeping that names it.\n The eventlog is untouched. Its entries carry identifiers and hashes only, never document content, so the transparency log survives an erasure with its hash chain intact.\n Erasure is point-in-time. It removes the content that exists when it is ordered and does not blocklist the UUID: a document re-published afterwards is a new document and is distributed and indexed normally.\n The call is idempotent and returns the recorded request. A request is complete once no archived index snapshot holds a copy any more, which can require the affected partitions to be re-materialized - use GetErasureStatus to prove completion.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.EraseDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.EraseDocumentResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "EraseDocument",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Configuration/GetActiveConfigGeneration": {
       "post": {
         "description": "GetActiveConfigGeneration returns the currently active generation, including its schemas and type configurations. Supports long polling for changes.",
@@ -1209,6 +2737,44 @@
           }
         ],
         "summary": "GetDocumentTypes",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Configuration/GetErasureStatus": {
+      "post": {
+        "description": "GetErasureStatus returns the recorded erasure request for a document, including the archived partitions that are still awaiting re-materialization.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetErasureStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetErasureStatusResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetErasureStatus",
         "tags": [
           "Configuration"
         ]
@@ -1366,6 +2932,44 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Configuration/ListIndexGenerations": {
+      "post": {
+        "description": "ListIndexGenerations lists the index generations together with the position each one's indexer has reached in the distribution eventlog and the current head of that log. That is the catch-up view a rebuild is followed through: a candidate is ready to be activated once its lag has come down to a handful of events.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListIndexGenerationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListIndexGenerationsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListIndexGenerations",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Configuration/RegisterConfigGeneration": {
       "post": {
         "description": "RegisterConfigGeneration registers a complete configuration set (schemas + type configurations) as a new generation. Existing schema versions can be re-used by name and version without re-supplying the spec; if the spec is supplied for an existing version it must match the stored one. Returns the new generation ID.",
@@ -1399,6 +3003,44 @@
           }
         ],
         "summary": "RegisterConfigGeneration",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Configuration/RematerializePartition": {
+      "post": {
+        "description": "RematerializePartition orders an archived index partition to be rebuilt from the archive: overlay corrections are folded in, deleted and erased documents are left out, and the result is built with the current mappings and schemas.\n The call records the order and returns; the rebuild itself runs in the index tiering job, which owns the snapshot repository and the warm tier. Call it again to see how far it has got - the response is the recorded state either way, and ordering a rebuild that is already under way changes nothing.\n A period of the form \"yyyy\" orders the rollup of a whole year: the years quarter partitions are rebuilt into a single yearly one and their mounts are dropped.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.RematerializePartitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.RematerializePartitionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RematerializePartition",
         "tags": [
           "Configuration"
         ]
@@ -1516,6 +3158,424 @@
           "Content"
         ]
       }
+    },
+    "/twirp/elephant.distribution.Search/GetMappings": {
+      "post": {
+        "description": "GetMappings returns the searchable fields of a document type and the type of each field, as the union across the language indexes. Use it to find out what can be queried, and how, before building a query.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetMappingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetMappingsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetMappings",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Search/Query": {
+      "post": {
+        "description": "Query searches one language series of one tier. Language is required and a query never fans out across languages: searching several languages is several calls.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.QueryResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Query",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/CalibrateVectorClause": {
+      "post": {
+        "description": "CalibrateVectorClause is how a min_similarity gets chosen. It scores the given clause members against the documents of a recent window and returns the similarity distribution, the top hits to eyeball, and - the number the decision is actually made on - the estimated matches per day at a ladder of candidate thresholds. \"At 0.62 this clause alone would have matched about 14 documents a day last week\" is what a threshold means in practice; a suggested threshold is a volume target, never a claim about relevance.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.CalibrateVectorClauseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.CalibrateVectorClauseResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "CalibrateVectorClause",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/CreateSubscription": {
+      "post": {
+        "description": "CreateSubscription registers a new subscription and returns it as stored, with the ownership and expiry the server assigned to it. Matching starts at the next indexed document; documents that were indexed before the call are never matched, use PreviewSubscription to see what the subscription would have caught.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.CreateSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.CreateSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "CreateSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/DeleteSubscription": {
+      "post": {
+        "description": "DeleteSubscription removes a subscription and its match log. Deleting is permanent and distinct from a subscription expiring: polling a deleted subscription is a not-found, polling an expired one is a failed precondition.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.DeleteSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.DeleteSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "DeleteSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/GetSubscription": {
+      "post": {
+        "description": "GetSubscription returns a subscription as stored. Counts as a touch.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/ListSubscriptions": {
+      "post": {
+        "description": "ListSubscriptions lists the subscriptions the caller can see: the ones owned by the organisation of the caller, and the ones owned by the calling subject. Listing does not count as a touch, so it is safe to poll for housekeeping without keeping abandoned subscriptions alive.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListSubscriptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListSubscriptionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListSubscriptions",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/PollMatches": {
+      "post": {
+        "description": "PollMatches reads the match log of a subscription, long-polling for new matches. Delivery is at-least-once and ordered by event ID, which doubles as the cursor: pass the highest event ID you have processed as after_event_id on the next call.\n Polling a subscription that has expired is a failed precondition, not a not-found: the subscription was abandoned rather than deleted, and the client can tell the two apart and re-create if it wants to. Counts as a touch, so a client that keeps polling never expires.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.PollMatchesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.PollMatchesResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "PollMatches",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/PreviewSubscription": {
+      "post": {
+        "description": "PreviewSubscription is the dry run of a complete subscription definition against a recent window: what would have matched, with the same provenance the match log carries. It is the acceptance test for a new subscription, and the only practical way to reason about a negated clause, which is invisible in the results it does not exclude.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.PreviewSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.PreviewSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "PreviewSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/TouchSubscription": {
+      "post": {
+        "description": "TouchSubscription resets the keep-alive clock of a subscription without reading anything else. Ordinary use does not need it - PollMatches, GetSubscription and UpdateSubscription all count as touches - it is for clients that hold a subscription open while they are not polling. Touching a durable subscription is a no-op, it has no clock to reset.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.TouchSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.TouchSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "TouchSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/UpdateSubscription": {
+      "post": {
+        "description": "UpdateSubscription replaces the definition of a subscription. The spec is written whole: fields left out of it are cleared, not kept. Vector clause members are re-embedded and the query part is re-translated, so an update takes effect for documents indexed after it returns. Counts as a touch.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.UpdateSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.UpdateSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UpdateSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
     }
   },
   "servers": [
@@ -1528,6 +3588,10 @@
   ],
   "tags": [
     {
+      "description": "Search exposes the distribution search index: a query surface over the documents that Content delivers, with the same visibility rules. It is read-only.\n Access requires the \"dist_search\" scope, which is granted by \"dist_read\" (search is a view of what the caller can already fetch) and by \"dist_admin\".",
+      "name": "Search"
+    },
+    {
       "name": "Configuration"
     },
     {
@@ -1536,6 +3600,10 @@
     {
       "description": "Archive exposes the offloaded eventlog history and document versions for bulk export - e.g. building or rebuilding a search index over the full content set. Bodies are delivered as presigned URLs that the consumer fetches directly from object storage; the service only brokers the catalog and mints the URLs. Object keys and the presigning mechanism are internal: consumers address content by identity (uuid, version, chunk_id), never by storage key.",
       "name": "Archive"
+    },
+    {
+      "description": "Subscriptions are standing queries. Instead of polling Search for whatever is new, a client registers what it is interested in once, and the indexer evaluates every document it indexes against the registration. Matches land in a per-subscription log that the client reads with PollMatches; matching latency is indexing latency, a few seconds behind publication.\n A document matches when the query part matches, if there is one, and every vector clause is satisfied. Clauses are ANDed, the members of a clause are ORed, and a negated clause is satisfied when none of its members pass. OR across a text query and a vector clause is deliberately not expressible - that is two subscriptions.\n Ownership and expiry are two separate choices. The owner is never taken from the request - it is the organisation claim or the subject of the credentials the call was made with - and owner_tier picks which of the two, defaulting to the organisation. A keep-alive, independently of that, makes the subscription expire when it goes untouched for that long; without one it lives until it is deleted. See CreateSubscriptionRequest.\n Access requires the \"dist_subscribe\" scope, which is granted by \"dist_admin\".",
+      "name": "Subscriptions"
     }
   ]
 }
