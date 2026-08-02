@@ -113,11 +113,11 @@ message SubscriptionSpec {
   //
   // The query is stored as written and translated at registration, so a
   // subscription keeps working across changes to the translation.
-  QueryV1 query = 3;
+  Query query = 3;
   // VectorClauses are the semantic part of the subscription. All of them
   // have to be satisfied, and they are ANDed with the query. An empty
   // list means the subscription is the query alone.
-  repeated VectorClauseV1 vector_clauses = 4;
+  repeated VectorClause vector_clauses = 4;
   // NotifyOnce suppresses re-notification for a document this
   // subscription has already matched, whatever the later event on it is.
   // Off by default, in which case a correction to a matched document is a
@@ -133,17 +133,17 @@ message SubscriptionSpec {
   int64 max_age_seconds = 6;
 }
 
-// VectorClauseV1 is one semantic condition of a subscription. Its members
+// VectorClause is one semantic condition of a subscription. Its members
 // are ORed: the clause is satisfied when any of them passes, or, when the
 // clause is negated, when none of them does. Several conditions are
 // several clauses, and they are ANDed - "close to A or B, but not about
 // C" is two clauses, one with A and B as members and one negated clause
 // with C.
-message VectorClauseV1 {
+message VectorClause {
   // Members of the clause, at least one. Each carries its own threshold,
   // so an OR can be built out of sources that are not equally easy to be
   // close to.
-  repeated VectorClauseMemberV1 members = 1;
+  repeated VectorClauseMember members = 1;
   // Negate inverts the clause: it is satisfied when no member passes,
   // i.e. when the document is close to none of them. Use PreviewSubscription
   // before trusting a negated clause - what it excludes cannot be seen in
@@ -151,7 +151,7 @@ message VectorClauseV1 {
   bool negate = 2;
 }
 
-// VectorClauseMemberV1 is one vector to compare documents against, with
+// VectorClauseMember is one vector to compare documents against, with
 // the similarity at which it counts as a match. Exactly one source must
 // be set.
 //
@@ -165,7 +165,7 @@ message VectorClauseV1 {
 // lets the server re-embed them and recalibrate their thresholds when the
 // model is upgraded. A raw vector cannot be re-derived, and a member that
 // holds one is paused and flagged for the owner instead.
-message VectorClauseMemberV1 {
+message VectorClauseMember {
   oneof source {
     // Text to be close to, embedded server-side with the current model.
     // The normal choice: a phrase or a paragraph describing the subject
@@ -175,18 +175,18 @@ message VectorClauseMemberV1 {
     // stored embeddings are averaged into one vector, so the member is
     // "like these documents" rather than "like any of these documents" -
     // for the latter, make each of them a member of its own.
-    ExemplarDocumentsV1 exemplars = 2;
+    ExemplarDocuments exemplars = 2;
     // Vector is a raw embedding, for callers that produce their own.
     // Advanced use: it has to come from the same model and dimension as
     // the index, and it does not survive a model upgrade. A vector of the
     // wrong dimension is an invalid argument.
-    RawVectorV1 vector = 3;
+    RawVector vector = 3;
   }
   // MinSimilarity is the cosine similarity at or above which this member
   // passes, in [-1, 1], where higher means closer and 1 means identical
   // direction. The embeddings are normalized, so this is the same dial as
   // a maximum inner product distance, and it is the same number as
-  // Hit.score for a knn query and KnnQueryV1.min_similarity - which is
+  // Hit.score for a knn query and KnnQuery.min_similarity - which is
   // how a threshold is found without guessing, see CalibrateVectorClause
   // and Search.Query.
   //
@@ -204,17 +204,17 @@ message VectorClauseMemberV1 {
   string model = 5;
 }
 
-// ExemplarDocumentsV1 is a set of documents used as an example of what to
+// ExemplarDocuments is a set of documents used as an example of what to
 // match, averaged into a single vector.
-message ExemplarDocumentsV1 {
+message ExemplarDocuments {
   // UUIDs of the exemplar documents, at least one. A document that isn't
   // indexed, or is of a type indexed without embeddings, is an invalid
   // argument.
   repeated string uuids = 1;
 }
 
-// RawVectorV1 is an embedding supplied by the caller.
-message RawVectorV1 {
+// RawVector is an embedding supplied by the caller.
+message RawVector {
   // Values of the embedding, which must have the dimension of the index.
   repeated float values = 1;
 }
@@ -439,11 +439,11 @@ message ClauseProvenance {
 // MemberProvenance is the similarity one clause member scored against the
 // document.
 message MemberProvenance {
-  // MemberIndex is the position of the member in VectorClauseV1.members.
+  // MemberIndex is the position of the member in VectorClause.members.
   int64 member_index = 1;
   // Similarity is the highest cosine similarity between the vector of the
   // member and the chunk embeddings of the document, on the same scale as
-  // VectorClauseMemberV1.min_similarity.
+  // VectorClauseMember.min_similarity.
   float similarity = 2;
   // Passed is whether the similarity reached the threshold of the member.
   // In a negated clause a passing member is what would have excluded the
@@ -460,7 +460,7 @@ message CalibrateVectorClauseRequest {
   // The min_similarity of a member is not used for scoring. When it is
   // set it is added to the threshold ladder, so an existing threshold can
   // be compared against the alternatives.
-  repeated VectorClauseMemberV1 members = 1;
+  repeated VectorClauseMember members = 1;
   // DocumentTypes to score against. Empty scores against every indexed
   // type the caller can read. Use the types the subscription is going to
   // name, the volume estimate is only about the documents it will see.
@@ -505,32 +505,32 @@ message CalibrateVectorClauseResponse {
   float floor = 5;
   // Percentiles of the similarity distribution over the window, in
   // ascending order of percentile.
-  repeated SimilarityPercentileV1 percentiles = 6;
+  repeated SimilarityPercentile percentiles = 6;
   // TopHits are the highest-scoring documents of the window, most similar
   // first. Read them to find where the results stop being about what the
   // clause is about; the similarity there is the threshold worth
   // estimating volume at.
-  repeated CalibrationHitV1 top_hits = 7;
+  repeated CalibrationHit top_hits = 7;
   // Thresholds is the ladder: what each candidate threshold would have
   // matched over the window. This is the number a threshold is chosen on
   // - a threshold is a volume decision, and matches per day is the volume
   // it produces. Nothing here says anything about whether the matches are
   // the right ones; that is what the top hits and PreviewSubscription are
   // for.
-  repeated ThresholdEstimateV1 thresholds = 8;
+  repeated ThresholdEstimate thresholds = 8;
 }
 
-// SimilarityPercentileV1 is one point of the similarity distribution.
-message SimilarityPercentileV1 {
+// SimilarityPercentile is one point of the similarity distribution.
+message SimilarityPercentile {
   // Percentile the value is for, e.g. 50, 99 or 99.9.
   double percentile = 1;
   // Similarity at that percentile, on the same scale as
-  // VectorClauseMemberV1.min_similarity.
+  // VectorClauseMember.min_similarity.
   float similarity = 2;
 }
 
-// CalibrationHitV1 is one of the documents a calibration scored highest.
-message CalibrationHitV1 {
+// CalibrationHit is one of the documents a calibration scored highest.
+message CalibrationHit {
   // UUID of the document. Pass it to Content.GetDocument to read it.
   string uuid = 1;
   // Type of the document.
@@ -545,9 +545,9 @@ message CalibrationHitV1 {
   int64 member_index = 5;
 }
 
-// ThresholdEstimateV1 is what one candidate threshold would have cost in
+// ThresholdEstimate is what one candidate threshold would have cost in
 // volume over the calibration window.
-message ThresholdEstimateV1 {
+message ThresholdEstimate {
   // MinSimilarity is the candidate threshold.
   float min_similarity = 1;
   // MatchedDocuments is the number of documents in the window that

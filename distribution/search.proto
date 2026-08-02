@@ -68,9 +68,9 @@ message QueryRequest {
   // result would look like one.
   repeated string document_types = 3;
   // Query to run. An absent query matches all documents.
-  QueryV1 query = 4;
+  Query query = 4;
   // Knn is a semantic query clause: nearest neighbour search over the
-  // document embeddings. See KnnQueryV1 for how the neighbours are
+  // document embeddings. See KnnQuery for how the neighbours are
   // selected.
   //
   // Combining knn with query is pre-filtering, not hybrid ranking. When
@@ -91,7 +91,7 @@ message QueryRequest {
   // this way. A knn query that names a type without vectors is an invalid
   // argument; one that names no types at all is answered from the types
   // that do have them, see document_types.
-  KnnQueryV1 knn = 9;
+  KnnQuery knn = 9;
   // Size is the maximum number of hits to return. Defaults to 50, and is
   // capped by the server.
   int64 size = 5;
@@ -100,7 +100,7 @@ message QueryRequest {
   // on a stable field instead of paging far into a large result.
   int64 from = 6;
   // Sort order of the hits. Empty sorts by relevance, descending.
-  repeated SortV1 sort = 7;
+  repeated Sort sort = 7;
   // Fields to return with each hit, named as flat index fields (e.g.
   // "document.title"). Empty returns hits without field values, which is
   // the cheapest form when the caller only needs the UUIDs.
@@ -120,61 +120,61 @@ message QueryRequest {
   string generation = 10;
 }
 
-// QueryV1 is a single query clause. Exactly one of the conditions must be
-// set; an empty QueryV1 is an invalid argument.
-message QueryV1 {
+// Query is a single query clause. Exactly one of the conditions must be
+// set; an empty Query is an invalid argument.
+message Query {
   oneof conditions {
     // Bool combines subqueries.
-    BoolQueryV1 bool = 1;
+    BoolQuery bool = 1;
     // Range matches a field against an interval.
-    RangeQueryV1 range = 2;
+    RangeQuery range = 2;
     // Exists matches documents that have a value for the named field.
     string exists = 3;
     // MatchAll matches every document.
-    MatchAllQueryV1 match_all = 4;
+    MatchAllQuery match_all = 4;
     // Term matches an exact value.
-    TermQueryV1 term = 5;
+    TermQuery term = 5;
     // Terms matches any of a set of exact values.
-    TermsQueryV1 terms = 6;
+    TermsQuery terms = 6;
     // Match matches analysed text.
-    MatchQueryV1 match = 7;
+    MatchQuery match = 7;
     // MatchPhrase matches an analysed phrase.
-    MatchPhraseQueryV1 match_phrase = 8;
+    MatchPhraseQuery match_phrase = 8;
     // QueryString is a query in the query string mini-language. Use it
     // for user-entered search expressions; prefer the structured clauses
     // for queries the client builds itself.
     string query_string = 9;
     // Prefix matches values that start with a value.
-    PrefixQueryV1 prefix = 10;
+    PrefixQuery prefix = 10;
     // MultiMatch matches analysed text against several fields.
-    MultiMatchQueryV1 multi_match = 11;
+    MultiMatchQuery multi_match = 11;
   }
 }
 
-// BoolQueryV1 combines subqueries. Must and should contribute to the
+// BoolQuery combines subqueries. Must and should contribute to the
 // score, filter and must_not don't.
-message BoolQueryV1 {
+message BoolQuery {
   // Must are subqueries that all have to match.
-  repeated QueryV1 must = 1;
+  repeated Query must = 1;
   // MustNot are subqueries that must not match.
-  repeated QueryV1 must_not = 2;
+  repeated Query must_not = 2;
   // Should are subqueries that may match, see minimum_should_match.
-  repeated QueryV1 should = 3;
+  repeated Query should = 3;
   // Filter are subqueries that all have to match, without affecting the
   // score of the hit.
-  repeated QueryV1 filter = 4;
+  repeated Query filter = 4;
   // MinimumShouldMatch is the number of should subqueries that have to
   // match. Defaults to 1 when the query has no must or filter subqueries,
   // 0 otherwise.
   int64 minimum_should_match = 5;
 }
 
-// RangeQueryV1 matches a field against an interval. The bounds are written
+// RangeQuery matches a field against an interval. The bounds are written
 // as strings and parsed according to the type of the field, so a date
 // field takes RFC 3339 timestamps and a numeric field takes numbers. At
 // least one bound must be set; combining a lower and an upper bound gives
 // a closed interval.
-message RangeQueryV1 {
+message RangeQuery {
   // Field to match against.
   string field = 1;
   // Gt is an exclusive lower bound.
@@ -187,14 +187,14 @@ message RangeQueryV1 {
   string lte = 5;
 }
 
-// MatchAllQueryV1 matches every document. Useful as the base of a query
+// MatchAllQuery matches every document. Useful as the base of a query
 // that only filters, and for browsing a type by sort order.
-message MatchAllQueryV1 {}
+message MatchAllQuery {}
 
-// TermQueryV1 matches an exact, unanalysed value. Use it for keyword,
+// TermQuery matches an exact, unanalysed value. Use it for keyword,
 // boolean, date and numeric fields; a term query against a text field
 // matches individual analysed tokens, which is rarely what you want.
-message TermQueryV1 {
+message TermQuery {
   // Field to match against.
   string field = 1;
   // Value that the field must have.
@@ -203,8 +203,8 @@ message TermQueryV1 {
   double boost = 3;
 }
 
-// TermsQueryV1 matches documents where the field has any of the values.
-message TermsQueryV1 {
+// TermsQuery matches documents where the field has any of the values.
+message TermsQuery {
   // Field to match against.
   string field = 1;
   // Values, any one of which is a match.
@@ -213,10 +213,10 @@ message TermsQueryV1 {
   double boost = 3;
 }
 
-// MatchQueryV1 matches analysed text: the value is run through the
+// MatchQuery matches analysed text: the value is run through the
 // analyser of the field, and a document matches if any of the resulting
 // terms do.
-message MatchQueryV1 {
+message MatchQuery {
   // Field to match against.
   string field = 1;
   // Value to match.
@@ -225,20 +225,20 @@ message MatchQueryV1 {
   double boost = 3;
 }
 
-// MatchPhraseQueryV1 matches analysed text where the terms occur in the
+// MatchPhraseQuery matches analysed text where the terms occur in the
 // given order, next to each other.
-message MatchPhraseQueryV1 {
+message MatchPhraseQuery {
   // Field to match against.
   string field = 1;
   // Value to match as a phrase.
   string value = 2;
 }
 
-// PrefixQueryV1 matches values that start with the given value. Run it
+// PrefixQuery matches values that start with the given value. Run it
 // against a keyword field, or against a field that the mappings report as
 // "prefix": those are analysed for prefix matching and are much cheaper to
 // search as you type.
-message PrefixQueryV1 {
+message PrefixQuery {
   // Field to match against.
   string field = 1;
   // Value that the field must start with.
@@ -249,8 +249,8 @@ message PrefixQueryV1 {
   double boost = 4;
 }
 
-// MultiMatchQueryV1 matches analysed text against several fields at once.
-message MultiMatchQueryV1 {
+// MultiMatchQuery matches analysed text against several fields at once.
+message MultiMatchQuery {
   // Fields to match against. A field can carry a boost as a "^"-suffix,
   // e.g. "document.title^3".
   repeated string fields = 1;
@@ -305,7 +305,7 @@ message FuzzinessAuto {
   int64 high = 2;
 }
 
-// KnnQueryV1 is a semantic query: it looks up the documents whose
+// KnnQuery is a semantic query: it looks up the documents whose
 // embeddings are closest to a query vector, rather than the documents that
 // contain the query terms.
 //
@@ -330,7 +330,7 @@ message FuzzinessAuto {
 // Thresholds are model-dependent and are not portable between deployments
 // or across an embedding model upgrade. Treat a min_similarity value as
 // something to recalibrate, not as a constant.
-message KnnQueryV1 {
+message KnnQuery {
   // Text to search for, embedded server-side with the current embedding
   // model. This is the normal way to run a semantic query, and the only
   // one that survives a model upgrade unchanged, since the server
@@ -364,9 +364,9 @@ message KnnQueryV1 {
   optional float min_similarity = 4;
 }
 
-// SortV1 sorts the hits on a field. Sort on keyword, date, boolean or
+// Sort sorts the hits on a field. Sort on keyword, date, boolean or
 // numeric fields; text fields aren't sortable.
-message SortV1 {
+message Sort {
   // Field to sort on.
   string field = 1;
   // Desc sorts in descending order instead of ascending.
@@ -401,7 +401,7 @@ message Hit {
   //
   // For a knn query the score is the cosine similarity of the document to
   // the query vector, in [-1, 1] and on the same scale as
-  // KnnQueryV1.min_similarity: the server converts it out of OpenSearch's
+  // KnnQuery.min_similarity: the server converts it out of OpenSearch's
   // score space so that the two can be compared directly. For a text query
   // it is an unbounded BM25 score, comparable between hits of the same
   // query and meaningless between queries.

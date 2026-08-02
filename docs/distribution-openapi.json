@@ -101,13 +101,13 @@
         },
         "type": "object"
       },
-      "elephant.distribution.BoolQueryV1": {
-        "description": "BoolQueryV1 combines subqueries. Must and should contribute to the score, filter and must_not don't.",
+      "elephant.distribution.BoolQuery": {
+        "description": "BoolQuery combines subqueries. Must and should contribute to the score, filter and must_not don't.",
         "properties": {
           "filter": {
             "description": "Filter are subqueries that all have to match, without affecting the score of the hit.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+              "$ref": "#/components/schemas/elephant.distribution.Query"
             },
             "type": "array"
           },
@@ -118,21 +118,21 @@
           "must": {
             "description": "Must are subqueries that all have to match.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+              "$ref": "#/components/schemas/elephant.distribution.Query"
             },
             "type": "array"
           },
           "must_not": {
             "description": "MustNot are subqueries that must not match.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+              "$ref": "#/components/schemas/elephant.distribution.Query"
             },
             "type": "array"
           },
           "should": {
             "description": "Should are subqueries that may match, see minimum_should_match.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+              "$ref": "#/components/schemas/elephant.distribution.Query"
             },
             "type": "array"
           }
@@ -159,7 +159,7 @@
           "members": {
             "description": "Members to calibrate, scored the way a clause scores them: each document gets the highest similarity any of the members reaches. Pass the members of one clause to calibrate it as a whole, or a single member to calibrate it on its own. At least one is required.\n The min_similarity of a member is not used for scoring. When it is set it is added to the threshold ladder, so an existing threshold can be compared against the alternatives.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.VectorClauseMemberV1"
+              "$ref": "#/components/schemas/elephant.distribution.VectorClauseMember"
             },
             "type": "array"
           },
@@ -190,7 +190,7 @@
           "percentiles": {
             "description": "Percentiles of the similarity distribution over the window, in ascending order of percentile.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.SimilarityPercentileV1"
+              "$ref": "#/components/schemas/elephant.distribution.SimilarityPercentile"
             },
             "type": "array"
           },
@@ -201,14 +201,14 @@
           "thresholds": {
             "description": "Thresholds is the ladder: what each candidate threshold would have matched over the window. This is the number a threshold is chosen on - a threshold is a volume decision, and matches per day is the volume it produces. Nothing here says anything about whether the matches are the right ones; that is what the top hits and PreviewSubscription are for.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.ThresholdEstimateV1"
+              "$ref": "#/components/schemas/elephant.distribution.ThresholdEstimate"
             },
             "type": "array"
           },
           "top_hits": {
             "description": "TopHits are the highest-scoring documents of the window, most similar first. Read them to find where the results stop being about what the clause is about; the similarity there is the threshold worth estimating volume at.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.CalibrationHitV1"
+              "$ref": "#/components/schemas/elephant.distribution.CalibrationHit"
             },
             "type": "array"
           },
@@ -227,8 +227,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.CalibrationHitV1": {
-        "description": "CalibrationHitV1 is one of the documents a calibration scored highest.",
+      "elephant.distribution.CalibrationHit": {
+        "description": "CalibrationHit is one of the documents a calibration scored highest.",
         "properties": {
           "first_published": {
             "description": "FirstPublished is when the document was first published, RFC3339.",
@@ -510,8 +510,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.ExemplarDocumentsV1": {
-        "description": "ExemplarDocumentsV1 is a set of documents used as an example of what to match, averaged into a single vector.",
+      "elephant.distribution.ExemplarDocuments": {
+        "description": "ExemplarDocuments is a set of documents used as an example of what to match, averaged into a single vector.",
         "properties": {
           "uuids": {
             "description": "UUIDs of the exemplar documents, at least one. A document that isn't indexed, or is of a type indexed without embeddings, is an invalid argument.",
@@ -927,7 +927,7 @@
             "type": "string"
           },
           "score": {
-            "description": "Score is the relevance score of the hit. Only meaningful for hits ordered by relevance; a sorted query leaves it at zero.\n For a knn query the score is the cosine similarity of the document to the query vector, in [-1, 1] and on the same scale as KnnQueryV1.min_similarity: the server converts it out of OpenSearch's score space so that the two can be compared directly. For a text query it is an unbounded BM25 score, comparable between hits of the same query and meaningless between queries.",
+            "description": "Score is the relevance score of the hit. Only meaningful for hits ordered by relevance; a sorted query leaves it at zero.\n For a knn query the score is the cosine similarity of the document to the query vector, in [-1, 1] and on the same scale as KnnQuery.min_similarity: the server converts it out of OpenSearch's score space so that the two can be compared directly. For a text query it is an unbounded BM25 score, comparable between hits of the same query and meaningless between queries.",
             "type": "number"
           }
         },
@@ -998,8 +998,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.KnnQueryV1": {
-        "description": "KnnQueryV1 is a semantic query: it looks up the documents whose embeddings are closest to a query vector, rather than the documents that contain the query terms.\n The clause has two independent choices, and the server validates both - the fields are plain fields rather than oneofs so that the combinations can be relaxed later without renumbering, but an invalid combination is rejected as an invalid argument, it is never guessed at.\n 1. Where the query vector comes from: exactly one of text and vector. 2. How many neighbours come back: exactly one of k and min_similarity.\n Similarity is cosine similarity throughout, in the range [-1, 1], where higher means closer and 1 means identical direction. The embeddings are normalized, so this is the same dial as maximum inner product; the server converts from OpenSearch's own score space so that both min_similarity and the per-hit scores are stated as cosine similarity. Hit.score for a knn hit is therefore directly comparable to min_similarity, which is how a threshold is found: run a k query, look at where the results stop being relevant, and read the threshold off the scores.\n Thresholds are model-dependent and are not portable between deployments or across an embedding model upgrade. Treat a min_similarity value as something to recalibrate, not as a constant.",
+      "elephant.distribution.KnnQuery": {
+        "description": "KnnQuery is a semantic query: it looks up the documents whose embeddings are closest to a query vector, rather than the documents that contain the query terms.\n The clause has two independent choices, and the server validates both - the fields are plain fields rather than oneofs so that the combinations can be relaxed later without renumbering, but an invalid combination is rejected as an invalid argument, it is never guessed at.\n 1. Where the query vector comes from: exactly one of text and vector. 2. How many neighbours come back: exactly one of k and min_similarity.\n Similarity is cosine similarity throughout, in the range [-1, 1], where higher means closer and 1 means identical direction. The embeddings are normalized, so this is the same dial as maximum inner product; the server converts from OpenSearch's own score space so that both min_similarity and the per-hit scores are stated as cosine similarity. Hit.score for a knn hit is therefore directly comparable to min_similarity, which is how a threshold is found: run a k query, look at where the results stop being relevant, and read the threshold off the scores.\n Thresholds are model-dependent and are not portable between deployments or across an embedding model upgrade. Treat a min_similarity value as something to recalibrate, not as a constant.",
         "properties": {
           "k": {
             "description": "K is the number of nearest neighbours to retrieve. The hits come back ordered by similarity, and there are always k of them (fewer only when the filtered candidate set is smaller), no matter how poor the last ones are - a k query has no relevance floor. Mutually exclusive with min_similarity, and one of the two must be set.",
@@ -1202,12 +1202,12 @@
         },
         "type": "object"
       },
-      "elephant.distribution.MatchAllQueryV1": {
-        "description": "MatchAllQueryV1 matches every document. Useful as the base of a query that only filters, and for browsing a type by sort order.",
+      "elephant.distribution.MatchAllQuery": {
+        "description": "MatchAllQuery matches every document. Useful as the base of a query that only filters, and for browsing a type by sort order.",
         "type": "object"
       },
-      "elephant.distribution.MatchPhraseQueryV1": {
-        "description": "MatchPhraseQueryV1 matches analysed text where the terms occur in the given order, next to each other.",
+      "elephant.distribution.MatchPhraseQuery": {
+        "description": "MatchPhraseQuery matches analysed text where the terms occur in the given order, next to each other.",
         "properties": {
           "field": {
             "description": "Field to match against.",
@@ -1237,8 +1237,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.MatchQueryV1": {
-        "description": "MatchQueryV1 matches analysed text: the value is run through the analyser of the field, and a document matches if any of the resulting terms do.",
+      "elephant.distribution.MatchQuery": {
+        "description": "MatchQuery matches analysed text: the value is run through the analyser of the field, and a document matches if any of the resulting terms do.",
         "properties": {
           "boost": {
             "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
@@ -1259,7 +1259,7 @@
         "description": "MemberProvenance is the similarity one clause member scored against the document.",
         "properties": {
           "member_index": {
-            "description": "MemberIndex is the position of the member in VectorClauseV1.members.",
+            "description": "MemberIndex is the position of the member in VectorClause.members.",
             "type": "integer"
           },
           "passed": {
@@ -1267,14 +1267,14 @@
             "type": "boolean"
           },
           "similarity": {
-            "description": "Similarity is the highest cosine similarity between the vector of the member and the chunk embeddings of the document, on the same scale as VectorClauseMemberV1.min_similarity.",
+            "description": "Similarity is the highest cosine similarity between the vector of the member and the chunk embeddings of the document, on the same scale as VectorClauseMember.min_similarity.",
             "type": "number"
           }
         },
         "type": "object"
       },
-      "elephant.distribution.MultiMatchQueryV1": {
-        "description": "MultiMatchQueryV1 matches analysed text against several fields at once.",
+      "elephant.distribution.MultiMatchQuery": {
+        "description": "MultiMatchQuery matches analysed text against several fields at once.",
         "properties": {
           "boolean_and": {
             "description": "BooleanAnd requires all terms of the query to match.",
@@ -1346,8 +1346,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.PrefixQueryV1": {
-        "description": "PrefixQueryV1 matches values that start with the given value. Run it against a keyword field, or against a field that the mappings report as \"prefix\": those are analysed for prefix matching and are much cheaper to search as you type.",
+      "elephant.distribution.PrefixQuery": {
+        "description": "PrefixQuery matches values that start with the given value. Run it against a keyword field, or against a field that the mappings report as \"prefix\": those are analysed for prefix matching and are much cheaper to search as you type.",
         "properties": {
           "boost": {
             "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
@@ -1432,6 +1432,47 @@
         },
         "type": "object"
       },
+      "elephant.distribution.Query": {
+        "description": "Query is a single query clause. Exactly one of the conditions must be set; an empty Query is an invalid argument.",
+        "properties": {
+          "bool": {
+            "$ref": "#/components/schemas/elephant.distribution.BoolQuery"
+          },
+          "exists": {
+            "description": "Exists matches documents that have a value for the named field.",
+            "type": "string"
+          },
+          "match": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchQuery"
+          },
+          "match_all": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchAllQuery"
+          },
+          "match_phrase": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchPhraseQuery"
+          },
+          "multi_match": {
+            "$ref": "#/components/schemas/elephant.distribution.MultiMatchQuery"
+          },
+          "prefix": {
+            "$ref": "#/components/schemas/elephant.distribution.PrefixQuery"
+          },
+          "query_string": {
+            "description": "QueryString is a query in the query string mini-language. Use it for user-entered search expressions; prefer the structured clauses for queries the client builds itself.",
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/components/schemas/elephant.distribution.RangeQuery"
+          },
+          "term": {
+            "$ref": "#/components/schemas/elephant.distribution.TermQuery"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/elephant.distribution.TermsQuery"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.QueryRequest": {
         "properties": {
           "document_types": {
@@ -1457,14 +1498,14 @@
             "type": "string"
           },
           "knn": {
-            "$ref": "#/components/schemas/elephant.distribution.KnnQueryV1"
+            "$ref": "#/components/schemas/elephant.distribution.KnnQuery"
           },
           "language": {
             "description": "Language to search, as the language tag the documents are indexed under, e.g. \"sv\" or \"sv-se\". Required: a query targets exactly one language series so that fan-out stays explicit. An unknown language is an invalid argument.",
             "type": "string"
           },
           "query": {
-            "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+            "$ref": "#/components/schemas/elephant.distribution.Query"
           },
           "size": {
             "description": "Size is the maximum number of hits to return. Defaults to 50, and is capped by the server.",
@@ -1473,7 +1514,7 @@
           "sort": {
             "description": "Sort order of the hits. Empty sorts by relevance, descending.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.SortV1"
+              "$ref": "#/components/schemas/elephant.distribution.Sort"
             },
             "type": "array"
           },
@@ -1499,49 +1540,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.QueryV1": {
-        "description": "QueryV1 is a single query clause. Exactly one of the conditions must be set; an empty QueryV1 is an invalid argument.",
-        "properties": {
-          "bool": {
-            "$ref": "#/components/schemas/elephant.distribution.BoolQueryV1"
-          },
-          "exists": {
-            "description": "Exists matches documents that have a value for the named field.",
-            "type": "string"
-          },
-          "match": {
-            "$ref": "#/components/schemas/elephant.distribution.MatchQueryV1"
-          },
-          "match_all": {
-            "$ref": "#/components/schemas/elephant.distribution.MatchAllQueryV1"
-          },
-          "match_phrase": {
-            "$ref": "#/components/schemas/elephant.distribution.MatchPhraseQueryV1"
-          },
-          "multi_match": {
-            "$ref": "#/components/schemas/elephant.distribution.MultiMatchQueryV1"
-          },
-          "prefix": {
-            "$ref": "#/components/schemas/elephant.distribution.PrefixQueryV1"
-          },
-          "query_string": {
-            "description": "QueryString is a query in the query string mini-language. Use it for user-entered search expressions; prefer the structured clauses for queries the client builds itself.",
-            "type": "string"
-          },
-          "range": {
-            "$ref": "#/components/schemas/elephant.distribution.RangeQueryV1"
-          },
-          "term": {
-            "$ref": "#/components/schemas/elephant.distribution.TermQueryV1"
-          },
-          "terms": {
-            "$ref": "#/components/schemas/elephant.distribution.TermsQueryV1"
-          }
-        },
-        "type": "object"
-      },
-      "elephant.distribution.RangeQueryV1": {
-        "description": "RangeQueryV1 matches a field against an interval. The bounds are written as strings and parsed according to the type of the field, so a date field takes RFC 3339 timestamps and a numeric field takes numbers. At least one bound must be set; combining a lower and an upper bound gives a closed interval.",
+      "elephant.distribution.RangeQuery": {
+        "description": "RangeQuery matches a field against an interval. The bounds are written as strings and parsed according to the type of the field, so a date field takes RFC 3339 timestamps and a numeric field takes numbers. At least one bound must be set; combining a lower and an upper bound gives a closed interval.",
         "properties": {
           "field": {
             "description": "Field to match against.",
@@ -1566,8 +1566,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.RawVectorV1": {
-        "description": "RawVectorV1 is an embedding supplied by the caller.",
+      "elephant.distribution.RawVector": {
+        "description": "RawVector is an embedding supplied by the caller.",
         "properties": {
           "values": {
             "description": "Values of the embedding, which must have the dimension of the index.",
@@ -1803,22 +1803,22 @@
       "elephant.distribution.SetSyncStateResponse": {
         "type": "object"
       },
-      "elephant.distribution.SimilarityPercentileV1": {
-        "description": "SimilarityPercentileV1 is one point of the similarity distribution.",
+      "elephant.distribution.SimilarityPercentile": {
+        "description": "SimilarityPercentile is one point of the similarity distribution.",
         "properties": {
           "percentile": {
             "description": "Percentile the value is for, e.g. 50, 99 or 99.9.",
             "type": "number"
           },
           "similarity": {
-            "description": "Similarity at that percentile, on the same scale as VectorClauseMemberV1.min_similarity.",
+            "description": "Similarity at that percentile, on the same scale as VectorClauseMember.min_similarity.",
             "type": "number"
           }
         },
         "type": "object"
       },
-      "elephant.distribution.SortV1": {
-        "description": "SortV1 sorts the hits on a field. Sort on keyword, date, boolean or numeric fields; text fields aren't sortable.",
+      "elephant.distribution.Sort": {
+        "description": "Sort sorts the hits on a field. Sort on keyword, date, boolean or numeric fields; text fields aren't sortable.",
         "properties": {
           "desc": {
             "description": "Desc sorts in descending order instead of ascending.",
@@ -1953,12 +1953,12 @@
             "type": "boolean"
           },
           "query": {
-            "$ref": "#/components/schemas/elephant.distribution.QueryV1"
+            "$ref": "#/components/schemas/elephant.distribution.Query"
           },
           "vector_clauses": {
             "description": "VectorClauses are the semantic part of the subscription. All of them have to be satisfied, and they are ANDed with the query. An empty list means the subscription is the query alone.",
             "items": {
-              "$ref": "#/components/schemas/elephant.distribution.VectorClauseV1"
+              "$ref": "#/components/schemas/elephant.distribution.VectorClause"
             },
             "type": "array"
           }
@@ -1977,8 +1977,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.TermQueryV1": {
-        "description": "TermQueryV1 matches an exact, unanalysed value. Use it for keyword, boolean, date and numeric fields; a term query against a text field matches individual analysed tokens, which is rarely what you want.",
+      "elephant.distribution.TermQuery": {
+        "description": "TermQuery matches an exact, unanalysed value. Use it for keyword, boolean, date and numeric fields; a term query against a text field matches individual analysed tokens, which is rarely what you want.",
         "properties": {
           "boost": {
             "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
@@ -1995,8 +1995,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.TermsQueryV1": {
-        "description": "TermsQueryV1 matches documents where the field has any of the values.",
+      "elephant.distribution.TermsQuery": {
+        "description": "TermsQuery matches documents where the field has any of the values.",
         "properties": {
           "boost": {
             "description": "Boost multiplies the score contribution of the clause. Defaults to 1.",
@@ -2016,8 +2016,8 @@
         },
         "type": "object"
       },
-      "elephant.distribution.ThresholdEstimateV1": {
-        "description": "ThresholdEstimateV1 is what one candidate threshold would have cost in volume over the calibration window.",
+      "elephant.distribution.ThresholdEstimate": {
+        "description": "ThresholdEstimate is what one candidate threshold would have cost in volume over the calibration window.",
         "properties": {
           "matched_documents": {
             "description": "MatchedDocuments is the number of documents in the window that reached it.",
@@ -2135,14 +2135,31 @@
         },
         "type": "object"
       },
-      "elephant.distribution.VectorClauseMemberV1": {
-        "description": "VectorClauseMemberV1 is one vector to compare documents against, with the similarity at which it counts as a match. Exactly one source must be set.\n A member passes when the document has an embedding at or above min_similarity: the document is scored as the highest similarity across its chunk embeddings, so a long document matches on the part of it that is about the member.\n Prefer text and exemplars over a raw vector. Both are stored with the source and the embedding model they were derived under, which is what lets the server re-embed them and recalibrate their thresholds when the model is upgraded. A raw vector cannot be re-derived, and a member that holds one is paused and flagged for the owner instead.",
+      "elephant.distribution.VectorClause": {
+        "description": "VectorClause is one semantic condition of a subscription. Its members are ORed: the clause is satisfied when any of them passes, or, when the clause is negated, when none of them does. Several conditions are several clauses, and they are ANDed - \"close to A or B, but not about C\" is two clauses, one with A and B as members and one negated clause with C.",
+        "properties": {
+          "members": {
+            "description": "Members of the clause, at least one. Each carries its own threshold, so an OR can be built out of sources that are not equally easy to be close to.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.VectorClauseMember"
+            },
+            "type": "array"
+          },
+          "negate": {
+            "description": "Negate inverts the clause: it is satisfied when no member passes, i.e. when the document is close to none of them. Use PreviewSubscription before trusting a negated clause - what it excludes cannot be seen in what it returns.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.VectorClauseMember": {
+        "description": "VectorClauseMember is one vector to compare documents against, with the similarity at which it counts as a match. Exactly one source must be set.\n A member passes when the document has an embedding at or above min_similarity: the document is scored as the highest similarity across its chunk embeddings, so a long document matches on the part of it that is about the member.\n Prefer text and exemplars over a raw vector. Both are stored with the source and the embedding model they were derived under, which is what lets the server re-embed them and recalibrate their thresholds when the model is upgraded. A raw vector cannot be re-derived, and a member that holds one is paused and flagged for the owner instead.",
         "properties": {
           "exemplars": {
-            "$ref": "#/components/schemas/elephant.distribution.ExemplarDocumentsV1"
+            "$ref": "#/components/schemas/elephant.distribution.ExemplarDocuments"
           },
           "min_similarity": {
-            "description": "MinSimilarity is the cosine similarity at or above which this member passes, in [-1, 1], where higher means closer and 1 means identical direction. The embeddings are normalized, so this is the same dial as a maximum inner product distance, and it is the same number as Hit.score for a knn query and KnnQueryV1.min_similarity - which is how a threshold is found without guessing, see CalibrateVectorClause and Search.Query.\n Required: absent is an invalid argument. The field is optional so that a threshold of 0 - close to anything that isn't pointing away - is distinguishable from not stating one.\n Thresholds are model-dependent and are not portable between deployments or across an embedding model upgrade. Treat one as something to recalibrate, not as a constant.",
+            "description": "MinSimilarity is the cosine similarity at or above which this member passes, in [-1, 1], where higher means closer and 1 means identical direction. The embeddings are normalized, so this is the same dial as a maximum inner product distance, and it is the same number as Hit.score for a knn query and KnnQuery.min_similarity - which is how a threshold is found without guessing, see CalibrateVectorClause and Search.Query.\n Required: absent is an invalid argument. The field is optional so that a threshold of 0 - close to anything that isn't pointing away - is distinguishable from not stating one.\n Thresholds are model-dependent and are not portable between deployments or across an embedding model upgrade. Treat one as something to recalibrate, not as a constant.",
             "type": "number"
           },
           "model": {
@@ -2154,24 +2171,7 @@
             "type": "string"
           },
           "vector": {
-            "$ref": "#/components/schemas/elephant.distribution.RawVectorV1"
-          }
-        },
-        "type": "object"
-      },
-      "elephant.distribution.VectorClauseV1": {
-        "description": "VectorClauseV1 is one semantic condition of a subscription. Its members are ORed: the clause is satisfied when any of them passes, or, when the clause is negated, when none of them does. Several conditions are several clauses, and they are ANDed - \"close to A or B, but not about C\" is two clauses, one with A and B as members and one negated clause with C.",
-        "properties": {
-          "members": {
-            "description": "Members of the clause, at least one. Each carries its own threshold, so an OR can be built out of sources that are not equally easy to be close to.",
-            "items": {
-              "$ref": "#/components/schemas/elephant.distribution.VectorClauseMemberV1"
-            },
-            "type": "array"
-          },
-          "negate": {
-            "description": "Negate inverts the clause: it is satisfied when no member passes, i.e. when the document is close to none of them. Use PreviewSubscription before trusting a negated clause - what it excludes cannot be seen in what it returns.",
-            "type": "boolean"
+            "$ref": "#/components/schemas/elephant.distribution.RawVector"
           }
         },
         "type": "object"
@@ -2320,7 +2320,7 @@
   },
   "info": {
     "title": "distribution API",
-    "version": "v0.0.3"
+    "version": "v0.0.2"
   },
   "openapi": "3.0.0",
   "paths": {
