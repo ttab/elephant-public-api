@@ -715,7 +715,7 @@
   },
   "info": {
     "title": "live API",
-    "version": "v0.0.2"
+    "version": "v0.0.3"
   },
   "openapi": "3.0.0",
   "paths": {
