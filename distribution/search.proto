@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package elephant.distribution;
 
+import "newsdoc/newsdoc.proto";
+import "distribution/service.proto";
+
 option go_package = "github.com/ttab/elephant-public-api/distribution";
 
 // Search exposes the distribution search index: a query surface over the
@@ -118,6 +121,36 @@ message QueryRequest {
   // silent fall back to the active generation - a comparison that quietly
   // queried the wrong index set would be worse than no comparison.
   string generation = 10;
+  // LoadDocuments returns the document itself with each hit, as
+  // Content.GetDocument would serve it: the current stored version, with
+  // the rendition links generated and signed for the caller. It requires
+  // the "dist_read" scope on top of the search scope - "dist_search" alone
+  // grants queries over the index, not the content behind it.
+  //
+  // A page of hits is what bounds it - the server's page size cap applies
+  // to a query that loads documents as it does to any other. A hit whose
+  // document is no longer stored is returned without one rather than
+  // failing the query.
+  bool load_documents = 11;
+  // Subset returns extracted parts of the documents instead of the whole
+  // of them, as a map of newsdoc value extractors keyed by the document
+  // types they apply to. It overrides load_documents for the types it
+  // names, and requires the same "dist_read" scope.
+  //
+  // Extraction runs on the delivered document, so an extracted image block
+  // carries the same generated rendition links the whole document would
+  // have been served with.
+  map<string, Subsets> subset = 12;
+  // DisableRenditionSigning serves the documents with generated but
+  // unsigned rendition URLs. See
+  // GetNewDocumentsRequest.disable_rendition_signing.
+  bool disable_rendition_signing = 13;
+  // Renditions selects the rendition variants to generate per asset kind.
+  // See GetNewDocumentsRequest.renditions.
+  map<string, RenditionParameters> renditions = 14;
+  // DisableRenditions serves the documents without any rendition links.
+  // See GetNewDocumentsRequest.disable_renditions.
+  bool disable_renditions = 15;
 }
 
 // Query is a single query clause. Exactly one of the conditions must be
@@ -394,7 +427,8 @@ message HitsTotal {
 
 message Hit {
   // ID is the UUID of the document. Pass it to Content.GetDocument to
-  // fetch the document itself.
+  // fetch the document itself, or ask the query for it with
+  // load_documents.
   string id = 1;
   // Score is the relevance score of the hit. Only meaningful for hits
   // ordered by relevance; a sorted query leaves it at zero.
@@ -409,6 +443,19 @@ message Hit {
   // Fields are the values of the requested fields, keyed by field name.
   // Fields without a value for the document are absent.
   map<string, StringValues> fields = 3;
+  // Document is the loaded document, when the query asked for it with
+  // load_documents and the document is still stored. It is the current
+  // stored version rather than the version the index holds: a document
+  // that has been corrected since it was indexed is delivered as it stands
+  // now, and the fields of the hit are what it was matched on.
+  newsdoc.Document document = 4;
+  // Subset is what the document type's extractors collected from the
+  // delivered document, when the query named the type in subset.
+  repeated ExtractedValues subset = 5;
+  // Version is the stored version the loaded document or subset was taken
+  // from, and zero when neither was requested or the document was no
+  // longer there to load.
+  int64 version = 6;
 }
 
 // StringValues is the value of a flat index field. All field values are

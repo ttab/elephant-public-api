@@ -915,6 +915,9 @@
       },
       "elephant.distribution.Hit": {
         "properties": {
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
           "fields": {
             "additionalProperties": {
               "$ref": "#/components/schemas/elephant.distribution.StringValues"
@@ -923,12 +926,23 @@
             "type": "object"
           },
           "id": {
-            "description": "ID is the UUID of the document. Pass it to Content.GetDocument to fetch the document itself.",
+            "description": "ID is the UUID of the document. Pass it to Content.GetDocument to fetch the document itself, or ask the query for it with load_documents.",
             "type": "string"
           },
           "score": {
             "description": "Score is the relevance score of the hit. Only meaningful for hits ordered by relevance; a sorted query leaves it at zero.\n For a knn query the score is the cosine similarity of the document to the query vector, in [-1, 1] and on the same scale as KnnQuery.min_similarity: the server converts it out of OpenSearch's score space so that the two can be compared directly. For a text query it is an unbounded BM25 score, comparable between hits of the same query and meaningless between queries.",
             "type": "number"
+          },
+          "subset": {
+            "description": "Subset is what the document type's extractors collected from the delivered document, when the query named the type in subset.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ExtractedValues"
+            },
+            "type": "array"
+          },
+          "version": {
+            "description": "Version is the stored version the loaded document or subset was taken from, and zero when neither was requested or the document was no longer there to load.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1475,6 +1489,14 @@
       },
       "elephant.distribution.QueryRequest": {
         "properties": {
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves the documents with generated but unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves the documents without any rendition links. See GetNewDocumentsRequest.disable_renditions.",
+            "type": "boolean"
+          },
           "document_types": {
             "description": "DocumentTypes to search. Empty searches all types the caller can read. A type that isn't indexed is an invalid argument.\n For a semantic query (knn) the empty list is every indexed type that carries embeddings: the types that don't are skipped rather than refused, since a deployment normally indexes entity registries that have no vectors beside the temporal types that do. A type that is named explicitly is still an invalid argument when it has no embeddings - it is a question that cannot be answered, and an empty result would look like one.",
             "items": {
@@ -1504,8 +1526,19 @@
             "description": "Language to search, as the language tag the documents are indexed under, e.g. \"sv\" or \"sv-se\". Required: a query targets exactly one language series so that fan-out stays explicit. An unknown language is an invalid argument.",
             "type": "string"
           },
+          "load_documents": {
+            "description": "LoadDocuments returns the document itself with each hit, as Content.GetDocument would serve it: the current stored version, with the rendition links generated and signed for the caller. It requires the \"dist_read\" scope on top of the search scope - \"dist_search\" alone grants queries over the index, not the content behind it.\n Loading is bounded: a request that asks for documents may not ask for more hits than the server's document loading limit, and a hit whose document is no longer stored is returned without one rather than failing the query.",
+            "type": "boolean"
+          },
           "query": {
             "$ref": "#/components/schemas/elephant.distribution.Query"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind. See GetNewDocumentsRequest.renditions.",
+            "type": "object"
           },
           "size": {
             "description": "Size is the maximum number of hits to return. Defaults to 50, and is capped by the server.",
@@ -1517,6 +1550,13 @@
               "$ref": "#/components/schemas/elephant.distribution.Sort"
             },
             "type": "array"
+          },
+          "subset": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.Subsets"
+            },
+            "description": "Subset returns extracted parts of the documents instead of the whole of them, as a map of newsdoc value extractors keyed by the document types they apply to. It overrides load_documents for the types it names, and requires the same \"dist_read\" scope.\n Extraction runs on the delivered document, so an extracted image block carries the same generated rendition links the whole document would have been served with.",
+            "type": "object"
           },
           "tier": {
             "description": "Tier to search: \"recent\" for the rolling recent window, \"all\" for the recent window plus the archive. Empty defaults to \"recent\". Any other value is an invalid argument.\n \"recent\" is not \"whatever the cluster happens to hold locally\". It applies an implicit window on the document's anchor timestamp, so that recent means the same thing on the first day of a quarter as on the last. For document types anchored on when they happened - news, and everything else dated by publication - that window is a first_published no older than the configured recent window, 30 days by default. Types that aren't partitioned by time, the entity registries such as sections and authors, are never windowed and are returned in full by both tiers.\n \"all\" searches the archive set as well. The archive is served from snapshots mounted on separate nodes, so it answers more slowly, and the higher latency is accepted rather than worked around - which is why it is an explicit choice and not the default. Scope an archive query with a range on the anchor field whenever you can: given a range, the server resolves the query to the archived partitions that intersect it instead of fanning out over every quarter ever indexed.\n A document that has been corrected after its partition was archived exists in both tiers. Hits are collapsed on the document UUID, and the field values reported are those of the highest indexed version, so a cross-tier query never returns the same document twice and never reports the superseded copy's values.",
@@ -3588,10 +3628,6 @@
   ],
   "tags": [
     {
-      "description": "Search exposes the distribution search index: a query surface over the documents that Content delivers, with the same visibility rules. It is read-only.\n Access requires the \"dist_search\" scope, which is granted by \"dist_read\" (search is a view of what the caller can already fetch) and by \"dist_admin\".",
-      "name": "Search"
-    },
-    {
       "name": "Configuration"
     },
     {
@@ -3600,6 +3636,10 @@
     {
       "description": "Archive exposes the offloaded eventlog history and document versions for bulk export - e.g. building or rebuilding a search index over the full content set. Bodies are delivered as presigned URLs that the consumer fetches directly from object storage; the service only brokers the catalog and mints the URLs. Object keys and the presigning mechanism are internal: consumers address content by identity (uuid, version, chunk_id), never by storage key.",
       "name": "Archive"
+    },
+    {
+      "description": "Search exposes the distribution search index: a query surface over the documents that Content delivers, with the same visibility rules. It is read-only.\n Access requires the \"dist_search\" scope, which is granted by \"dist_read\" (search is a view of what the caller can already fetch) and by \"dist_admin\".",
+      "name": "Search"
     },
     {
       "description": "Subscriptions are standing queries. Instead of polling Search for whatever is new, a client registers what it is interested in once, and the indexer evaluates every document it indexes against the registration. Matches land in a per-subscription log that the client reads with PollMatches; matching latency is indexing latency, a few seconds behind publication.\n A document matches when the query part matches, if there is one, and every vector clause is satisfied. Clauses are ANDed, the members of a clause are ORed, and a negated clause is satisfied when none of its members pass. OR across a text query and a vector clause is deliberately not expressible - that is two subscriptions.\n Ownership and expiry are two separate choices. The owner is never taken from the request - it is the organisation claim or the subject of the credentials the call was made with - and owner_tier picks which of the two, defaulting to the organisation. A keep-alive, independently of that, makes the subscription expire when it goes untouched for that long; without one it lives until it is deleted. See CreateSubscriptionRequest.\n Access requires the \"dist_subscribe\" scope, which is granted by \"dist_admin\".",
