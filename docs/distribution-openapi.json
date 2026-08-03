@@ -1673,6 +1673,13 @@
       },
       "elephant.distribution.QueryRequest": {
         "properties": {
+          "date_from": {
+            "description": "DateFrom and DateTo restrict the result to documents whose anchor falls in the interval, as RFC 3339 timestamps. The interval is half-open - from is inclusive, to is exclusive - so consecutive windows tile without returning a document on the boundary twice. Either bound may be left empty for an interval open on that side.\n The anchor is whatever the document type is partitioned on, not a named field: first_published for a type dated by publication, and the time expression the document was routed on for one dated by what it describes - a planning item covering next week is in next week's window, whenever it was written. So the same request means \"in this period\" for every type, and a caller does not have to know which field a type is anchored on. Types that aren't partitioned by time, the entity registries such as sections and authors, have no anchor and are returned regardless, exactly as the tier window leaves them alone.\n This is the way to scope a semantic query to a period, and the only way: a range clause cannot be combined with knn - see query - so a date range written that way is an invalid argument rather than an answer that cannot be trusted. The interval is applied around the k-NN clause rather than inside it, so it also narrows the query to the partitions the interval intersects, and the neighbours are drawn from those partitions rather than from the whole tier. Within them the interval is applied to the neighbours after they are picked, so a k-bounded query whose interval covers part of a partition can return fewer than k hits; a radial query bounded by min_similarity is unaffected, which is what to reach for when the count matters.",
+            "type": "string"
+          },
+          "date_to": {
+            "type": "string"
+          },
           "disable_rendition_signing": {
             "description": "DisableRenditionSigning serves the documents with generated but unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
             "type": "boolean"
@@ -2544,7 +2551,7 @@
   },
   "info": {
     "title": "distribution API",
-    "version": "v0.0.3"
+    "version": "v0.0.4"
   },
   "openapi": "3.0.0",
   "paths": {

@@ -84,6 +84,16 @@ message QueryRequest {
   // contributes nothing to the score even when it is written with scoring
   // clauses such as must or should - the vector similarity is the score.
   //
+  // Not every clause can be used that way. Only term, terms, match,
+  // match_all and bool combinations of them may be combined with knn -
+  // enough to scope a semantic query by section, type, or any exact
+  // value. A range, exists, match_phrase, multi_match, prefix or
+  // query_string clause is an invalid argument that names the clause,
+  // because the search engine drops such a filter inside a k-NN clause
+  // and answers with an empty result set rather than an error. Use
+  // date_from and date_to for a period; there is no substitute for the
+  // others in this version.
+  //
   // A true hybrid that merges BM25 relevance and vector similarity into a
   // combined score is not available in this version. It is planned, and
   // it will be a separate, explicitly requested mode rather than a change
@@ -151,6 +161,37 @@ message QueryRequest {
   // DisableRenditions serves the documents without any rendition links.
   // See GetNewDocumentsRequest.disable_renditions.
   bool disable_renditions = 15;
+  // DateFrom and DateTo restrict the result to documents whose anchor
+  // falls in the interval, as RFC 3339 timestamps. The interval is
+  // half-open - from is inclusive, to is exclusive - so consecutive
+  // windows tile without returning a document on the boundary twice.
+  // Either bound may be left empty for an interval open on that side.
+  //
+  // The anchor is whatever the document type is partitioned on, not a
+  // named field: first_published for a type dated by publication, and the
+  // time expression the document was routed on for one dated by what it
+  // describes - a planning item covering next week is in next week's
+  // window, whenever it was written. So the same request means "in this
+  // period" for every type, and a caller does not have to know which
+  // field a type is anchored on. Types that aren't partitioned by time,
+  // the entity registries such as sections and authors, have no anchor
+  // and are returned regardless, exactly as the tier window leaves them
+  // alone.
+  //
+  // This is the way to scope a semantic query to a period, and the only
+  // way: a range clause cannot be combined with knn - see query - so a
+  // date range written that way is an invalid argument rather than an
+  // answer that cannot be trusted. The
+  // interval is applied around the k-NN clause rather than inside it, so
+  // it also narrows the query to the partitions the interval intersects,
+  // and the neighbours are drawn from those partitions rather than from
+  // the whole tier. Within them the interval is applied to the
+  // neighbours after they are picked, so a k-bounded query whose interval
+  // covers part of a partition can return fewer than k hits; a radial
+  // query bounded by min_similarity is unaffected, which is what to reach
+  // for when the count matters.
+  string date_from = 16;
+  string date_to = 17;
 }
 
 // Query is a single query clause. Exactly one of the conditions must be
