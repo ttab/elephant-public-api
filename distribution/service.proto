@@ -195,6 +195,20 @@ service Content {
   //
   // Requires dist_admin.
   rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
+  // CancelImport cancels an import. Cancellation is terminal: the job
+  // stops being claimable by the loader, the imports queued behind it
+  // proceed, and its hold on index maintenance is released. An
+  // un-finalized upload can be cancelled too, which retires its upload
+  // ID.
+  //
+  // Only a job that is not actively loading can be cancelled: a load
+  // that keeps failing backs off between passes with status "failed",
+  // which is when a cancel lands. Documents the job already published
+  // are signed log entries and stay published - remediation of loaded
+  // content is per-document erasure, not cancellation.
+  //
+  // Requires dist_admin.
+  rpc CancelImport(CancelImportRequest) returns (CancelImportResponse);
 }
 
 message GetNewDocumentsRequest {
@@ -346,6 +360,14 @@ message GetImportStatusResponse {
 
 message ListImportsRequest {}
 
+message CancelImportRequest {
+  // ID of the import job, or the upload ID of an un-finalized upload
+  // (they are the same identifier space).
+  string id = 1;
+}
+
+message CancelImportResponse {}
+
 message ListImportsResponse {
   // Imports, most recent first.
   repeated ImportStatus imports = 1;
@@ -358,9 +380,11 @@ message ImportStatus {
   // Source the imported events carry in the eventlog.
   string source             = 2;
   // Status is "pending" until the load starts, "loading" while it runs,
-  // and "done" or "failed" when it ends. A failed import is resumed by
-  // the service, not re-created: documents are idempotent per version,
-  // so the load continues from its recorded progress.
+  // and "done", "failed" or "cancelled" when it ends. A failed import
+  // is resumed by the service, not re-created: documents are idempotent
+  // per version, so the load continues from its recorded progress. Only
+  // CancelImport moves a job to "cancelled", and only from there does
+  // the loader move on to the jobs queued behind it.
   string status             = 3;
   // CurrentFile is the declared file the load is working through, and
   // the last one once the import is done.

@@ -253,6 +253,18 @@
         },
         "type": "object"
       },
+      "elephant.distribution.CancelImportRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the import job, or the upload ID of an un-finalized upload (they are the same identifier space).",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CancelImportResponse": {
+        "type": "object"
+      },
       "elephant.distribution.ClauseProvenance": {
         "description": "ClauseProvenance is the outcome of one vector clause.",
         "properties": {
@@ -1108,7 +1120,7 @@
             "type": "string"
           },
           "status": {
-            "description": "Status is \"pending\" until the load starts, \"loading\" while it runs, and \"done\" or \"failed\" when it ends. A failed import is resumed by the service, not re-created: documents are idempotent per version, so the load continues from its recorded progress.",
+            "description": "Status is \"pending\" until the load starts, \"loading\" while it runs, and \"done\", \"failed\" or \"cancelled\" when it ends. A failed import is resumed by the service, not re-created: documents are idempotent per version, so the load continues from its recorded progress. Only CancelImport moves a job to \"cancelled\", and only from there does the loader move on to the jobs queued behind it.",
             "type": "string"
           },
           "updated_at": {
@@ -3293,6 +3305,44 @@
         "summary": "SetSyncState",
         "tags": [
           "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Content/CancelImport": {
+      "post": {
+        "description": "CancelImport cancels an import. Cancellation is terminal: the job stops being claimable by the loader, the imports queued behind it proceed, and its hold on index maintenance is released. An un-finalized upload can be cancelled too, which retires its upload ID.\n Only a job that is not actively loading can be cancelled: a load that keeps failing backs off between passes with status \"failed\", which is when a cancel lands. Documents the job already published are signed log entries and stay published - remediation of loaded content is per-document erasure, not cancellation.\n Requires dist_admin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.CancelImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.CancelImportResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "CancelImport",
+        "tags": [
+          "Content"
         ]
       }
     },
