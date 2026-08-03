@@ -399,7 +399,9 @@ message SubscriptionMatch {
   string type = 4;
   // EventType is either "published" or "unpublished".
   string event_type = 5;
-  // EventTime is when the event happened, RFC3339.
+  // EventTime is when distribution emitted the event, RFC3339. It is
+  // distribution's own clock, not the publication date: an event for
+  // historical content has an event_time of when it was ingested.
   string event_time = 6;
   // MatchedAt is when the match was recorded, RFC3339. It normally trails
   // event_time by seconds; a large gap means the match was made while
@@ -408,6 +410,11 @@ message SubscriptionMatch {
   string matched_at = 7;
   // Provenance is why the document matched.
   MatchProvenance provenance = 8;
+  // PublishedAt is when the version was published in the source system,
+  // RFC3339 - the publication date of the content, as opposed to
+  // event_time. It is the same value Content.GetNewDocuments reports as
+  // the event's published_at.
+  string published_at = 9;
 }
 
 // MatchProvenance records what fired, so that a match can be explained

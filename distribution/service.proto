@@ -557,12 +557,21 @@ message DocumentEvent {
   string doc_uuid = 3;
   // Version that was published (if this was a publish event).
   int64 version = 4;
-  // CreatedAt is the event timestamp in the canonical fixed-width RFC
-  // 3339 form used by the transparency log
+  // CreatedAt is when distribution emitted the event, in the canonical
+  // fixed-width RFC 3339 form used by the transparency log
   // ("2006-01-02T15:04:05.000000Z", UTC, microsecond precision) — the
   // same representation that the entry hash is computed over and that
-  // archived eventlog chunks carry.
+  // archived eventlog chunks carry. It is distribution's own clock, so
+  // an event for historical content carries a created_at long after the
+  // content was published. Use published_at to date the content.
   string created_at = 5;
+  // PublishedAt is when the version was published in the source system:
+  // the time the "usable" status was created in the repository, or the
+  // publication time the record carried when the content was bulk
+  // imported. Same canonical fixed-width form as created_at, and part of
+  // the hashed event payload. This is the publication date of the
+  // content, and the timestamp the index anchors and ages documents on.
+  string published_at = 6;
 }
 
 message Schema {

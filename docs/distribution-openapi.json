@@ -468,7 +468,7 @@
       "elephant.distribution.DocumentEvent": {
         "properties": {
           "created_at": {
-            "description": "CreatedAt is the event timestamp in the canonical fixed-width RFC 3339 form used by the transparency log (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision) — the same representation that the entry hash is computed over and that archived eventlog chunks carry.",
+            "description": "CreatedAt is when distribution emitted the event, in the canonical fixed-width RFC 3339 form used by the transparency log (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision) — the same representation that the entry hash is computed over and that archived eventlog chunks carry. It is distribution's own clock, so an event for historical content carries a created_at long after the content was published. Use published_at to date the content.",
             "type": "string"
           },
           "doc_uuid": {
@@ -482,6 +482,10 @@
           "id": {
             "description": "ID of the event.",
             "type": "integer"
+          },
+          "published_at": {
+            "description": "PublishedAt is when the version was published in the source system: the time the \"usable\" status was created in the repository, or the publication time the record carried when the content was bulk imported. Same canonical fixed-width form as created_at, and part of the hashed event payload. This is the publication date of the content, and the timestamp the index anchors and ages documents on.",
+            "type": "string"
           },
           "version": {
             "description": "Version that was published (if this was a publish event).",
@@ -2132,7 +2136,7 @@
             "type": "integer"
           },
           "event_time": {
-            "description": "EventTime is when the event happened, RFC3339.",
+            "description": "EventTime is when distribution emitted the event, RFC3339. It is distribution's own clock, not the publication date: an event for historical content has an event_time of when it was ingested.",
             "type": "string"
           },
           "event_type": {
@@ -2145,6 +2149,10 @@
           },
           "provenance": {
             "$ref": "#/components/schemas/elephant.distribution.MatchProvenance"
+          },
+          "published_at": {
+            "description": "PublishedAt is when the version was published in the source system, RFC3339 - the publication date of the content, as opposed to event_time. It is the same value Content.GetNewDocuments reports as the event's published_at.",
+            "type": "string"
           },
           "type": {
             "description": "Type of the document.",
