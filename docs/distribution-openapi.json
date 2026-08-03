@@ -343,6 +343,38 @@
         },
         "type": "object"
       },
+      "elephant.distribution.CreateImportUploadRequest": {
+        "properties": {
+          "files": {
+            "description": "Files that make up the import set, in load order.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ImportFile"
+            },
+            "type": "array"
+          },
+          "upload_id": {
+            "description": "UploadId resumes an existing upload instead of creating a new one. The declared files must match the recorded declaration exactly; fresh presigned URLs are returned for all of them. Leave empty to create a new upload.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CreateImportUploadResponse": {
+        "properties": {
+          "files": {
+            "description": "Files to upload, one per declared file, in declaration order.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ImportFileUpload"
+            },
+            "type": "array"
+          },
+          "upload_id": {
+            "description": "UploadId identifies the upload for resumption and finalization.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.CreateIndexGenerationRequest": {
         "properties": {
           "cluster": {
@@ -559,6 +591,32 @@
         },
         "type": "object"
       },
+      "elephant.distribution.FinalizeImportUploadRequest": {
+        "properties": {
+          "expected_documents": {
+            "description": "ExpectedDocuments is the total number of documents in the import set, if the client knows it. Optional; when set it is recorded on the import and lets the load cross-check that it saw everything.",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Source labels the imported events in the eventlog, so that consumers can tell the import apart from the live repository flow. Required, e.g. \"ttdist\". It cannot be a source the live sync worker writes.",
+            "type": "string"
+          },
+          "upload_id": {
+            "description": "UploadId of the upload to finalize.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.FinalizeImportUploadResponse": {
+        "properties": {
+          "id": {
+            "description": "ID of the created import job, for GetImportStatus.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.Fuzziness": {
         "description": "Fuzziness is the edit distance allowed when matching terms.",
         "properties": {
@@ -756,6 +814,23 @@
         "properties": {
           "status": {
             "$ref": "#/components/schemas/elephant.distribution.ErasureStatus"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetImportStatusRequest": {
+        "properties": {
+          "id": {
+            "description": "ID of the import job.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetImportStatusResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/elephant.distribution.ImportStatus"
           }
         },
         "type": "object"
@@ -961,6 +1036,88 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ImportFile": {
+        "description": "ImportFile declares one file of an import upload.",
+        "properties": {
+          "name": {
+            "description": "Name of the file within the upload, e.g. \"documents-2024-Q2.ndjson.gz\". Names must be unique within the upload. Files are loaded in declaration order.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Sha256 is the hex-encoded sha256 of the file contents, verified at finalization.",
+            "type": "string"
+          },
+          "size": {
+            "description": "Size of the file in bytes.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ImportFileUpload": {
+        "description": "ImportFileUpload is the upload destination for one declared file.",
+        "properties": {
+          "expires_at": {
+            "description": "ExpiresAt is when the URL stops working, RFC3339. Resume the upload to get fresh URLs.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the file, as declared.",
+            "type": "string"
+          },
+          "upload_url": {
+            "description": "UploadUrl is a presigned PUT URL for the file contents. Object keys and the presigning mechanism are internal - the URL is used as-is and never parsed.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ImportStatus": {
+        "description": "ImportStatus is the recorded state of one import job.",
+        "properties": {
+          "created_at": {
+            "description": "CreatedAt is when the import was finalized, RFC3339.",
+            "type": "string"
+          },
+          "current_file": {
+            "description": "CurrentFile is the declared file the load is working through, and the last one once the import is done.",
+            "type": "string"
+          },
+          "documents_loaded": {
+            "description": "DocumentsLoaded is how many documents have been stored so far.",
+            "type": "integer"
+          },
+          "error": {
+            "description": "Error is what a failed import failed with, empty otherwise.",
+            "type": "string"
+          },
+          "expected_documents": {
+            "description": "ExpectedDocuments is the total declared at finalization, or zero if none was.",
+            "type": "integer"
+          },
+          "id": {
+            "description": "ID of the import job.",
+            "type": "string"
+          },
+          "quarter_high_water_mark": {
+            "description": "QuarterHighWaterMark is the most recent quarter the import has fully loaded, e.g. \"2024q2\", empty until the first quarter completes. Quarters are loaded in order, so overlay-pressure re-materializations of quarters the mark has not passed are held until it does - one rebuild per touched quarter, after the import has moved on. Deadline-driven re-materializations (tombstone, erasure) are never held.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Source the imported events carry in the eventlog.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status is \"pending\" until the load starts, \"loading\" while it runs, and \"done\" or \"failed\" when it ends. A failed import is resumed by the service, not re-created: documents are idempotent per version, so the load continues from its recorded progress.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "UpdatedAt is when the recorded state last changed, RFC3339.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.IndexGeneration": {
         "description": "IndexGeneration is one complete set of search indexes: everything under one index name prefix, on one cluster, with an eventlog cursor of its own.",
         "properties": {
@@ -1127,6 +1284,21 @@
             "description": "Generations without schemas or type configurations populated.",
             "items": {
               "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListImportsRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.ListImportsResponse": {
+        "properties": {
+          "imports": {
+            "description": "Imports, most recent first.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ImportStatus"
             },
             "type": "array"
           }
@@ -1527,7 +1699,7 @@
             "type": "string"
           },
           "load_documents": {
-            "description": "LoadDocuments returns the document itself with each hit, as Content.GetDocument would serve it: the current stored version, with the rendition links generated and signed for the caller. It requires the \"dist_read\" scope on top of the search scope - \"dist_search\" alone grants queries over the index, not the content behind it.\n Loading is bounded: a request that asks for documents may not ask for more hits than the server's document loading limit, and a hit whose document is no longer stored is returned without one rather than failing the query.",
+            "description": "LoadDocuments returns the document itself with each hit, as Content.GetDocument would serve it: the current stored version, with the rendition links generated and signed for the caller. It requires the \"dist_read\" scope on top of the search scope - \"dist_search\" alone grants queries over the index, not the content behind it.\n A page of hits is what bounds it - the server's page size cap applies to a query that loads documents as it does to any other. A hit whose document is no longer stored is returned without one rather than failing the query.",
             "type": "boolean"
           },
           "query": {
@@ -3124,6 +3296,82 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Content/CreateImportUpload": {
+      "post": {
+        "description": "CreateImportUpload starts a bulk import upload: the client declares the files that make up the import set and gets a presigned PUT URL back for each of them. The files are uploaded directly to object storage; the service only brokers the URLs. Files are gzipped NDJSON with one import envelope per line, and they are loaded in the order they were declared, so declare them in chronological (quarterly) order.\n To resume an upload that was cut short, call CreateImportUpload again with the upload ID and the same file declaration: fresh URLs are returned for every file, and only the ones that are missing or were interrupted need to be PUT again. Re-uploading a completed file is harmless - finalization verifies sizes and hashes, not upload counts. An upload that is never finalized is eventually cleaned up.\n Requires dist_admin, unlike the service's dist_read baseline, and fails with FailedPrecondition when the deployment has no archive bucket configured - there is nowhere to upload to.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.CreateImportUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.CreateImportUploadResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "CreateImportUpload",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Content/FinalizeImportUpload": {
+      "post": {
+        "description": "FinalizeImportUpload declares an upload complete and turns it into an import job. The service verifies that every declared file is present in the bucket with the declared size and sha256 - a missing or mismatching file is a FailedPrecondition, and the upload stays open so the file can be re-uploaded and finalization retried - records the import, and starts loading asynchronously. The returned import ID is what GetImportStatus takes; the upload ID is consumed and invalid afterwards.\n Loaded documents go through the same store path as live content: document versions are upserted and the events enter the transparency log hashed and signed like any others, carrying the import's source so that consumers can tell bulk-imported content from the live repository flow. The load is resumable and idempotent per document version - a service restart continues where it left off.\n Requires dist_admin and an archive bucket, as CreateImportUpload.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.FinalizeImportUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.FinalizeImportUploadResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "FinalizeImportUpload",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Content/GetDocument": {
       "post": {
         "description": "GetDocument returns a single document, transparently falling back to the archive if the requested version (or the whole document) has been evicted from the hot data set. The document is returned in-band.",
@@ -3162,6 +3410,44 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Content/GetImportStatus": {
+      "post": {
+        "description": "GetImportStatus returns the recorded state of an import job: where the load has got to, and what went wrong if it failed.\n Requires dist_admin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetImportStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetImportStatusResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetImportStatus",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Content/GetNewDocuments": {
       "post": {
         "requestBody": {
@@ -3194,6 +3480,44 @@
           }
         ],
         "summary": "GetNewDocuments",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Content/ListImports": {
+      "post": {
+        "description": "ListImports lists import jobs, most recent first.\n Requires dist_admin.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListImportsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListImportsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListImports",
         "tags": [
           "Content"
         ]

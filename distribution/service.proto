@@ -149,6 +149,52 @@ service Content {
   // the archive if the requested version (or the whole document) has been
   // evicted from the hot data set. The document is returned in-band.
   rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
+  // CreateImportUpload starts a bulk import upload: the client declares
+  // the files that make up the import set and gets a presigned PUT URL
+  // back for each of them. The files are uploaded directly to object
+  // storage; the service only brokers the URLs. Files are gzipped NDJSON
+  // with one import envelope per line, and they are loaded in the order
+  // they were declared, so declare them in chronological (quarterly)
+  // order.
+  //
+  // To resume an upload that was cut short, call CreateImportUpload
+  // again with the upload ID and the same file declaration: fresh URLs
+  // are returned for every file, and only the ones that are missing or
+  // were interrupted need to be PUT again. Re-uploading a completed file
+  // is harmless - finalization verifies sizes and hashes, not upload
+  // counts. An upload that is never finalized is eventually cleaned up.
+  //
+  // Requires dist_admin, unlike the service's dist_read baseline, and
+  // fails with FailedPrecondition when the deployment has no archive
+  // bucket configured - there is nowhere to upload to.
+  rpc CreateImportUpload(CreateImportUploadRequest) returns (CreateImportUploadResponse);
+  // FinalizeImportUpload declares an upload complete and turns it into
+  // an import job. The service verifies that every declared file is
+  // present in the bucket with the declared size and sha256 - a missing
+  // or mismatching file is a FailedPrecondition, and the upload stays
+  // open so the file can be re-uploaded and finalization retried -
+  // records the import, and starts loading asynchronously. The returned
+  // import ID is what GetImportStatus takes; the upload ID is consumed
+  // and invalid afterwards.
+  //
+  // Loaded documents go through the same store path as live content:
+  // document versions are upserted and the events enter the transparency
+  // log hashed and signed like any others, carrying the import's source
+  // so that consumers can tell bulk-imported content from the live
+  // repository flow. The load is resumable and idempotent per document
+  // version - a service restart continues where it left off.
+  //
+  // Requires dist_admin and an archive bucket, as CreateImportUpload.
+  rpc FinalizeImportUpload(FinalizeImportUploadRequest) returns (FinalizeImportUploadResponse);
+  // GetImportStatus returns the recorded state of an import job: where
+  // the load has got to, and what went wrong if it failed.
+  //
+  // Requires dist_admin.
+  rpc GetImportStatus(GetImportStatusRequest) returns (GetImportStatusResponse);
+  // ListImports lists import jobs, most recent first.
+  //
+  // Requires dist_admin.
+  rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
 }
 
 message GetNewDocumentsRequest {
@@ -224,6 +270,120 @@ message GetDocumentResponse {
   newsdoc.Document document = 1;
   // Version that was returned.
   int64 version = 2;
+}
+
+// ImportFile declares one file of an import upload.
+message ImportFile {
+  // Name of the file within the upload, e.g.
+  // "documents-2024-Q2.ndjson.gz". Names must be unique within the
+  // upload. Files are loaded in declaration order.
+  string name = 1;
+  // Size of the file in bytes.
+  int64 size = 2;
+  // Sha256 is the hex-encoded sha256 of the file contents, verified at
+  // finalization.
+  string sha256 = 3;
+}
+
+message CreateImportUploadRequest {
+  // Files that make up the import set, in load order.
+  repeated ImportFile files = 1;
+  // UploadId resumes an existing upload instead of creating a new one.
+  // The declared files must match the recorded declaration exactly;
+  // fresh presigned URLs are returned for all of them. Leave empty to
+  // create a new upload.
+  string upload_id = 2;
+}
+
+// ImportFileUpload is the upload destination for one declared file.
+message ImportFileUpload {
+  // Name of the file, as declared.
+  string name = 1;
+  // UploadUrl is a presigned PUT URL for the file contents. Object keys
+  // and the presigning mechanism are internal - the URL is used as-is
+  // and never parsed.
+  string upload_url = 2;
+  // ExpiresAt is when the URL stops working, RFC3339. Resume the upload
+  // to get fresh URLs.
+  string expires_at = 3;
+}
+
+message CreateImportUploadResponse {
+  // UploadId identifies the upload for resumption and finalization.
+  string upload_id = 1;
+  // Files to upload, one per declared file, in declaration order.
+  repeated ImportFileUpload files = 2;
+}
+
+message FinalizeImportUploadRequest {
+  // UploadId of the upload to finalize.
+  string upload_id = 1;
+  // Source labels the imported events in the eventlog, so that
+  // consumers can tell the import apart from the live repository flow.
+  // Required, e.g. "ttdist". It cannot be a source the live sync worker
+  // writes.
+  string source = 2;
+  // ExpectedDocuments is the total number of documents in the import
+  // set, if the client knows it. Optional; when set it is recorded on
+  // the import and lets the load cross-check that it saw everything.
+  int64 expected_documents = 3;
+}
+
+message FinalizeImportUploadResponse {
+  // ID of the created import job, for GetImportStatus.
+  string id = 1;
+}
+
+message GetImportStatusRequest {
+  // ID of the import job.
+  string id = 1;
+}
+
+message GetImportStatusResponse {
+  // Status of the import job.
+  ImportStatus status = 1;
+}
+
+message ListImportsRequest {}
+
+message ListImportsResponse {
+  // Imports, most recent first.
+  repeated ImportStatus imports = 1;
+}
+
+// ImportStatus is the recorded state of one import job.
+message ImportStatus {
+  // ID of the import job.
+  string id                 = 1;
+  // Source the imported events carry in the eventlog.
+  string source             = 2;
+  // Status is "pending" until the load starts, "loading" while it runs,
+  // and "done" or "failed" when it ends. A failed import is resumed by
+  // the service, not re-created: documents are idempotent per version,
+  // so the load continues from its recorded progress.
+  string status             = 3;
+  // CurrentFile is the declared file the load is working through, and
+  // the last one once the import is done.
+  string current_file       = 4;
+  // DocumentsLoaded is how many documents have been stored so far.
+  int64 documents_loaded    = 5;
+  // ExpectedDocuments is the total declared at finalization, or zero if
+  // none was.
+  int64 expected_documents  = 6;
+  // QuarterHighWaterMark is the most recent quarter the import has
+  // fully loaded, e.g. "2024q2", empty until the first quarter
+  // completes. Quarters are loaded in order, so overlay-pressure
+  // re-materializations of quarters the mark has not passed are held
+  // until it does - one rebuild per touched quarter, after the import
+  // has moved on. Deadline-driven re-materializations (tombstone,
+  // erasure) are never held.
+  string quarter_high_water_mark = 7;
+  // Error is what a failed import failed with, empty otherwise.
+  string error              = 8;
+  // CreatedAt is when the import was finalized, RFC3339.
+  string created_at         = 9;
+  // UpdatedAt is when the recorded state last changed, RFC3339.
+  string updated_at         = 10;
 }
 
 // Archive exposes the offloaded eventlog history and document versions for

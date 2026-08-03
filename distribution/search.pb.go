@@ -124,8 +124,8 @@ type QueryRequest struct {
 	// the "dist_read" scope on top of the search scope - "dist_search" alone
 	// grants queries over the index, not the content behind it.
 	//
-	// Loading is bounded: a request that asks for documents may not ask for
-	// more hits than the server's document loading limit, and a hit whose
+	// A page of hits is what bounds it - the server's page size cap applies
+	// to a query that loads documents as it does to any other. A hit whose
 	// document is no longer stored is returned without one rather than
 	// failing the query.
 	LoadDocuments bool `protobuf:"varint,11,opt,name=load_documents,json=loadDocuments,proto3" json:"load_documents,omitempty"`
