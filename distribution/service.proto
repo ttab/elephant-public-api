@@ -145,6 +145,21 @@ service Configuration {
 
 service Content {
   rpc GetNewDocuments(GetNewDocumentsRequest) returns (GetNewDocumentsResponse);
+  // GetSigningKeys returns the public keys the transparency log's
+  // signatures are made with, so that a consumer reading the log with
+  // GetNewDocumentsRequest.verification can verify it without leaving
+  // the API it is already talking to.
+  //
+  // The same keys are served as a JWKS at the unauthenticated
+  // GET /signing-keys and mirrored into the archive bucket. Those remain
+  // the way an independent verifier with no credentials, checking
+  // archived content, gets them. This is the convenience for a consumer
+  // that already holds a client.
+  //
+  // An independent copy is worth keeping either way: keys fetched from
+  // the service that signed the log only prove it is internally
+  // consistent.
+  rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
   // GetDocument returns a single document, transparently falling back to
   // the archive if the requested version (or the whole document) has been
   // evicted from the hot data set. The document is returned in-band.
@@ -303,6 +318,14 @@ message GetNewDocumentsRequest {
   // empty response immediately. Reads that can be answered immediately
   // are always unaffected.
   int32 wait_ms = 7;
+  // Verification populates the transparency-log fields of every event:
+  // doc_hash, signature and parent. Together with the fields an event
+  // always carries they are the complete signed payload, so a consumer
+  // can recompute each entry's hash, verify the signature against the
+  // public keys at GET /signing-keys, and check that the page chains.
+  // Off by default: the three fields are a few hundred bytes an event
+  // that a consumer which doesn't verify would carry for nothing.
+  bool verification = 8;
 }
 
 // RenditionParameters selects the renditions to generate for one asset
@@ -860,6 +883,22 @@ message ExtractedValue {
   string role         = 4;
 }
 
+// DocumentEvent is one entry of the distribution eventlog, which is a
+// transparency log: every entry is hashed over a canonical JSON payload,
+// signed, and chained to its predecessor.
+//
+// The signed payload is exactly these nine fields, under these names:
+// id, source, uuid (doc_uuid here), version, type, created_at,
+// published_at, doc_hash and parent. Verifying an entry is: build that
+// object, serialize it as RFC 8785 (JCS) canonical JSON, sha256 it, and
+// check the digest and the ECDSA signature against the key the signature
+// names, fetched from the unauthenticated JWKS at GET /signing-keys.
+// Nothing else on this message is signed - event_type is derived from
+// version, and first_published is a property of the document rather than
+// of the event.
+//
+// The verification fields are only populated when the request asked for
+// them; see GetNewDocumentsRequest.verification.
 message DocumentEvent {
   // ID of the event.
   int64 id = 1;
@@ -893,6 +932,80 @@ message DocumentEvent {
   // Not part of the hashed event payload - it is a property of the
   // document rather than of the event, read alongside it.
   string first_published = 7;
+  // Source names the pipeline the event came from: the repository
+  // eventlog for content distributed as it is published, or a bulk
+  // import job for imported history. Part of the hashed payload.
+  string source = 8;
+  // Type of the document, e.g. "core/article", as the source event
+  // reported it - so a tombstone carries one too. Part of the hashed
+  // payload, empty string included: hash what is here, not what a
+  // document of that identity looks like now.
+  string type = 9;
+  // DocHash is the hex-encoded sha256 of the RFC 8785 canonical form of
+  // this version's document data, binding the event to the exact content
+  // it announced. Empty for a tombstone.
+  //
+  // Checking it takes two things. It covers the *version* named here,
+  // while load_documents delivers the document's current version, so a
+  // consumer verifying content fetches the exact version through
+  // Content.GetDocumentVersions or Content.GetDocument instead - the two
+  // agree only for an event that is still the document's latest. And it
+  // covers the stored bytes: rendition links are generated per response
+  // and signed for the caller's audience, so ask with disable_renditions
+  // or strip the generated rel="rendition" links before hashing.
+  //
+  // Verifying the log itself needs neither - the signature covers this
+  // field as a string, whatever content it names. Requires verification.
+  string doc_hash = 10;
+  // Signature is the compact signature over the canonical payload,
+  // "v2.{key id}.{base64url sha256}.{base64url ECDSA signature}". The
+  // digest it carries must equal the one recomputed from the payload.
+  // Requires verification.
+  string signature = 11;
+  // Parent is the signature of event id-1, chaining the log, and is
+  // empty for event 1. A page therefore verifies as a chain on its own,
+  // and a consumer following the log checks that the first entry of a
+  // page names the signature of the last entry of the previous one.
+  // Requires verification.
+  string parent = 12;
+}
+
+message GetSigningKeysRequest {}
+
+message GetSigningKeysResponse {
+  // Keys is every published key, not just the one signing right now. A
+  // key stops being used for new signatures long before the entries it
+  // signed stop needing to be verifiable, so a verifier reading history
+  // needs the retired ones too, and picks the key a signature names
+  // rather than the newest.
+  repeated SigningKey keys = 1;
+}
+
+// SigningKey is the public half of one transparency-log signing key: the
+// JWK the JWKS endpoint publishes, with its fields broken out.
+message SigningKey {
+  // KeyID is what the second segment of a signature names.
+  string key_id = 1;
+  // KeyType is the JWK "kty", always "EC".
+  string key_type = 2;
+  // Curve is the JWK "crv", always "P-384".
+  string curve = 3;
+  // X is the base64url-encoded (unpadded) big-endian x coordinate of the
+  // public point, 48 bytes decoded. As in a JWK, so a client can hand
+  // {kty, crv, x, y} straight to a JWK importer.
+  string x = 4;
+  // Y is the y coordinate, same encoding.
+  string y = 5;
+  // IssuedAt is when the key was created, in the canonical fixed-width
+  // RFC 3339 form the events use ("2006-01-02T15:04:05.000000Z", UTC).
+  string issued_at = 6;
+  // NotBefore and NotAfter bound the window the key signs in. They are
+  // worth checking against an entry's created_at - a signature made
+  // outside its key's window verifies arithmetically but should not have
+  // existed - and they are why a key is published before it is used: a
+  // verifier needs it in hand before the first entry it signs arrives.
+  string not_before = 7;
+  string not_after = 8;
 }
 
 message Schema {

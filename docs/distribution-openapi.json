@@ -466,9 +466,14 @@
         "type": "object"
       },
       "elephant.distribution.DocumentEvent": {
+        "description": "DocumentEvent is one entry of the distribution eventlog, which is a transparency log: every entry is hashed over a canonical JSON payload, signed, and chained to its predecessor.\n The signed payload is exactly these nine fields, under these names: id, source, uuid (doc_uuid here), version, type, created_at, published_at, doc_hash and parent. Verifying an entry is: build that object, serialize it as RFC 8785 (JCS) canonical JSON, sha256 it, and check the digest and the ECDSA signature against the key the signature names, fetched from the unauthenticated JWKS at GET /signing-keys. Nothing else on this message is signed - event_type is derived from version, and first_published is a property of the document rather than of the event.\n The verification fields are only populated when the request asked for them; see GetNewDocumentsRequest.verification.",
         "properties": {
           "created_at": {
             "description": "CreatedAt is when distribution emitted the event, in the canonical fixed-width RFC 3339 form used by the transparency log (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision) — the same representation that the entry hash is computed over and that archived eventlog chunks carry. It is distribution's own clock, so an event for historical content carries a created_at long after the content was published. Use published_at to date the content.",
+            "type": "string"
+          },
+          "doc_hash": {
+            "description": "DocHash is the hex-encoded sha256 of the RFC 8785 canonical form of this version's document data, binding the event to the exact content it announced. Empty for a tombstone.\n Checking it takes two things. It covers the *version* named here, while load_documents delivers the document's current version, so a consumer verifying content fetches the exact version through Content.GetDocumentVersions or Content.GetDocument instead - the two agree only for an event that is still the document's latest. And it covers the stored bytes: rendition links are generated per response and signed for the caller's audience, so ask with disable_renditions or strip the generated rel=\"rendition\" links before hashing.\n Verifying the log itself needs neither - the signature covers this field as a string, whatever content it names. Requires verification.",
             "type": "string"
           },
           "doc_uuid": {
@@ -487,8 +492,24 @@
             "description": "ID of the event.",
             "type": "integer"
           },
+          "parent": {
+            "description": "Parent is the signature of event id-1, chaining the log, and is empty for event 1. A page therefore verifies as a chain on its own, and a consumer following the log checks that the first entry of a page names the signature of the last entry of the previous one. Requires verification.",
+            "type": "string"
+          },
           "published_at": {
             "description": "PublishedAt is when the version was published in the source system: the time the \"usable\" status was created in the repository, or the publication time the record carried when the content was bulk imported. Same canonical fixed-width form as created_at, and part of the hashed event payload. This is the publication date of the content, and the timestamp the index anchors and ages documents on.",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature is the compact signature over the canonical payload, \"v2.{key id}.{base64url sha256}.{base64url ECDSA signature}\". The digest it carries must equal the one recomputed from the payload. Requires verification.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Source names the pipeline the event came from: the repository eventlog for content distributed as it is published, or a bulk import job for imported history. Part of the hashed payload.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the document, e.g. \"core/article\", as the source event reported it - so a tombstone carries one too. Part of the hashed payload, empty string included: hash what is here, not what a document of that identity looks like now.",
             "type": "string"
           },
           "version": {
@@ -997,6 +1018,10 @@
             "description": "Subset returns a subset of the documents as specified by a map of newsdoc value extractors keyed by the types that they should be applied to.",
             "type": "object"
           },
+          "verification": {
+            "description": "Verification populates the transparency-log fields of every event: doc_hash, signature and parent. Together with the fields an event always carries they are the complete signed payload, so a consumer can recompute each entry's hash, verify the signature against the public keys at GET /signing-keys, and check that the page chains. Off by default: the three fields are a few hundred bytes an event that a consumer which doesn't verify would carry for nothing.",
+            "type": "boolean"
+          },
           "wait_ms": {
             "description": "Wait is the maximum time in milliseconds to wait for new events when the read starts at the head of the log, mirroring the repository eventlog long poll. Defaults to 2000 and is capped at 8000. A negative value disables waiting so that at-head reads return an empty response immediately. Reads that can be answered immediately are always unaffected.",
             "type": "integer"
@@ -1035,6 +1060,21 @@
           },
           "version": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetSigningKeysRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.GetSigningKeysResponse": {
+        "properties": {
+          "keys": {
+            "description": "Keys is every published key, not just the one signing right now. A key stops being used for new signatures long before the entries it signed stop needing to be verifiable, so a verifier reading history needs the retired ones too, and picks the key a signature names rather than the newest.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.SigningKey"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -2390,6 +2430,43 @@
         "type": "object"
       },
       "elephant.distribution.SetSyncStateResponse": {
+        "type": "object"
+      },
+      "elephant.distribution.SigningKey": {
+        "description": "SigningKey is the public half of one transparency-log signing key: the JWK the JWKS endpoint publishes, with its fields broken out.",
+        "properties": {
+          "curve": {
+            "description": "Curve is the JWK \"crv\", always \"P-384\".",
+            "type": "string"
+          },
+          "issued_at": {
+            "description": "IssuedAt is when the key was created, in the canonical fixed-width RFC 3339 form the events use (\"2006-01-02T15:04:05.000000Z\", UTC).",
+            "type": "string"
+          },
+          "key_id": {
+            "description": "KeyID is what the second segment of a signature names.",
+            "type": "string"
+          },
+          "key_type": {
+            "description": "KeyType is the JWK \"kty\", always \"EC\".",
+            "type": "string"
+          },
+          "not_after": {
+            "type": "string"
+          },
+          "not_before": {
+            "description": "NotBefore and NotAfter bound the window the key signs in. They are worth checking against an entry's created_at - a signature made outside its key's window verifies arithmetically but should not have existed - and they are why a key is published before it is used: a verifier needs it in hand before the first entry it signs arrives.",
+            "type": "string"
+          },
+          "x": {
+            "description": "X is the base64url-encoded (unpadded) big-endian x coordinate of the public point, 48 bytes decoded. As in a JWK, so a client can hand {kty, crv, x, y} straight to a JWK importer.",
+            "type": "string"
+          },
+          "y": {
+            "description": "Y is the y coordinate, same encoding.",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "elephant.distribution.SimilarityPercentile": {
@@ -3958,6 +4035,44 @@
           }
         ],
         "summary": "GetNewDocuments",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Content/GetSigningKeys": {
+      "post": {
+        "description": "GetSigningKeys returns the public keys the transparency log's signatures are made with, so that a consumer reading the log with GetNewDocumentsRequest.verification can verify it without leaving the API it is already talking to.\n The same keys are served as a JWKS at the unauthenticated GET /signing-keys and mirrored into the archive bucket. Those remain the way an independent verifier with no credentials, checking archived content, gets them. This is the convenience for a consumer that already holds a client.\n An independent copy is worth keeping either way: keys fetched from the service that signed the log only prove it is internally consistent.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetSigningKeysRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetSigningKeysResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetSigningKeys",
         "tags": [
           "Content"
         ]
