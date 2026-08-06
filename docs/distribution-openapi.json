@@ -479,6 +479,10 @@
             "description": "EventType is either \"published\" or \"unpublished\".",
             "type": "string"
           },
+          "first_published": {
+            "description": "FirstPublished is when the document first became public, in the same canonical fixed-width form. The event is about one version, and this is the per-document timestamp beside it: what a consumer groups and dates a document by, as opposed to the version. Equal to published_at for a document's first event, and unchanged by every event after it.\n Not part of the hashed event payload - it is a property of the document rather than of the event, read alongside it.",
+            "type": "string"
+          },
           "id": {
             "description": "ID of the event.",
             "type": "integer"
@@ -496,6 +500,10 @@
       },
       "elephant.distribution.DocumentItem": {
         "properties": {
+          "deferred": {
+            "description": "Deferred is set when load_documents or subset was requested and this item's document was not loaded because the response had reached its loading bound. Fetch it with Content.GetDocumentVersions.\n An item with neither a document nor deferred set has no document to load: it is a tombstone, or the document has been deleted or erased. Don't ask for it again.",
+            "type": "boolean"
+          },
           "document": {
             "$ref": "#/components/schemas/newsdoc.Document"
           },
@@ -508,6 +516,20 @@
               "$ref": "#/components/schemas/elephant.distribution.ExtractedValues"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DocumentVersionRef": {
+        "description": "DocumentVersionRef identifies one version to load.",
+        "properties": {
+          "uuid": {
+            "description": "UUID of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version to load. Zero is the document's current version, as in GetDocument.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -603,6 +625,19 @@
             },
             "description": "Values that were extracted.",
             "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.FacetValues": {
+        "description": "FacetValues is the values a facet filter requires. A returned version has to carry all of them, and a request with several facets has to satisfy all of them - the filter is one containment test over the stored facet values. Narrowing to either of two sections is therefore two requests rather than one.",
+        "properties": {
+          "values": {
+            "description": "Values to match. These are document UUIDs, never labels: a section is a core/section document and the facet carries its UUID, so matching is exact and a human-readable name matches nothing at all.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -795,6 +830,14 @@
           "document": {
             "$ref": "#/components/schemas/newsdoc.Document"
           },
+          "first_published": {
+            "description": "FirstPublished is when the document first became public, in the same form. Immutable, and equal to published_at for a document that has only ever been published once. Empty for a document whose first-published record has been erased or was never written.",
+            "type": "string"
+          },
+          "published_at": {
+            "description": "PublishedAt is when the returned version became public, in the canonical fixed-width RFC 3339 form (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision). For a version served from the archive rather than the hot store this is empty: the archived object carries the document, not the timestamps of the row it was pruned from.",
+            "type": "string"
+          },
           "version": {
             "description": "Version that was returned.",
             "type": "integer"
@@ -811,6 +854,56 @@
             "description": "Types that have been defined in the schema.",
             "items": {
               "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDocumentVersionsRequest": {
+        "properties": {
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves generated but unsigned rendition URLs.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves documents without any rendition links.",
+            "type": "boolean"
+          },
+          "load_documents": {
+            "description": "LoadDocuments is implied - this RPC exists to load documents - and is only here so that a caller asking for a subset can say it does not also want the whole document. It defaults to true when no subset applies.",
+            "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind.",
+            "type": "object"
+          },
+          "subset": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.Subsets"
+            },
+            "description": "Subset returns extracted parts of each document instead of the document, keyed by the document types the expressions apply to.",
+            "type": "object"
+          },
+          "versions": {
+            "description": "Versions to load. At least one, and the surplus beyond what one response will load comes back deferred.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.DocumentVersionRef"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDocumentVersionsResponse": {
+        "properties": {
+          "versions": {
+            "description": "Versions in the order they were requested.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.LoadedDocumentVersion"
             },
             "type": "array"
           }
@@ -1006,6 +1099,10 @@
       },
       "elephant.distribution.Hit": {
         "properties": {
+          "deferred": {
+            "description": "Deferred is set when load_documents or subset was requested and this hit's document was not loaded because the response had reached its loading bound - a hit whose document has aged out of the hot store is an archive read, and a page of them would make the query's response time a function of how old the results are. Fetch it with Content.GetDocumentVersions.\n A hit with neither a document nor deferred set has no document to load: it was deleted or erased since it was indexed.",
+            "type": "boolean"
+          },
           "document": {
             "$ref": "#/components/schemas/newsdoc.Document"
           },
@@ -1016,8 +1113,16 @@
             "description": "Fields are the values of the requested fields, keyed by field name. Fields without a value for the document are absent.",
             "type": "object"
           },
+          "first_published": {
+            "description": "FirstPublished is when the document first became public, in the same form. Immutable, and what a backward-anchored type is partitioned and aged on.",
+            "type": "string"
+          },
           "id": {
             "description": "ID is the UUID of the document. Pass it to Content.GetDocument to fetch the document itself, or ask the query for it with load_documents.",
+            "type": "string"
+          },
+          "published_at": {
+            "description": "PublishedAt is when the indexed version of the document became public, in the canonical fixed-width RFC 3339 form (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision).\n It dates the projection that matched, which is not necessarily the document that was loaded: a document corrected since it was indexed is delivered as it stands now, and this is the version the hit was matched on. Empty for a hit out of an index that predates the field.",
             "type": "string"
           },
           "score": {
@@ -1340,6 +1445,168 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ListPlannedVersionsRequest": {
+        "properties": {
+          "after": {
+            "description": "After is a cursor from a previous response. Empty starts at the earliest end of the interval.\n Unlike the published day, this cursor sits on a mutable key: a rescheduled item moves, so it can cross a page boundary while a client pages an interval, and appear twice or not at all. Bounded and deliberate for a calendar - do not read exactness into it.",
+            "type": "string"
+          },
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves documents with generated but unsigned rendition URLs.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves documents without any rendition links.",
+            "type": "boolean"
+          },
+          "document_types": {
+            "description": "DocumentTypes to include. At least one.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "facets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.FacetValues"
+            },
+            "description": "Facets narrows the result to documents carrying the given values. See ListPublishedVersionsRequest.facets.",
+            "type": "object"
+          },
+          "from": {
+            "description": "From is the start of the interval on the planned date, inclusive, as an RFC 3339 timestamp with an offset. Required. See ListPublishedVersionsRequest.from for why this is an interval and not a day.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Limit is the maximum number of entries to return. Defaults to 50 and is capped at 200.",
+            "type": "integer"
+          },
+          "load_documents": {
+            "description": "LoadDocuments delivers the document with each entry.",
+            "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind.",
+            "type": "object"
+          },
+          "subset": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.Subsets"
+            },
+            "description": "Subset returns a subset of each document. Overrides load_documents for the types it names.",
+            "type": "object"
+          },
+          "to": {
+            "description": "To is the end of the interval, exclusive, as an RFC 3339 timestamp with an offset. Required.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListPlannedVersionsResponse": {
+        "properties": {
+          "inline_horizon": {
+            "description": "InlineHorizon is the oldest instant whose documents still come back with the response. See ListPublishedVersionsResponse.inline_horizon.",
+            "type": "string"
+          },
+          "items": {
+            "description": "Items are what is planned for the interval, earliest first. Current versions only, so superseded_at is always empty.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.PublishedVersion"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "Next is the cursor to pass as after for the next page, and empty at the end of the interval.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListPublishedVersionsRequest": {
+        "properties": {
+          "after": {
+            "description": "After is a cursor from a previous response. Empty starts at the newest end of the interval. Cursors are opaque and stay valid indefinitely: the sort key of an entry is its publication time, which never changes.",
+            "type": "string"
+          },
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning serves documents with generated but unsigned rendition URLs. See GetNewDocumentsRequest.disable_rendition_signing.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions serves documents without any rendition links. See GetNewDocumentsRequest.disable_renditions.",
+            "type": "boolean"
+          },
+          "document_types": {
+            "description": "DocumentTypes to include. At least one; several at a time is the normal shape, as a newsroom flow lists flashes, articles and editorial information together.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "facets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.FacetValues"
+            },
+            "description": "Facets narrows the result to versions carrying the given values, keyed by facet name. A version has to carry every named facet and every value within it. The extraction is per type and per version, so a version that carried a section when it was published matches even if a later version doesn't - which is right for a publication log: it was published in that section at that minute.",
+            "type": "object"
+          },
+          "from": {
+            "description": "From is the start of the interval, inclusive, as an RFC 3339 timestamp with an offset. Required.\n The server has no notion of a day: what a day is, in which timezone, and whether the boundary falls at midnight or at the start of a shift is the client's decision. The interval is normalised to UTC for the scan, so an offset is how a local day is expressed.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Limit is the maximum number of entries to return. Defaults to 50 and is capped at 200.",
+            "type": "integer"
+          },
+          "load_documents": {
+            "description": "LoadDocuments delivers the document with each entry. Unlike Search.Query, which loads the current version, this loads the version the entry is.",
+            "type": "boolean"
+          },
+          "renditions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
+            },
+            "description": "Renditions selects the rendition variants to generate per asset kind. See GetNewDocumentsRequest.renditions.",
+            "type": "object"
+          },
+          "subset": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.Subsets"
+            },
+            "description": "Subset returns a subset of each document as specified by a map of newsdoc value extractors keyed by the types they apply to. Overrides load_documents for the types it names.",
+            "type": "object"
+          },
+          "to": {
+            "description": "To is the end of the interval, exclusive, as an RFC 3339 timestamp with an offset. Required. The span is capped by the server; a wider interval is an invalid argument.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListPublishedVersionsResponse": {
+        "properties": {
+          "inline_horizon": {
+            "description": "InlineHorizon is the oldest instant whose documents still come back with the response, in the canonical fixed-width RFC 3339 form.\n It is not a limit on what the view can answer. Retention drops document bodies and keeps their bookkeeping, so any interval can be listed; what changes past this point is that every document has to be streamed in with GetDocumentVersions rather than delivered inline. A client uses it to decide how hard to prefetch.",
+            "type": "string"
+          },
+          "items": {
+            "description": "Items are the publication events of the interval, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.PublishedVersion"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "Next is the cursor to pass as after for the next page, and empty at the end of the interval.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.ListSubscriptionsRequest": {
         "properties": {
           "include_deactivated": {
@@ -1361,6 +1628,45 @@
               "$ref": "#/components/schemas/elephant.distribution.Subscription"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.LoadedDocumentVersion": {
+        "properties": {
+          "deferred": {
+            "description": "Deferred is set when this version was beyond the response's loading bound. Ask again - a client that re-requests what it did not get makes progress.",
+            "type": "boolean"
+          },
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
+          "first_published": {
+            "description": "FirstPublished is when the document first became public, same form.",
+            "type": "string"
+          },
+          "found": {
+            "description": "Found is false when the version is in neither the store nor the archive: erased, deleted, or never distributed. Don't ask again.",
+            "type": "boolean"
+          },
+          "published_at": {
+            "description": "PublishedAt is when this version became public, in the canonical fixed-width RFC 3339 form. Empty for a version served from the archive.",
+            "type": "string"
+          },
+          "subset": {
+            "description": "Subset is what the type's extractors collected from it.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ExtractedValues"
+            },
+            "type": "array"
+          },
+          "uuid": {
+            "description": "UUID of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version that was loaded. For a request that asked for version zero this is the version the document is currently at.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1630,6 +1936,54 @@
           "window_start": {
             "description": "WindowStart is the beginning of the evaluated window, RFC3339.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.PublishedVersion": {
+        "description": "PublishedVersion is one stored document version in a daily view.",
+        "properties": {
+          "anchor": {
+            "description": "Anchor is the date the document is planned for, in the same form: the resolved partition anchor of a forward-anchored type. Empty for types that carry no dates of their own. This is what ListPlannedVersions orders and filters on.",
+            "type": "string"
+          },
+          "deferred": {
+            "description": "Deferred is set when load_documents or subset was requested and this entry's document was not loaded because the response had reached its loading bound. Fetch it with Content.GetDocumentVersions, passing doc_uuid and version.\n An entry with neither a document nor deferred set has no document to load - it has been erased - so don't ask for it again.",
+            "type": "boolean"
+          },
+          "doc_uuid": {
+            "description": "DocUUID is the UUID of the document.",
+            "type": "string"
+          },
+          "document": {
+            "$ref": "#/components/schemas/newsdoc.Document"
+          },
+          "first_published": {
+            "description": "FirstPublished is when the document first became public, in the same form. Equal to published_at for a version that is the document's first.",
+            "type": "string"
+          },
+          "published_at": {
+            "description": "PublishedAt is when this version became public, in the canonical fixed-width RFC 3339 form (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision). This is what ListPublishedVersions orders and filters on.",
+            "type": "string"
+          },
+          "subset": {
+            "description": "Subset is what the document type's extractors collected from the delivered document, when the request named the type in subset.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.ExtractedValues"
+            },
+            "type": "array"
+          },
+          "superseded_at": {
+            "description": "SupersededAt is when a later version of the document was published, in the same form, and empty while this is the current version. A published-day view renders superseded entries as history: they are what was published at that minute, not what stands now.\n Always empty in ListPlannedVersions, which only returns current versions.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the document.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of the document this entry is, in the same numbering as DocumentEvent.version and Content.GetDocument.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2305,6 +2659,13 @@
             "description": "Embeddings enables semantic indexing of the document type: its documents are chunked and embedded, its indexes are created with a vector field, and it can be searched and subscribed to by vector. Independent of the anchor: a non-temporal type can be embedded, and a partitioned one can be left BM25-only.\n The vector field is set at index creation and cannot be added afterwards, so enabling this for a type that already has indexes takes a new index generation. Turning it off leaves the field in place, unwritten. It also needs a deployment with an embedding sidecar; without one the type is indexed BM25-only whatever this says.",
             "type": "boolean"
           },
+          "facet_expressions": {
+            "description": "FacetExpressions extract the values the daily views of Content.ListPublishedVersions and Content.ListPlannedVersions can narrow on. They are evaluated on the store path, per version, and the result is stored with the version - so a facet only narrows the versions that were written after it was configured, and adding one means backfilling what is already stored.\n Extraction is configuration rather than code because a facet is not in the same place in every type: a flash, an article and a planning item all reference their section differently.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.TypeFacetExpression"
+            },
+            "type": "array"
+          },
           "label_expressions": {
             "description": "LabelExpressions are used to extract labels from documents.",
             "items": {
@@ -2329,6 +2690,20 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TypeFacetExpression": {
+        "description": "TypeFacetExpression extracts one facet's values from a document.",
+        "properties": {
+          "expression": {
+            "description": "Expression is a newsdoc value extraction expression. It should yield document UUIDs rather than labels - a facet filter matches exactly, with no analysis or case folding, and the client resolves display names itself.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the facet the extracted values belong to. Several expressions can share a name, and their values are unioned.\n The vocabulary is deliberately small; \"section\" is the one facet the daily views are built for.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -3475,6 +3850,44 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Content/GetDocumentVersions": {
+      "post": {
+        "description": "GetDocumentVersions loads a batch of document versions. It is the batch form of GetDocument, and it is how a client streams in the documents a listing left deferred.\n Responses that carry documents bound how many they carry, because a document whose body has aged out of the hot store is an archive read each and loading a whole page of them would make the response time a function of how far back the caller browsed. Entries beyond that bound come back with deferred set and no document; pass their UUID and version here to fetch them, in whatever order and at whatever rate suits the client - typically what is on screen first, and the rest as the reader scrolls.\n The same bound applies here: ask for more than the server will load in one response and the surplus comes back deferred again, so a client that keeps requesting what it did not get makes progress rather than looping.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetDocumentVersionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetDocumentVersionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetDocumentVersions",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Content/GetImportStatus": {
       "post": {
         "description": "GetImportStatus returns the recorded state of an import job: where the load has got to, and what went wrong if it failed.\n Requires dist_admin.",
@@ -3583,6 +3996,82 @@
           }
         ],
         "summary": "ListImports",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Content/ListPlannedVersions": {
+      "post": {
+        "description": "ListPlannedVersions lists what is planned for an interval, earliest first: the current version of every document of the requested types whose resolved anchor date falls in it.\n Only current versions, deliberately. A planning item's revisions are working state rather than publications, and a calendar showing five revisions of one item is noise - so unlike ListPublishedVersions this never carries version history. An item rescheduled out of the interval leaves it entirely rather than staying behind under its old date.\n Intended for forward-anchored types: planning items and calendar entries.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListPlannedVersionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListPlannedVersionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListPlannedVersions",
+        "tags": [
+          "Content"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Content/ListPublishedVersions": {
+      "post": {
+        "description": "ListPublishedVersions lists the publication events of an interval, newest first: what was published, in the order it happened. Every stored version of every document of the requested types whose publication time falls in the interval, superseded ones included and marked as such, so that a correction sits at the minute it was made rather than under the document's latest version.\n This is the same log GetNewDocuments serves, read by publication time instead of by event ID. It is a range scan over the stored versions, not a search: the inputs are document types, an interval and facet values, the order is chronological, and there is no relevance, free-text or cross-type ranking to be had.\n Any interval can be listed, however old: retention drops document bodies and keeps the bookkeeping the listing is made of. Past inline_horizon the entries come back deferred and their documents are streamed in with GetDocumentVersions.\n Intended for backward-anchored types - articles, flashes, editorial information - where the question is what was published when. See ListPlannedVersions for the calendar view of forward-anchored types.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListPublishedVersionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListPublishedVersionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListPublishedVersions",
         "tags": [
           "Content"
         ]

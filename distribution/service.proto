@@ -209,6 +209,60 @@ service Content {
   //
   // Requires dist_admin.
   rpc CancelImport(CancelImportRequest) returns (CancelImportResponse);
+  // ListPublishedVersions lists the publication events of an interval,
+  // newest first: what was published, in the order it happened. Every
+  // stored version of every document of the requested types whose
+  // publication time falls in the interval, superseded ones included and
+  // marked as such, so that a correction sits at the minute it was made
+  // rather than under the document's latest version.
+  //
+  // This is the same log GetNewDocuments serves, read by publication time
+  // instead of by event ID. It is a range scan over the stored versions,
+  // not a search: the inputs are document types, an interval and facet
+  // values, the order is chronological, and there is no relevance,
+  // free-text or cross-type ranking to be had.
+  //
+  // Any interval can be listed, however old: retention drops document
+  // bodies and keeps the bookkeeping the listing is made of. Past
+  // inline_horizon the entries come back deferred and their documents are
+  // streamed in with GetDocumentVersions.
+  //
+  // Intended for backward-anchored types - articles, flashes, editorial
+  // information - where the question is what was published when. See
+  // ListPlannedVersions for the calendar view of forward-anchored types.
+  rpc ListPublishedVersions(ListPublishedVersionsRequest) returns (ListPublishedVersionsResponse);
+  // ListPlannedVersions lists what is planned for an interval, earliest
+  // first: the current version of every document of the requested types
+  // whose resolved anchor date falls in it.
+  //
+  // Only current versions, deliberately. A planning item's revisions are
+  // working state rather than publications, and a calendar showing five
+  // revisions of one item is noise - so unlike ListPublishedVersions this
+  // never carries version history. An item rescheduled out of the
+  // interval leaves it entirely rather than staying behind under its old
+  // date.
+  //
+  // Intended for forward-anchored types: planning items and calendar
+  // entries.
+  rpc ListPlannedVersions(ListPlannedVersionsRequest) returns (ListPlannedVersionsResponse);
+  // GetDocumentVersions loads a batch of document versions. It is the
+  // batch form of GetDocument, and it is how a client streams in the
+  // documents a listing left deferred.
+  //
+  // Responses that carry documents bound how many they carry, because a
+  // document whose body has aged out of the hot store is an archive read
+  // each and loading a whole page of them would make the response time a
+  // function of how far back the caller browsed. Entries beyond that
+  // bound come back with deferred set and no document; pass their UUID
+  // and version here to fetch them, in whatever order and at whatever
+  // rate suits the client - typically what is on screen first, and the
+  // rest as the reader scrolls.
+  //
+  // The same bound applies here: ask for more than the server will load
+  // in one response and the surplus comes back deferred again, so a
+  // client that keeps requesting what it did not get makes progress
+  // rather than looping.
+  rpc GetDocumentVersions(GetDocumentVersionsRequest) returns (GetDocumentVersionsResponse);
 }
 
 message GetNewDocumentsRequest {
@@ -284,6 +338,256 @@ message GetDocumentResponse {
   newsdoc.Document document = 1;
   // Version that was returned.
   int64 version = 2;
+  // PublishedAt is when the returned version became public, in the
+  // canonical fixed-width RFC 3339 form ("2006-01-02T15:04:05.000000Z",
+  // UTC, microsecond precision). For a version served from the archive
+  // rather than the hot store this is empty: the archived object carries
+  // the document, not the timestamps of the row it was pruned from.
+  string published_at = 3;
+  // FirstPublished is when the document first became public, in the same
+  // form. Immutable, and equal to published_at for a document that has
+  // only ever been published once. Empty for a document whose
+  // first-published record has been erased or was never written.
+  string first_published = 4;
+}
+
+// PublishedVersion is one stored document version in a daily view.
+message PublishedVersion {
+  // DocUUID is the UUID of the document.
+  string doc_uuid = 1;
+  // Version of the document this entry is, in the same numbering as
+  // DocumentEvent.version and Content.GetDocument.
+  int64 version = 2;
+  // Type of the document.
+  string type = 3;
+  // PublishedAt is when this version became public, in the canonical
+  // fixed-width RFC 3339 form ("2006-01-02T15:04:05.000000Z", UTC,
+  // microsecond precision). This is what ListPublishedVersions orders and
+  // filters on.
+  string published_at = 4;
+  // FirstPublished is when the document first became public, in the same
+  // form. Equal to published_at for a version that is the document's
+  // first.
+  string first_published = 5;
+  // SupersededAt is when a later version of the document was published,
+  // in the same form, and empty while this is the current version. A
+  // published-day view renders superseded entries as history: they are
+  // what was published at that minute, not what stands now.
+  //
+  // Always empty in ListPlannedVersions, which only returns current
+  // versions.
+  string superseded_at = 6;
+  // Anchor is the date the document is planned for, in the same form: the
+  // resolved partition anchor of a forward-anchored type. Empty for types
+  // that carry no dates of their own. This is what ListPlannedVersions
+  // orders and filters on.
+  string anchor = 7;
+  // Document is the full document, when the request asked for it with
+  // load_documents. It is this version of the document, rendered with the
+  // active configuration's renditions.
+  newsdoc.Document document = 8;
+  // Subset is what the document type's extractors collected from the
+  // delivered document, when the request named the type in subset.
+  repeated ExtractedValues subset = 9;
+  // Deferred is set when load_documents or subset was requested and this
+  // entry's document was not loaded because the response had reached its
+  // loading bound. Fetch it with Content.GetDocumentVersions, passing
+  // doc_uuid and version.
+  //
+  // An entry with neither a document nor deferred set has no document to
+  // load - it has been erased - so don't ask for it again.
+  bool deferred = 10;
+}
+
+// DocumentVersionRef identifies one version to load.
+message DocumentVersionRef {
+  // UUID of the document.
+  string uuid = 1;
+  // Version to load. Zero is the document's current version, as in
+  // GetDocument.
+  int64 version = 2;
+}
+
+message GetDocumentVersionsRequest {
+  // Versions to load. At least one, and the surplus beyond what one
+  // response will load comes back deferred.
+  repeated DocumentVersionRef versions = 1;
+  // Subset returns extracted parts of each document instead of the
+  // document, keyed by the document types the expressions apply to.
+  map<string, Subsets> subset = 2;
+  // LoadDocuments is implied - this RPC exists to load documents - and is
+  // only here so that a caller asking for a subset can say it does not
+  // also want the whole document. It defaults to true when no subset
+  // applies.
+  bool load_documents = 3;
+  // Renditions selects the rendition variants to generate per asset kind.
+  map<string, RenditionParameters> renditions = 4;
+  // DisableRenditions serves documents without any rendition links.
+  bool disable_renditions = 5;
+  // DisableRenditionSigning serves generated but unsigned rendition URLs.
+  bool disable_rendition_signing = 6;
+}
+
+message LoadedDocumentVersion {
+  // UUID of the document.
+  string uuid = 1;
+  // Version that was loaded. For a request that asked for version zero
+  // this is the version the document is currently at.
+  int64 version = 2;
+  // Document is the loaded document, absent when it was deferred or when
+  // there was nothing to load.
+  newsdoc.Document document = 3;
+  // Subset is what the type's extractors collected from it.
+  repeated ExtractedValues subset = 4;
+  // PublishedAt is when this version became public, in the canonical
+  // fixed-width RFC 3339 form. Empty for a version served from the
+  // archive.
+  string published_at = 5;
+  // FirstPublished is when the document first became public, same form.
+  string first_published = 6;
+  // Deferred is set when this version was beyond the response's loading
+  // bound. Ask again - a client that re-requests what it did not get
+  // makes progress.
+  bool deferred = 7;
+  // Found is false when the version is in neither the store nor the
+  // archive: erased, deleted, or never distributed. Don't ask again.
+  bool found = 8;
+}
+
+message GetDocumentVersionsResponse {
+  // Versions in the order they were requested.
+  repeated LoadedDocumentVersion versions = 1;
+}
+
+// FacetValues is the values a facet filter requires. A returned version
+// has to carry all of them, and a request with several facets has to
+// satisfy all of them - the filter is one containment test over the
+// stored facet values. Narrowing to either of two sections is therefore
+// two requests rather than one.
+message FacetValues {
+  // Values to match. These are document UUIDs, never labels: a section is
+  // a core/section document and the facet carries its UUID, so matching
+  // is exact and a human-readable name matches nothing at all.
+  repeated string values = 1;
+}
+
+message ListPublishedVersionsRequest {
+  // DocumentTypes to include. At least one; several at a time is the
+  // normal shape, as a newsroom flow lists flashes, articles and
+  // editorial information together.
+  repeated string document_types = 1;
+  // From is the start of the interval, inclusive, as an RFC 3339
+  // timestamp with an offset. Required.
+  //
+  // The server has no notion of a day: what a day is, in which timezone,
+  // and whether the boundary falls at midnight or at the start of a shift
+  // is the client's decision. The interval is normalised to UTC for the
+  // scan, so an offset is how a local day is expressed.
+  string from = 2;
+  // To is the end of the interval, exclusive, as an RFC 3339 timestamp
+  // with an offset. Required. The span is capped by the server; a wider
+  // interval is an invalid argument.
+  string to = 3;
+  // Facets narrows the result to versions carrying the given values,
+  // keyed by facet name. A version has to carry every named facet and
+  // every value within it. The extraction is per type and per version, so
+  // a version that carried a section when it was published matches even
+  // if a later version doesn't - which is right for a publication log: it
+  // was published in that section at that minute.
+  map<string, FacetValues> facets = 4;
+  // After is a cursor from a previous response. Empty starts at the newest
+  // end of the interval. Cursors are opaque and stay valid indefinitely:
+  // the sort key of an entry is its publication time, which never changes.
+  string after = 5;
+  // Limit is the maximum number of entries to return. Defaults to 50 and
+  // is capped at 200.
+  int32 limit = 6;
+  // LoadDocuments delivers the document with each entry. Unlike
+  // Search.Query, which loads the current version, this loads the version
+  // the entry is.
+  bool load_documents = 7;
+  // Subset returns a subset of each document as specified by a map of
+  // newsdoc value extractors keyed by the types they apply to. Overrides
+  // load_documents for the types it names.
+  map<string, Subsets> subset = 8;
+  // Renditions selects the rendition variants to generate per asset kind.
+  // See GetNewDocumentsRequest.renditions.
+  map<string, RenditionParameters> renditions = 9;
+  // DisableRenditions serves documents without any rendition links. See
+  // GetNewDocumentsRequest.disable_renditions.
+  bool disable_renditions = 10;
+  // DisableRenditionSigning serves documents with generated but unsigned
+  // rendition URLs. See
+  // GetNewDocumentsRequest.disable_rendition_signing.
+  bool disable_rendition_signing = 11;
+}
+
+message ListPublishedVersionsResponse {
+  // Items are the publication events of the interval, newest first.
+  repeated PublishedVersion items = 1;
+  // Next is the cursor to pass as after for the next page, and empty at
+  // the end of the interval.
+  string next = 2;
+  // InlineHorizon is the oldest instant whose documents still come back
+  // with the response, in the canonical fixed-width RFC 3339 form.
+  //
+  // It is not a limit on what the view can answer. Retention drops
+  // document bodies and keeps their bookkeeping, so any interval can be
+  // listed; what changes past this point is that every document has to be
+  // streamed in with GetDocumentVersions rather than delivered inline. A
+  // client uses it to decide how hard to prefetch.
+  string inline_horizon = 3;
+}
+
+message ListPlannedVersionsRequest {
+  // DocumentTypes to include. At least one.
+  repeated string document_types = 1;
+  // From is the start of the interval on the planned date, inclusive, as
+  // an RFC 3339 timestamp with an offset. Required. See
+  // ListPublishedVersionsRequest.from for why this is an interval and not
+  // a day.
+  string from = 2;
+  // To is the end of the interval, exclusive, as an RFC 3339 timestamp
+  // with an offset. Required.
+  string to = 3;
+  // Facets narrows the result to documents carrying the given values. See
+  // ListPublishedVersionsRequest.facets.
+  map<string, FacetValues> facets = 4;
+  // After is a cursor from a previous response. Empty starts at the
+  // earliest end of the interval.
+  //
+  // Unlike the published day, this cursor sits on a mutable key: a
+  // rescheduled item moves, so it can cross a page boundary while a
+  // client pages an interval, and appear twice or not at all. Bounded and
+  // deliberate for a calendar - do not read exactness into it.
+  string after = 5;
+  // Limit is the maximum number of entries to return. Defaults to 50 and
+  // is capped at 200.
+  int32 limit = 6;
+  // LoadDocuments delivers the document with each entry.
+  bool load_documents = 7;
+  // Subset returns a subset of each document. Overrides load_documents
+  // for the types it names.
+  map<string, Subsets> subset = 8;
+  // Renditions selects the rendition variants to generate per asset kind.
+  map<string, RenditionParameters> renditions = 9;
+  // DisableRenditions serves documents without any rendition links.
+  bool disable_renditions = 10;
+  // DisableRenditionSigning serves documents with generated but unsigned
+  // rendition URLs.
+  bool disable_rendition_signing = 11;
+}
+
+message ListPlannedVersionsResponse {
+  // Items are what is planned for the interval, earliest first. Current
+  // versions only, so superseded_at is always empty.
+  repeated PublishedVersion items = 1;
+  // Next is the cursor to pass as after for the next page, and empty at
+  // the end of the interval.
+  string next = 2;
+  // InlineHorizon is the oldest instant whose documents still come back
+  // with the response. See ListPublishedVersionsResponse.inline_horizon.
+  string inline_horizon = 3;
 }
 
 // ImportFile declares one file of an import upload.
@@ -528,6 +832,14 @@ message DocumentItem {
   newsdoc.Document document = 2;
   // Subset is the extracted subset of the document.
   repeated ExtractedValues subset = 3;
+  // Deferred is set when load_documents or subset was requested and this
+  // item's document was not loaded because the response had reached its
+  // loading bound. Fetch it with Content.GetDocumentVersions.
+  //
+  // An item with neither a document nor deferred set has no document to
+  // load: it is a tombstone, or the document has been deleted or erased.
+  // Don't ask for it again.
+  bool deferred = 4;
 }
 
 message ExtractedValues {
@@ -572,6 +884,15 @@ message DocumentEvent {
   // the hashed event payload. This is the publication date of the
   // content, and the timestamp the index anchors and ages documents on.
   string published_at = 6;
+  // FirstPublished is when the document first became public, in the same
+  // canonical fixed-width form. The event is about one version, and this
+  // is the per-document timestamp beside it: what a consumer groups and
+  // dates a document by, as opposed to the version. Equal to published_at
+  // for a document's first event, and unchanged by every event after it.
+  //
+  // Not part of the hashed event payload - it is a property of the
+  // document rather than of the event, read alongside it.
+  string first_published = 7;
 }
 
 message Schema {
@@ -788,6 +1109,32 @@ message TypeConfiguration {
   // sidecar; without one the type is indexed BM25-only whatever this
   // says.
   bool embeddings                              = 7;
+  // FacetExpressions extract the values the daily views of
+  // Content.ListPublishedVersions and Content.ListPlannedVersions can
+  // narrow on. They are evaluated on the store path, per version, and the
+  // result is stored with the version - so a facet only narrows the
+  // versions that were written after it was configured, and adding one
+  // means backfilling what is already stored.
+  //
+  // Extraction is configuration rather than code because a facet is not
+  // in the same place in every type: a flash, an article and a planning
+  // item all reference their section differently.
+  repeated TypeFacetExpression facet_expressions = 8;
+}
+
+// TypeFacetExpression extracts one facet's values from a document.
+message TypeFacetExpression {
+  // Name of the facet the extracted values belong to. Several
+  // expressions can share a name, and their values are unioned.
+  //
+  // The vocabulary is deliberately small; "section" is the one facet the
+  // daily views are built for.
+  string name       = 1;
+  // Expression is a newsdoc value extraction expression. It should yield
+  // document UUIDs rather than labels - a facet filter matches exactly,
+  // with no analysis or case folding, and the client resolves display
+  // names itself.
+  string expression = 2;
 }
 
 message TypeTimeExpression {

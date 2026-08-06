@@ -497,6 +497,29 @@ message Hit {
   // from, and zero when neither was requested or the document was no
   // longer there to load.
   int64 version = 6;
+  // PublishedAt is when the indexed version of the document became
+  // public, in the canonical fixed-width RFC 3339 form
+  // ("2006-01-02T15:04:05.000000Z", UTC, microsecond precision).
+  //
+  // It dates the projection that matched, which is not necessarily the
+  // document that was loaded: a document corrected since it was indexed
+  // is delivered as it stands now, and this is the version the hit was
+  // matched on. Empty for a hit out of an index that predates the field.
+  string published_at = 7;
+  // FirstPublished is when the document first became public, in the same
+  // form. Immutable, and what a backward-anchored type is partitioned and
+  // aged on.
+  string first_published = 8;
+  // Deferred is set when load_documents or subset was requested and this
+  // hit's document was not loaded because the response had reached its
+  // loading bound - a hit whose document has aged out of the hot store is
+  // an archive read, and a page of them would make the query's response
+  // time a function of how old the results are. Fetch it with
+  // Content.GetDocumentVersions.
+  //
+  // A hit with neither a document nor deferred set has no document to
+  // load: it was deleted or erased since it was indexed.
+  bool deferred = 9;
 }
 
 // StringValues is the value of a flat index field. All field values are
