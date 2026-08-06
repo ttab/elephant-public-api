@@ -830,8 +830,11 @@ message GetSyncStatusResponse {
   // Position is the repository eventlog ID that the sync worker has
   // processed up to.
   int64 position    = 3;
-  // CaughtUp is true if the sync worker had caught up with the head of
-  // the repository eventlog when it last stored its position.
+  // CaughtUp is true once the sync worker has replayed the repository
+  // eventlog up to the head it had when the replay started. It does not
+  // go back to false if the worker later falls behind: it reports that
+  // the walk through history is done, not the current lag. Compare
+  // Position against the repository eventlog head for that.
   bool caught_up    = 4;
 }
 

@@ -3562,8 +3562,11 @@ type GetSyncStatusResponse struct {
 	// Position is the repository eventlog ID that the sync worker has
 	// processed up to.
 	Position int64 `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
-	// CaughtUp is true if the sync worker had caught up with the head of
-	// the repository eventlog when it last stored its position.
+	// CaughtUp is true once the sync worker has replayed the repository
+	// eventlog up to the head it had when the replay started. It does not
+	// go back to false if the worker later falls behind: it reports that
+	// the walk through history is done, not the current lag. Compare
+	// Position against the repository eventlog head for that.
 	CaughtUp      bool `protobuf:"varint,4,opt,name=caught_up,json=caughtUp,proto3" json:"caught_up,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
