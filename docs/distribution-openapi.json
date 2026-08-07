@@ -3118,7 +3118,7 @@
   },
   "info": {
     "title": "distribution API",
-    "version": "v0.0.7"
+    "version": "v0.0.8"
   },
   "openapi": "3.0.0",
   "paths": {
