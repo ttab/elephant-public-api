@@ -148,6 +148,13 @@
             },
             "type": "array"
           },
+          "fields": {
+            "description": "Fields to return with each top hit, named as flat index fields (e.g. \"document.rel.section.uuid\"), as in Search.Query. Only the top hits carry them - they are for reading the results, and the rest of the response is counts.\n The title is returned whether or not it is selected, so eyeballing the top hits needs nothing here; this is for the other things that say what a document is.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "floor": {
             "description": "Floor is the similarity below which documents are not scored at all, which bounds the work the call does. Documents below it are counted as non-matches at every rung of the ladder, so a floor above a candidate threshold would understate its volume and is an invalid argument. Absent uses a server-chosen floor.",
             "type": "number"
@@ -230,6 +237,13 @@
       "elephant.distribution.CalibrationHit": {
         "description": "CalibrationHit is one of the documents a calibration scored highest.",
         "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.StringValues"
+            },
+            "description": "Fields are the values the request's field selection asked for. The title is not among them unless the selection named it too.",
+            "type": "object"
+          },
           "first_published": {
             "description": "FirstPublished is when the document was first published, RFC3339.",
             "type": "string"
@@ -241,6 +255,10 @@
           "similarity": {
             "description": "Similarity the document scored, i.e. the highest similarity any of the calibrated members reached against any of its chunks.",
             "type": "number"
+          },
+          "title": {
+            "description": "Title of the document, always returned. Choosing a threshold means reading down the top hits until they stop being about what the clause is about, and a list of UUIDs cannot be read that way.\n Empty for a document the index holds no title for, which is not the same as a document that isn't there.",
+            "type": "string"
           },
           "type": {
             "description": "Type of the document.",
@@ -1919,12 +1937,23 @@
       "elephant.distribution.PreviewMatch": {
         "description": "PreviewMatch is a document that a previewed subscription would have matched. It is the match log entry as it would have looked, minus the event: a preview runs against the indexed documents of the window, not against the events that produced them.",
         "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.StringValues"
+            },
+            "description": "Fields are the values the request's field selection asked for. The title is not among them unless the selection named it too.",
+            "type": "object"
+          },
           "first_published": {
             "description": "FirstPublished is when the document was first published, RFC3339. This is what max_age_seconds is evaluated against.",
             "type": "string"
           },
           "provenance": {
             "$ref": "#/components/schemas/elephant.distribution.MatchProvenance"
+          },
+          "title": {
+            "description": "Title of the document, always returned. A dry run is read to decide whether the matches are the right ones, and that judgement is made on what the documents are, not on their identifiers.\n Empty for a document the index holds no title for.",
+            "type": "string"
           },
           "type": {
             "description": "Type of the document.",
@@ -1939,6 +1968,13 @@
       },
       "elephant.distribution.PreviewSubscriptionRequest": {
         "properties": {
+          "fields": {
+            "description": "Fields to return with each match, named as flat index fields (e.g. \"document.rel.section.uuid\"), as in Search.Query. The title is returned whether or not it is selected.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "size": {
             "description": "Size is the maximum number of matches to return, most recent first. Defaults to 50 and is capped by the server. The total is reported separately, so a preview that returns the first page still says how much the subscription would have fired.",
             "type": "integer"

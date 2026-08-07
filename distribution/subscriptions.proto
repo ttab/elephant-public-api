@@ -493,6 +493,15 @@ message CalibrateVectorClauseRequest {
   // candidate threshold would understate its volume and is an invalid
   // argument. Absent uses a server-chosen floor.
   optional float floor = 7;
+  // Fields to return with each top hit, named as flat index fields (e.g.
+  // "document.rel.section.uuid"), as in Search.Query. Only the top hits
+  // carry them - they are for reading the results, and the rest of the
+  // response is counts.
+  //
+  // The title is returned whether or not it is selected, so eyeballing
+  // the top hits needs nothing here; this is for the other things that
+  // say what a document is.
+  repeated string fields = 8;
 }
 
 message CalibrateVectorClauseResponse {
@@ -550,6 +559,16 @@ message CalibrationHit {
   // MemberIndex is the position in the calibrated members of the member
   // that scored highest against this document.
   int64 member_index = 5;
+  // Title of the document, always returned. Choosing a threshold means
+  // reading down the top hits until they stop being about what the
+  // clause is about, and a list of UUIDs cannot be read that way.
+  //
+  // Empty for a document the index holds no title for, which is not the
+  // same as a document that isn't there.
+  string title = 6;
+  // Fields are the values the request's field selection asked for. The
+  // title is not among them unless the selection named it too.
+  map<string, StringValues> fields = 7;
 }
 
 // ThresholdEstimate is what one candidate threshold would have cost in
@@ -580,6 +599,10 @@ message PreviewSubscriptionRequest {
   // separately, so a preview that returns the first page still says how
   // much the subscription would have fired.
   int64 size = 3;
+  // Fields to return with each match, named as flat index fields (e.g.
+  // "document.rel.section.uuid"), as in Search.Query. The title is
+  // returned whether or not it is selected.
+  repeated string fields = 4;
 }
 
 message PreviewSubscriptionResponse {
@@ -617,4 +640,13 @@ message PreviewMatch {
   // members of a negated clause report how close the document came to
   // being excluded.
   MatchProvenance provenance = 4;
+  // Title of the document, always returned. A dry run is read to decide
+  // whether the matches are the right ones, and that judgement is made
+  // on what the documents are, not on their identifiers.
+  //
+  // Empty for a document the index holds no title for.
+  string title = 5;
+  // Fields are the values the request's field selection asked for. The
+  // title is not among them unless the selection named it too.
+  map<string, StringValues> fields = 6;
 }
