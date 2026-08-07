@@ -145,6 +145,229 @@ message SubscriptionSpec {
   // alert-style subscriptions: an update to a years-old article is a
   // fresh event and would otherwise fire the alert.
   int64 max_age_seconds = 6;
+  // Rules is the delivery matching method: a tree of conditions over the
+  // delivery fields extracted from a document when it was stored,
+  // evaluated in this process with no index involved. Setting it beside
+  // query or vector_clauses is an invalid argument - a subscription is
+  // one method, and the method selects the evaluation environment, the
+  // storage and the worker that reads it.
+  //
+  // notify_once, max_age_seconds and keep_alive_seconds are refused
+  // beside it, each for its own reason; see the errors they raise.
+  RuleSet rules = 7;
+  // Class is derived from which method is set, by the server, on read.
+  // It exists for logs, metrics labels and clients that want to switch
+  // on it without probing the fields - it is never stored and never an
+  // input. A value sent in a request is ignored rather than refused,
+  // because a client round-tripping a subscription it read is doing the
+  // obvious thing.
+  SubscriptionClass class = 8;
+  // DeliveryTags are applied to the payload of every delivery this
+  // subscription admits, unioned over the subscriptions that admitted
+  // it. A property of the rule set rather than of the tree: customers
+  // route on them in their own ingest, and a delivery that no rule
+  // admitted - a correction to a document the destination has had
+  // before - carries none, because there is no rule to take them from.
+  //
+  // Delivery subscriptions only.
+  repeated string delivery_tags = 9;
+}
+
+// SubscriptionClass is which matching method a subscription carries, and
+// therefore which worker evaluates it and which storage holds it. It is
+// derived from the spec, never stored: there is no column that can
+// disagree with the branch.
+enum SubscriptionClass {
+  // A query, vector clauses, or both. Evaluated by the indexer against
+  // the index projection.
+  SUBSCRIPTION_CLASS_NOTIFICATION = 0;
+  // A rule tree. Evaluated by the delivery matcher against stored
+  // delivery fields, in Postgres, with no index involved.
+  SUBSCRIPTION_CLASS_DELIVERY = 1;
+}
+
+// RuleSet is a delivery subscription's matching method: the tree the
+// server evaluates, plus whatever the editor needs to draw it again.
+message RuleSet {
+  // Tree is what matches. Everything the server does with a rule set is
+  // done with this.
+  RuleTree tree = 1;
+  // EditorState is whatever the editor needs to reconstruct its own view
+  // - block coordinates, collapsed groups, comments. Stored and returned
+  // verbatim. The server never parses it, never validates it and never
+  // derives behaviour from it: the tree is what matches.
+  //
+  // Tree and editor state can therefore disagree if a client writes one
+  // without the other. That is the accepted cost of keeping the model in
+  // protobuf rather than in the editor's serialization format.
+  bytes editor_state = 2;
+  // EditorVersion lets a client detect a tree written by a newer editor,
+  // or by a caller that is not the editor at all, and fall back to a
+  // read-only rendering generated from the tree.
+  string editor_version = 3;
+}
+
+message RuleTree {
+  // Root is the condition a document must satisfy. Absent matches
+  // nothing - an empty rule set is not "deliver everything", because the
+  // failure mode of the other reading is delivering the entire wire to a
+  // customer.
+  Rule root = 1;
+}
+
+// Rule is one node of the tree: a group of other rules, or a condition
+// over one delivery field.
+message Rule {
+  oneof condition {
+    MatchGroup group      = 1;
+    FieldCondition field  = 2;
+    RangeCondition range  = 3;
+    GeoCondition geo      = 4;
+    TextCondition text    = 5;
+    VectorCondition vector = 6;
+  }
+  // Id is stable across edits and is what provenance reports, so a match
+  // can say which condition admitted it. Assigned by the editor; the
+  // server stores and echoes it and derives nothing from it.
+  string id = 20;
+}
+
+// MatchGroup combines rules. Negation lives here and nowhere else: a
+// negated leaf is a negated group of one, which is more typing in the
+// editor and one fewer place for the meaning of "not" to differ.
+message MatchGroup {
+  MatchRequirement requirement = 1;
+  // Negate inverts the group's result, after the requirement is applied.
+  bool negate = 2;
+  // Rules must be non-empty. An empty group is rejected at write time
+  // rather than given a meaning: ALL of nothing is true, ANY of nothing
+  // is false, and negation flips both, so every reading is defensible
+  // and three of the four are a customer surprise.
+  repeated Rule rules = 3;
+}
+
+// MatchRequirement is how a MatchGroup combines the rules it holds.
+// Declared at file level rather than nested in the group because the
+// OpenAPI renderer only registers file-level enums, and a nested one
+// fails the specification generation outright.
+enum MatchRequirement {
+  // Every rule in the group must be satisfied.
+  MATCH_REQUIREMENT_ALL = 0;
+  // At least one rule in the group must be satisfied.
+  MATCH_REQUIREMENT_ANY = 1;
+}
+
+// FieldCondition matches a keyword delivery field against a set of
+// values. A field the document does not carry is a no-match, never an
+// error: absence is a state the language has a meaning for.
+message FieldCondition {
+  // Field is a delivery field name from GetDeliveryFields. It must be
+  // declared by the active configuration generation with kind "keyword",
+  // or the subscription is refused.
+  string field = 1;
+  // Values must be non-empty, for the same reason a group must be.
+  repeated string values = 2;
+  FieldMatch match = 3;
+}
+
+// FieldMatch is how a FieldCondition compares its values against the
+// values the document carries. Declared at file level rather than nested
+// in the condition because the OpenAPI renderer only registers
+// file-level enums, and a nested one fails the specification generation
+// outright.
+enum FieldMatch {
+  // The document carries at least one of the values.
+  FIELD_MATCH_ANY_OF = 0;
+  // The document carries all of the values.
+  FIELD_MATCH_ALL_OF = 1;
+}
+
+// RangeCondition matches a number delivery field against a closed
+// interval. Both bounds are optional and both are inclusive; a condition
+// with neither bound matches any document that carries the field at all.
+message RangeCondition {
+  // Field must be declared with kind "number".
+  string field = 1;
+  // From is the inclusive lower bound. Unset means unbounded below -
+  // which is why it is optional rather than defaulted: a zero lower
+  // bound and no lower bound are different filters, and on a newsvalue
+  // they are very different filters.
+  optional double from = 2;
+  // To is the inclusive upper bound. Unset means unbounded above.
+  optional double to = 3;
+}
+
+// GeoCondition matches a geo delivery field against a circle. The field
+// is required: every condition names a registry field, and a document can
+// carry coordinates in more than one place.
+message GeoCondition {
+  // Field must be declared with kind "geo".
+  string field = 1;
+  // Latitude of the circle's centre, in decimal degrees.
+  double latitude = 2;
+  // Longitude of the circle's centre, in decimal degrees.
+  double longitude = 3;
+  // DistanceKm is the radius in kilometres. The condition is satisfied
+  // when any of the field's points is within it, measured as a
+  // great-circle distance on a spherical earth.
+  double distance_km = 4;
+}
+
+// TextCondition matches a text delivery field. It is UNANALYZED: a
+// substring or prefix test over the text that was extracted when the
+// document was stored, with no tokenizer, no stemming and no stopword
+// list anywhere near it, and it is that in every subscription that can
+// hold one, because the tree is delivery-only.
+//
+// The mode is named CONTAINS rather than MATCH for exactly that reason:
+// MATCH would invite the assumption that it means what OpenSearch's match
+// means, which it cannot - there is no analyzer without an index. A
+// subscription that wants analyzed semantics is a notification
+// subscription and says so with a query.
+//
+// Comparison is case-insensitive under Unicode simple case folding, on
+// NFC-normalised text, on both sides.
+message TextCondition {
+  // Field must be declared with kind "text".
+  string field = 1;
+  // Value to look for. Empty is an invalid argument.
+  string value = 2;
+  TextMatchMode mode = 3;
+}
+
+// TextMatchMode is how a TextCondition looks for its value in the field.
+// Declared at file level rather than nested in the condition because the
+// OpenAPI renderer only registers file-level enums, and a nested one
+// fails the specification generation outright.
+enum TextMatchMode {
+  // The value occurs anywhere in the field.
+  TEXT_MATCH_MODE_CONTAINS = 0;
+  // The value occurs delimited by non-letter, non-digit boundaries -
+  // the closest an unanalyzed test gets to a phrase, and still not
+  // what an index means by one.
+  TEXT_MATCH_MODE_PHRASE = 1;
+  // The field starts with the value.
+  TEXT_MATCH_MODE_PREFIX = 2;
+}
+
+// VectorCondition is the semantic extension, and it is REFUSED at write
+// time. Chunk vectors are produced by the indexer and stored in
+// OpenSearch, so a delivery subscription that needed them would depend on
+// the index - which is the one thing the two-class split exists to
+// prevent. It is declared rather than omitted because this is where
+// semantic delivery rules will go once embedding moves to the store path,
+// and reserving the field number and the editor block now is free.
+message VectorCondition {
+  oneof source {
+    string text                 = 1;
+    ExemplarDocuments exemplars = 2;
+    RawVector vector            = 3;
+  }
+  // Required. Model-dependent, not portable, recalibrate rather than
+  // copy - see VectorClauseMember.min_similarity.
+  optional float min_similarity = 4;
+  // Model is set by the server on read.
+  string model = 5;
 }
 
 // VectorClause is one semantic condition of a subscription. Its members
@@ -273,6 +496,46 @@ message Subscription {
   string deactivated_at = 10;
   // Spec is the definition of the subscription.
   SubscriptionSpec spec = 11;
+  // FromEventID is the distribution eventlog position the subscription
+  // starts at: the log head when it was created. Matching starts
+  // strictly above it, so a subscription never sees an event that was
+  // already in the log when it was registered. Assigned by the server -
+  // a client-chosen start position is a catch-up operation, not a
+  // creation parameter.
+  int64 from_event_id = 12;
+  // EnrolledAtEventID is the eventlog position at which the matcher
+  // first evaluated this subscription. UNSET means it has not picked the
+  // subscription up yet, which is a state worth being able to see: it is
+  // the difference between "nothing has matched" and "nothing has looked
+  // yet". A subscription whose from_event_id is below the matcher's
+  // cursor is enrolled by replaying the events in between, so unset does
+  // not last longer than one pass unless the replay is still running.
+  //
+  // Optional rather than a plain int64 because zero is a real position:
+  // a subscription created against an empty log and enrolled on the
+  // matcher's first pass is enrolled at zero, and a presence-less field
+  // would report that as "not picked up yet" for ever. This mirrors the
+  // NULL the database column uses for the same distinction.
+  //
+  // Delivery subscriptions only.
+  optional int64 enrolled_at_event_id = 13;
+  // Error is set when the running server cannot evaluate the
+  // subscription - a rule tree it cannot parse, which is what a server
+  // rollback past the editor that wrote it looks like. The subscription
+  // is excluded from matching for as long as this is set, loudly rather
+  // than silently: an empty delivery that looks healthy is the failure
+  // this whole model is built to avoid. Empty when the subscription is
+  // fine.
+  //
+  // Delivery subscriptions only.
+  string error = 14;
+  // SuspendedAt is when an administrator suspended the organisation's
+  // subscriptions, RFC3339. A suspended subscription matches nothing and
+  // its destinations are given nothing, including corrections to
+  // documents they already hold. Empty on an ordinary subscription.
+  //
+  // Delivery subscriptions only.
+  string suspended_at = 15;
 }
 
 message CreateSubscriptionRequest {
@@ -441,6 +704,10 @@ message MatchProvenance {
   // Clauses are the vector clauses of the subscription, in the order they
   // are stored in, with the similarities they scored.
   repeated ClauseProvenance clauses = 2;
+  // RuleIDs are the Rule.id values of the conditions that admitted the
+  // document, on a delivery-class match. Empty on a notification match,
+  // where query_matched and clauses are the provenance.
+  repeated string rule_ids = 3;
 }
 
 // ClauseProvenance is the outcome of one vector clause.

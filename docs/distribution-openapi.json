@@ -704,6 +704,34 @@
         },
         "type": "object"
       },
+      "elephant.distribution.FieldCondition": {
+        "description": "FieldCondition matches a keyword delivery field against a set of values. A field the document does not carry is a no-match, never an error: absence is a state the language has a meaning for.",
+        "properties": {
+          "field": {
+            "description": "Field is a delivery field name from GetDeliveryFields. It must be declared by the active configuration generation with kind \"keyword\", or the subscription is refused.",
+            "type": "string"
+          },
+          "match": {
+            "$ref": "#/components/schemas/elephant.distribution.FieldMatch"
+          },
+          "values": {
+            "description": "Values must be non-empty, for the same reason a group must be.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.FieldMatch": {
+        "description": "FieldMatch is how a FieldCondition compares its values against the values the document carries. Declared at file level rather than nested in the condition because the OpenAPI renderer only registers file-level enums, and a nested one fails the specification generation outright.",
+        "enum": [
+          "FIELD_MATCH_ANY_OF",
+          "FIELD_MATCH_ALL_OF"
+        ],
+        "type": "string"
+      },
       "elephant.distribution.FinalizeImportUploadRequest": {
         "properties": {
           "expected_documents": {
@@ -753,6 +781,28 @@
           "low": {
             "description": "Low is the term length where 1 edit starts being allowed.",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GeoCondition": {
+        "description": "GeoCondition matches a geo delivery field against a circle. The field is required: every condition names a registry field, and a document can carry coordinates in more than one place.",
+        "properties": {
+          "distance_km": {
+            "description": "DistanceKm is the radius in kilometres. The condition is satisfied when any of the field's points is within it, measured as a great-circle distance on a spherical earth.",
+            "type": "number"
+          },
+          "field": {
+            "description": "Field must be declared with kind \"geo\".",
+            "type": "string"
+          },
+          "latitude": {
+            "description": "Latitude of the circle's centre, in decimal degrees.",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude of the circle's centre, in decimal degrees.",
+            "type": "number"
           }
         },
         "type": "object"
@@ -1814,6 +1864,26 @@
         "description": "MatchAllQuery matches every document. Useful as the base of a query that only filters, and for browsing a type by sort order.",
         "type": "object"
       },
+      "elephant.distribution.MatchGroup": {
+        "description": "MatchGroup combines rules. Negation lives here and nowhere else: a negated leaf is a negated group of one, which is more typing in the editor and one fewer place for the meaning of \"not\" to differ.",
+        "properties": {
+          "negate": {
+            "description": "Negate inverts the group's result, after the requirement is applied.",
+            "type": "boolean"
+          },
+          "requirement": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchRequirement"
+          },
+          "rules": {
+            "description": "Rules must be non-empty. An empty group is rejected at write time rather than given a meaning: ALL of nothing is true, ANY of nothing is false, and negation flips both, so every reading is defensible and three of the four are a customer surprise.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.Rule"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.MatchPhraseQuery": {
         "description": "MatchPhraseQuery matches analysed text where the terms occur in the given order, next to each other.",
         "properties": {
@@ -1841,6 +1911,13 @@
           "query_matched": {
             "description": "QueryMatched is whether the query part of the subscription matched. False when the subscription has no query part.",
             "type": "boolean"
+          },
+          "rule_ids": {
+            "description": "RuleIDs are the Rule.id values of the conditions that admitted the document, on a delivery-class match. Empty on a notification match, where query_matched and clauses are the provenance.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -1862,6 +1939,14 @@
           }
         },
         "type": "object"
+      },
+      "elephant.distribution.MatchRequirement": {
+        "description": "MatchRequirement is how a MatchGroup combines the rules it holds. Declared at file level rather than nested in the group because the OpenAPI renderer only registers file-level enums, and a nested one fails the specification generation outright.",
+        "enum": [
+          "MATCH_REQUIREMENT_ALL",
+          "MATCH_REQUIREMENT_ANY"
+        ],
+        "type": "string"
       },
       "elephant.distribution.MemberProvenance": {
         "description": "MemberProvenance is the similarity one clause member scored against the document.",
@@ -2247,6 +2332,24 @@
         },
         "type": "object"
       },
+      "elephant.distribution.RangeCondition": {
+        "description": "RangeCondition matches a number delivery field against a closed interval. Both bounds are optional and both are inclusive; a condition with neither bound matches any document that carries the field at all.",
+        "properties": {
+          "field": {
+            "description": "Field must be declared with kind \"number\".",
+            "type": "string"
+          },
+          "from": {
+            "description": "From is the inclusive lower bound. Unset means unbounded below - which is why it is optional rather than defaulted: a zero lower bound and no lower bound are different filters, and on a newsvalue they are very different filters.",
+            "type": "number"
+          },
+          "to": {
+            "description": "To is the inclusive upper bound. Unset means unbounded above.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.RangeQuery": {
         "description": "RangeQuery matches a field against an interval. The bounds are written as strings and parsed according to the type of the field, so a date field takes RFC 3339 timestamps and a numeric field takes numbers. At least one bound must be set; combining a lower and an upper bound gives a closed interval.",
         "properties": {
@@ -2484,6 +2587,59 @@
         },
         "type": "object"
       },
+      "elephant.distribution.Rule": {
+        "description": "Rule is one node of the tree: a group of other rules, or a condition over one delivery field.",
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/elephant.distribution.FieldCondition"
+          },
+          "geo": {
+            "$ref": "#/components/schemas/elephant.distribution.GeoCondition"
+          },
+          "group": {
+            "$ref": "#/components/schemas/elephant.distribution.MatchGroup"
+          },
+          "id": {
+            "description": "Id is stable across edits and is what provenance reports, so a match can say which condition admitted it. Assigned by the editor; the server stores and echoes it and derives nothing from it.",
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/components/schemas/elephant.distribution.RangeCondition"
+          },
+          "text": {
+            "$ref": "#/components/schemas/elephant.distribution.TextCondition"
+          },
+          "vector": {
+            "$ref": "#/components/schemas/elephant.distribution.VectorCondition"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RuleSet": {
+        "description": "RuleSet is a delivery subscription's matching method: the tree the server evaluates, plus whatever the editor needs to draw it again.",
+        "properties": {
+          "editor_state": {
+            "description": "EditorState is whatever the editor needs to reconstruct its own view - block coordinates, collapsed groups, comments. Stored and returned verbatim. The server never parses it, never validates it and never derives behaviour from it: the tree is what matches.\n Tree and editor state can therefore disagree if a client writes one without the other. That is the accepted cost of keeping the model in protobuf rather than in the editor's serialization format.",
+            "type": "string"
+          },
+          "editor_version": {
+            "description": "EditorVersion lets a client detect a tree written by a newer editor, or by a caller that is not the editor at all, and fall back to a read-only rendering generated from the tree.",
+            "type": "string"
+          },
+          "tree": {
+            "$ref": "#/components/schemas/elephant.distribution.RuleTree"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RuleTree": {
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/elephant.distribution.Rule"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.Schema": {
         "properties": {
           "name": {
@@ -2603,9 +2759,21 @@
             "description": "DeactivatedAt is when the subscription stopped matching because its keep-alive ran out, RFC3339. Empty while it is active, and on a durable subscription, which never lapses. A deactivated subscription no longer costs anything at match time and is removed altogether once its match log has expired.",
             "type": "string"
           },
+          "enrolled_at_event_id": {
+            "description": "EnrolledAtEventID is the eventlog position at which the matcher first evaluated this subscription. UNSET means it has not picked the subscription up yet, which is a state worth being able to see: it is the difference between \"nothing has matched\" and \"nothing has looked yet\". A subscription whose from_event_id is below the matcher's cursor is enrolled by replaying the events in between, so unset does not last longer than one pass unless the replay is still running.\n Optional rather than a plain int64 because zero is a real position: a subscription created against an empty log and enrolled on the matcher's first pass is enrolled at zero, and a presence-less field would report that as \"not picked up yet\" for ever. This mirrors the NULL the database column uses for the same distinction.\n Delivery subscriptions only.",
+            "type": "integer"
+          },
+          "error": {
+            "description": "Error is set when the running server cannot evaluate the subscription - a rule tree it cannot parse, which is what a server rollback past the editor that wrote it looks like. The subscription is excluded from matching for as long as this is set, loudly rather than silently: an empty delivery that looks healthy is the failure this whole model is built to avoid. Empty when the subscription is fine.\n Delivery subscriptions only.",
+            "type": "string"
+          },
           "expires_at": {
             "description": "ExpiresAt is when the subscription is deactivated unless it is touched before then, RFC3339. Empty on a durable subscription.",
             "type": "string"
+          },
+          "from_event_id": {
+            "description": "FromEventID is the distribution eventlog position the subscription starts at: the log head when it was created. Matching starts strictly above it, so a subscription never sees an event that was already in the log when it was registered. Assigned by the server - a client-chosen start position is a catch-up operation, not a creation parameter.",
+            "type": "integer"
           },
           "id": {
             "description": "ID of the subscription, assigned by the server.",
@@ -2626,6 +2794,10 @@
           "spec": {
             "$ref": "#/components/schemas/elephant.distribution.SubscriptionSpec"
           },
+          "suspended_at": {
+            "description": "SuspendedAt is when an administrator suspended the organisation's subscriptions, RFC3339. A suspended subscription matches nothing and its destinations are given nothing, including corrections to documents they already hold. Empty on an ordinary subscription.\n Delivery subscriptions only.",
+            "type": "string"
+          },
           "touched_at": {
             "description": "TouchedAt is when the subscription was last touched, RFC3339. Empty on a durable subscription, which has no clock to reset.",
             "type": "string"
@@ -2636,6 +2808,14 @@
           }
         },
         "type": "object"
+      },
+      "elephant.distribution.SubscriptionClass": {
+        "description": "SubscriptionClass is which matching method a subscription carries, and therefore which worker evaluates it and which storage holds it. It is derived from the spec, never stored: there is no column that can disagree with the branch.",
+        "enum": [
+          "SUBSCRIPTION_CLASS_NOTIFICATION",
+          "SUBSCRIPTION_CLASS_DELIVERY"
+        ],
+        "type": "string"
       },
       "elephant.distribution.SubscriptionMatch": {
         "description": "SubscriptionMatch is one document event that matched a subscription. Matches are recorded once per (subscription, event) and delivery is at-least-once, so a client can see the same event twice after a restart; the event ID is what makes it safe to deduplicate.",
@@ -2681,6 +2861,16 @@
       "elephant.distribution.SubscriptionSpec": {
         "description": "SubscriptionSpec is the definition of a subscription: everything about it that the client decides. Ownership, expiry and timestamps are not part of it, they are assigned by the server and read back on Subscription.",
         "properties": {
+          "class": {
+            "$ref": "#/components/schemas/elephant.distribution.SubscriptionClass"
+          },
+          "delivery_tags": {
+            "description": "DeliveryTags are applied to the payload of every delivery this subscription admits, unioned over the subscriptions that admitted it. A property of the rule set rather than of the tree: customers route on them in their own ingest, and a delivery that no rule admitted - a correction to a document the destination has had before - carries none, because there is no rule to take them from.\n Delivery subscriptions only.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "document_types": {
             "description": "DocumentTypes to evaluate against. Required, at least one: a subscription always names the types it is about. A type that isn't indexed is an invalid argument.",
             "items": {
@@ -2702,6 +2892,9 @@
           },
           "query": {
             "$ref": "#/components/schemas/elephant.distribution.Query"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/elephant.distribution.RuleSet"
           },
           "vector_clauses": {
             "description": "VectorClauses are the semantic part of the subscription. All of them have to be satisfied, and they are ANDed with the query. An empty list means the subscription is the query alone.",
@@ -2763,6 +2956,32 @@
           }
         },
         "type": "object"
+      },
+      "elephant.distribution.TextCondition": {
+        "description": "TextCondition matches a text delivery field. It is UNANALYZED: a substring or prefix test over the text that was extracted when the document was stored, with no tokenizer, no stemming and no stopword list anywhere near it, and it is that in every subscription that can hold one, because the tree is delivery-only.\n The mode is named CONTAINS rather than MATCH for exactly that reason: MATCH would invite the assumption that it means what OpenSearch's match means, which it cannot - there is no analyzer without an index. A subscription that wants analyzed semantics is a notification subscription and says so with a query.\n Comparison is case-insensitive under Unicode simple case folding, on NFC-normalised text, on both sides.",
+        "properties": {
+          "field": {
+            "description": "Field must be declared with kind \"text\".",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/elephant.distribution.TextMatchMode"
+          },
+          "value": {
+            "description": "Value to look for. Empty is an invalid argument.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TextMatchMode": {
+        "description": "TextMatchMode is how a TextCondition looks for its value in the field. Declared at file level rather than nested in the condition because the OpenAPI renderer only registers file-level enums, and a nested one fails the specification generation outright.",
+        "enum": [
+          "TEXT_MATCH_MODE_CONTAINS",
+          "TEXT_MATCH_MODE_PHRASE",
+          "TEXT_MATCH_MODE_PREFIX"
+        ],
+        "type": "string"
       },
       "elephant.distribution.ThresholdEstimate": {
         "description": "ThresholdEstimate is what one candidate threshold would have cost in volume over the calibration window.",
@@ -2966,6 +3185,29 @@
           },
           "text": {
             "description": "Text to be close to, embedded server-side with the current model. The normal choice: a phrase or a paragraph describing the subject matter of the subscription.",
+            "type": "string"
+          },
+          "vector": {
+            "$ref": "#/components/schemas/elephant.distribution.RawVector"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.VectorCondition": {
+        "description": "VectorCondition is the semantic extension, and it is REFUSED at write time. Chunk vectors are produced by the indexer and stored in OpenSearch, so a delivery subscription that needed them would depend on the index - which is the one thing the two-class split exists to prevent. It is declared rather than omitted because this is where semantic delivery rules will go once embedding moves to the store path, and reserving the field number and the editor block now is free.",
+        "properties": {
+          "exemplars": {
+            "$ref": "#/components/schemas/elephant.distribution.ExemplarDocuments"
+          },
+          "min_similarity": {
+            "description": "Required. Model-dependent, not portable, recalibrate rather than copy - see VectorClauseMember.min_similarity.",
+            "type": "number"
+          },
+          "model": {
+            "description": "Model is set by the server on read.",
+            "type": "string"
+          },
+          "text": {
             "type": "string"
           },
           "vector": {
