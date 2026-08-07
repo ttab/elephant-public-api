@@ -1233,6 +1233,29 @@ message TypeConfiguration {
   // in the same place in every type: a flash, an article and a planning
   // item all reference their section differently.
   repeated TypeFacetExpression facet_expressions = 8;
+  // DeliveryFields declare this type's contribution to the deployment's
+  // delivery-field vocabulary: the stable public names a delivery rule
+  // may name, and how each one is read out of a document of this type.
+  //
+  // A name is one field deployment-wide. Several types declare it, each
+  // with its own expression, because a section is not in the same place
+  // in an article and in a planning item - but the kind and the
+  // description must agree, or the name means two things and a rule
+  // written against one of them silently under-delivers against the
+  // other. Disagreement is refused at registration.
+  //
+  // They are extracted on the store path, per version, into a table of
+  // their own. There is no backfill: a field added to the registry today
+  // is present on versions stored from its activation onward and absent
+  // from everything before it, which is exactly right for the matcher at
+  // the head of the log and is a boundary anything replaying history has
+  // to resolve for itself.
+  //
+  // The registry is capped - field count, per-field value count, and a
+  // per-row byte budget the declarations are checked against - because
+  // the extracted values are held in memory for every version in a
+  // matcher page while every candidate rule tree is evaluated.
+  repeated TypeDeliveryField delivery_fields     = 9;
 }
 
 // TypeFacetExpression extracts one facet's values from a document.
@@ -1248,6 +1271,35 @@ message TypeFacetExpression {
   // with no analysis or case folding, and the client resolves display
   // names itself.
   string expression = 2;
+}
+
+// TypeDeliveryField declares one delivery field and how to read it out of
+// a document of this type.
+message TypeDeliveryField {
+  // Name of the delivery field. This is the name a delivery rule uses,
+  // so it is a public identifier and outlives the projection: it must not
+  // be an index field name. Several types may declare the same name.
+  string name        = 1;
+  // Kind is one of "keyword", "number", "text" or "geo", and it decides
+  // which kind of condition may name the field: keyword for equality
+  // against a value set, number for ranges, text for substring and
+  // phrase matching, geo for a distance from a point.
+  //
+  // A string rather than an enum, as anchor is: the zero value has to be
+  // invalid, so that a declaration that forgot its kind is refused rather
+  // than silently accepted as a keyword.
+  //
+  // "geo" values are read as "latitude,longitude" in decimal degrees;
+  // "number" values are read as decimal numbers. A value that cannot be
+  // read as its kind is dropped from the stored row, not stored as text.
+  string kind        = 2;
+  // Expression is a newsdoc value extraction expression, the same
+  // language facet and time expressions are written in.
+  string expression  = 3;
+  // Description is the human-readable text an editor shows beside the
+  // field name. Optional, and where several types declare the same name
+  // the non-empty ones must agree.
+  string description = 4;
 }
 
 message TypeTimeExpression {

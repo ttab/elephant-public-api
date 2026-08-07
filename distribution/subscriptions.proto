@@ -55,6 +55,20 @@ service Subscriptions {
   // to poll for housekeeping without keeping abandoned subscriptions
   // alive.
   rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+  // GetDeliveryFields returns the delivery-field vocabulary of the active
+  // configuration generation: the names a rule may reference, what kind
+  // of condition each admits, and which document types declare it.
+  //
+  // The last of those is what an editor needs to warn with. A condition
+  // on a field only some of a subscription's document types declare is a
+  // no-match on the rest, silently, because an absent key is a no-match
+  // by definition - so a rule over {article, planning-item} naming a
+  // field only articles declare delivers half of what it looks like it
+  // delivers.
+  //
+  // The registry is read from Postgres and needs no index. Listing does
+  // not count as a touch on anything.
+  rpc GetDeliveryFields(GetDeliveryFieldsRequest) returns (GetDeliveryFieldsResponse);
   // TouchSubscription resets the keep-alive clock of a subscription
   // without reading anything else. Ordinary use does not need it -
   // PollMatches, GetSubscription and UpdateSubscription all count as
@@ -649,4 +663,31 @@ message PreviewMatch {
   // Fields are the values the request's field selection asked for. The
   // title is not among them unless the selection named it too.
   map<string, StringValues> fields = 6;
+}
+
+message GetDeliveryFieldsRequest {}
+
+message GetDeliveryFieldsResponse {
+  // Fields of the active generation, ordered by name.
+  repeated DeliveryField fields = 1;
+  // Generation is the configuration generation the vocabulary was read
+  // from. Every delivery_field row records the generation that produced
+  // it, so this is what a client compares against to tell whether what it
+  // is looking at is what produced the content it is looking at.
+  int64 generation = 2;
+}
+
+// DeliveryField is one entry in the vocabulary: the fold of every type's
+// declaration of the name.
+message DeliveryField {
+  string name = 1;
+  // Kind is "keyword", "number", "text" or "geo". Every declaring type
+  // agrees on it - disagreement is refused when the generation is
+  // registered.
+  string kind = 2;
+  // DocumentTypes are the types that declare the field, sorted. A
+  // document of any other type never carries it, so a condition naming
+  // this field is a no-match for those types.
+  repeated string document_types = 3;
+  string description = 4;
 }

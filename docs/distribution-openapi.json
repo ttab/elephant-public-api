@@ -483,6 +483,29 @@
       "elephant.distribution.DeleteSubscriptionResponse": {
         "type": "object"
       },
+      "elephant.distribution.DeliveryField": {
+        "description": "DeliveryField is one entry in the vocabulary: the fold of every type's declaration of the name.",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "document_types": {
+            "description": "DocumentTypes are the types that declare the field, sorted. A document of any other type never carries it, so a condition naming this field is a no-match for those types.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "description": "Kind is \"keyword\", \"number\", \"text\" or \"geo\". Every declaring type agrees on it - disagreement is refused when the generation is registered.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.DocumentEvent": {
         "description": "DocumentEvent is one entry of the distribution eventlog, which is a transparency log: every entry is hashed over a canonical JSON payload, signed, and chained to its predecessor.\n The signed payload is exactly these nine fields, under these names: id, source, uuid (doc_uuid here), version, type, created_at, published_at, doc_hash and parent. Verifying an entry is: build that object, serialize it as RFC 8785 (JCS) canonical JSON, sha256 it, and check the digest and the ECDSA signature against the key the signature names, fetched from the unauthenticated JWKS at GET /signing-keys. Nothing else on this message is signed - event_type is derived from version, and first_published is a property of the document rather than of the event.\n The verification fields are only populated when the request asked for them; see GetNewDocumentsRequest.verification.",
         "properties": {
@@ -832,6 +855,25 @@
           "signature": {
             "description": "Signature covers the document body, for end-to-end verification.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDeliveryFieldsRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.GetDeliveryFieldsResponse": {
+        "properties": {
+          "fields": {
+            "description": "Fields of the active generation, ordered by name.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.DeliveryField"
+            },
+            "type": "array"
+          },
+          "generation": {
+            "description": "Generation is the configuration generation the vocabulary was read from. Every delivery_field row records the generation that produced it, so this is what a client compares against to tell whether what it is looking at is what produced the content it is looking at.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2768,6 +2810,13 @@
             "description": "Set to true if this is a collection of documents that are bounded (limited in size). Bounded collections can be fetched by type and language in one go.",
             "type": "boolean"
           },
+          "delivery_fields": {
+            "description": "DeliveryFields declare this type's contribution to the deployment's delivery-field vocabulary: the stable public names a delivery rule may name, and how each one is read out of a document of this type.\n A name is one field deployment-wide. Several types declare it, each with its own expression, because a section is not in the same place in an article and in a planning item - but the kind and the description must agree, or the name means two things and a rule written against one of them silently under-delivers against the other. Disagreement is refused at registration.\n They are extracted on the store path, per version, into a table of their own. There is no backfill: a field added to the registry today is present on versions stored from its activation onward and absent from everything before it, which is exactly right for the matcher at the head of the log and is a boundary anything replaying history has to resolve for itself.\n The registry is capped - field count, per-field value count, and a per-row byte budget the declarations are checked against - because the extracted values are held in memory for every version in a matcher page while every candidate rule tree is evaluated.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.TypeDeliveryField"
+            },
+            "type": "array"
+          },
           "embeddings": {
             "description": "Embeddings enables semantic indexing of the document type: its documents are chunked and embedded, its indexes are created with a vector field, and it can be searched and subscribed to by vector. Independent of the anchor: a non-temporal type can be embedded, and a partitioned one can be left BM25-only.\n The vector field is set at index creation and cannot be added afterwards, so enabling this for a type that already has indexes takes a new index generation. Turning it off leaves the field in place, unwritten. It also needs a deployment with an embedding sidecar; without one the type is indexed BM25-only whatever this says.",
             "type": "boolean"
@@ -2803,6 +2852,28 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.TypeDeliveryField": {
+        "description": "TypeDeliveryField declares one delivery field and how to read it out of a document of this type.",
+        "properties": {
+          "description": {
+            "description": "Description is the human-readable text an editor shows beside the field name. Optional, and where several types declare the same name the non-empty ones must agree.",
+            "type": "string"
+          },
+          "expression": {
+            "description": "Expression is a newsdoc value extraction expression, the same language facet and time expressions are written in.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Kind is one of \"keyword\", \"number\", \"text\" or \"geo\", and it decides which kind of condition may name the field: keyword for equality against a value set, number for ranges, text for substring and phrase matching, geo for a distance from a point.\n A string rather than an enum, as anchor is: the zero value has to be invalid, so that a declaration that forgot its kind is refused rather than silently accepted as a keyword.\n \"geo\" values are read as \"latitude,longitude\" in decimal degrees; \"number\" values are read as decimal numbers. A value that cannot be read as its kind is dropped from the stored row, not stored as text.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the delivery field. This is the name a delivery rule uses, so it is a public identifier and outlives the projection: it must not be an index field name. Several types may declare the same name.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -4413,6 +4484,44 @@
           }
         ],
         "summary": "DeleteSubscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Subscriptions/GetDeliveryFields": {
+      "post": {
+        "description": "GetDeliveryFields returns the delivery-field vocabulary of the active configuration generation: the names a rule may reference, what kind of condition each admits, and which document types declare it.\n The last of those is what an editor needs to warn with. A condition on a field only some of a subscription's document types declare is a no-match on the rest, silently, because an absent key is a no-match by definition - so a rule over {article, planning-item} naming a field only articles declare delivers half of what it looks like it delivers.\n The registry is read from Postgres and needs no index. Listing does not count as a touch on anything.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetDeliveryFieldsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetDeliveryFieldsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetDeliveryFields",
         "tags": [
           "Subscriptions"
         ]
