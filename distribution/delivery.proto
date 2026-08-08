@@ -1,0 +1,638 @@
+syntax = "proto3";
+
+package elephant.distribution;
+
+option go_package = "github.com/ttab/elephant-public-api/distribution";
+
+// Delivery is where a delivery subscription is wired to somewhere to
+// deliver to. A subscription says what; a destination says where and how
+// - transport, credentials and format - and the two are separate so that
+// one drop can be fed by several differently-tuned subscriptions, and so
+// that a subscription can be authored before anything is wired to a
+// transport.
+//
+// Ownership is checked when a subscription is attached and re-checked
+// every time the matcher writes a queue row: a subscription may only be
+// attached to a destination with the same owner. The owner is never taken
+// from the request - it is the organisation claim or the subject of the
+// credentials - and owner_tier picks which of the two, defaulting to the
+// organisation, exactly as it does on Subscriptions.
+//
+// Credentials are write-only. They are stored encrypted and there is no
+// call that returns them; a destination reports which kinds it holds and
+// when they were last written, and nothing else. Losing them is a
+// re-entry, not a recovery.
+//
+// Access requires the "dist_subscribe" scope, which is granted by
+// "dist_admin". The operator calls - SuspendSubscriptions,
+// ResumeSubscriptions, ResumeDestination, SkipDeliveryMatcher,
+// RotateDeliveryKeys and ListDeliveryOperations - require "dist_admin"
+// on its own: they decide that content will not be delivered, and that
+// is not a customer's decision to make about their own feed.
+service Delivery {
+  // CreateDestination registers a destination. It is created disabled
+  // unless the request says otherwise, because a destination with no
+  // credentials and no attached subscription is a destination being
+  // configured rather than one that is broken.
+  rpc CreateDestination(CreateDestinationRequest) returns (CreateDestinationResponse);
+  // UpdateDestination replaces the definition of a destination. The spec
+  // is written whole: fields left out of it are cleared, not kept.
+  // Credentials are not part of the spec and are not touched. Changing
+  // the transport, format or name template restarts the destination's
+  // worker, so an in-flight send completes and the next one uses the new
+  // definition.
+  rpc UpdateDestination(UpdateDestinationRequest) returns (UpdateDestinationResponse);
+  // GetDestination returns a destination as stored, with the status of
+  // its credentials but never their values.
+  rpc GetDestination(GetDestinationRequest) returns (GetDestinationResponse);
+  // ListDestinations lists the destinations the caller can see: the ones
+  // owned by the organisation of the caller, and the ones owned by the
+  // calling subject.
+  rpc ListDestinations(ListDestinationsRequest) returns (ListDestinationsResponse);
+  // DeleteDestination marks a destination deleted and wipes its
+  // credentials. It is not a row deletion: the inventory of what the
+  // destination was given outlives it, because that is the record an
+  // erasure request is answered from, and there is no transport left to
+  // withdraw with once the credentials are gone.
+  rpc DeleteDestination(DeleteDestinationRequest) returns (DeleteDestinationResponse);
+  // SetDestinationCredentials writes one kind of credential for a
+  // destination, replacing whatever was there. There is no call that
+  // reads them back.
+  rpc SetDestinationCredentials(SetDestinationCredentialsRequest) returns (SetDestinationCredentialsResponse);
+  // AttachSubscription attaches a delivery subscription to a
+  // destination. Both must have the same owner. The attachment records
+  // the log position it was made at, and everything above that position
+  // that the subscription matches is delivered - including the events
+  // between the attachment and the matcher noticing it, which are
+  // replayed.
+  rpc AttachSubscription(AttachSubscriptionRequest) returns (AttachSubscriptionResponse);
+  // DetachSubscription removes an attachment. Queue rows already written
+  // for the destination are still delivered: they are the destination's,
+  // not the subscription's, which is also why a document the destination
+  // has had keeps getting its corrections until the sticky window runs
+  // out.
+  rpc DetachSubscription(DetachSubscriptionRequest) returns (DetachSubscriptionResponse);
+  // RewindSubscription replays a subscription from an earlier log
+  // position - "start me from Monday". It does not move the position the
+  // subscription started at, which stays as the record of where the feed
+  // began; it schedules a catch-up from the position given, which the
+  // matcher runs paged and resumably alongside its ordinary work.
+  //
+  // Refused below the retention horizon, naming it: below that the
+  // events and the extracted fields a rule would be evaluated against
+  // are both gone, so there is nothing to replay. Refused across the
+  // introduction of a field the rules reference, naming the boundary,
+  // unless acknowledge_blind_window is set - below that boundary the
+  // field is absent from every row and the rule reads as a no-match
+  // rather than as a missing input.
+  rpc RewindSubscription(RewindSubscriptionRequest) returns (RewindSubscriptionResponse);
+  // GetCatchupStatus reports how a subscription's running catch-up is
+  // going: where it started, where it has got to, and - when the caller
+  // acknowledged a blind window - the boundary they accepted and how
+  // many events have actually been evaluated below it.
+  //
+  // The last number is why this call exists. Acknowledging a blind
+  // window accepts a shortfall, and without a reader for it the
+  // acknowledgement would be a one-way switch: accepted, and never
+  // measured.
+  rpc GetCatchupStatus(GetCatchupStatusRequest) returns (GetCatchupStatusResponse);
+  // ResumeDestination restarts a destination whose queue grew past its
+  // depth or age limit and stopped. The operator chooses what happens to
+  // what accumulated: deliver it, or skip up to a position. A skip
+  // stamps the rows skipped rather than deleting them, so what was not
+  // sent stays a query.
+  //
+  // Only a stalled destination can be resumed. On a running one a skip
+  // would stamp rows the worker is in the middle of sending, so a resume
+  // of a destination that is not stalled is refused with its state
+  // named.
+  //
+  // A resume also rebaselines the queue limits at the current end of the
+  // queue. Without that a drain cannot drain: the limit is checked
+  // before the first send of a pass, so a destination that stopped
+  // because its queue was too deep is still too deep the moment it
+  // restarts, and would stop again without delivering anything. What
+  // accumulated is delivered; the limits apply to what accumulates
+  // after.
+  rpc ResumeDestination(ResumeDestinationRequest) returns (ResumeDestinationResponse);
+  // SuspendSubscriptions stops delivery for an owner: every delivery
+  // subscription they own or one of their subjects created stops
+  // matching, and every destination they own stops sending. Rows already
+  // queued hold rather than drain, so a resume can still deliver them.
+  //
+  // It is not expiry and it is not credential revocation. A suspended
+  // owner's tokens carry whatever scopes the identity provider grants
+  // them, and cutting those is done there.
+  rpc SuspendSubscriptions(SuspendSubscriptionsRequest) returns (SuspendSubscriptionsResponse);
+  // ResumeSubscriptions lifts a suspension, from the position it was
+  // suspended at or from the head of the log. Resuming at the head
+  // leaves a gap, which is recorded rather than silent; resuming at the
+  // prior position replays the window, subject to the same two refusals
+  // RewindSubscription is subject to.
+  rpc ResumeSubscriptions(ResumeSubscriptionsRequest) returns (ResumeSubscriptionsResponse);
+  // SkipDeliveryMatcher moves the delivery matcher's cursor forward,
+  // deliberately, leaving a recorded gap in every delivery feed.
+  //
+  // It exists for one situation: the matcher has fallen below the
+  // retention horizon, where the events it would read and the fields it
+  // would evaluate have both been deleted, and it has halted rather than
+  // deciding anything. The cursor cannot be moved by resuming a
+  // destination - a destination resume stamps rows in one queue, and the
+  // cursor is one row for the whole deployment - so this is its own
+  // call, and it records who moved it, from where, to where, and why.
+  //
+  // Forward only. The skip is a request the matcher applies at the top
+  // of its next pass; until then it is pending, which is visible.
+  rpc SkipDeliveryMatcher(SkipDeliveryMatcherRequest) returns (SkipDeliveryMatcherResponse);
+  // RotateDeliveryKeys re-encrypts stored credentials under the current
+  // keyring entry and reports how many rows still name an older one. A
+  // retired key is safe to remove from the environment when that number
+  // reaches zero.
+  rpc RotateDeliveryKeys(RotateDeliveryKeysRequest) returns (RotateDeliveryKeysResponse);
+  // ListDeliveryOperations lists the deliberate operator decisions not to
+  // deliver something: suspensions, resumes, destination skips and
+  // cursor skips. It is the answer to "why is there a hole in this
+  // customer's feed", which is otherwise only in an incident note.
+  rpc ListDeliveryOperations(ListDeliveryOperationsRequest) returns (ListDeliveryOperationsResponse);
+}
+
+// S3Transport is an S3 or S3-compatible bucket.
+message S3Transport {
+  // Bucket to write into.
+  string bucket = 1;
+  // Prefix every object key is written under, without a trailing slash.
+  // Empty writes at the root of the bucket, which is legal and is
+  // usually not what anybody wants.
+  string prefix = 2;
+  // Region of the bucket. Required, and not defaulted: an SDK that
+  // resolves a region from the ambient environment resolves the wrong
+  // one, and it does it at the first send rather than here.
+  string region = 3;
+  // Endpoint overrides the S3 endpoint for an S3-compatible store. An
+  // endpoint override also turns on path-style addressing, which is what
+  // those stores expect.
+  //
+  // It must be an https URL, and it must not resolve to an address on
+  // the loopback, link-local, private or unique-local ranges. We sign
+  // requests with your credentials and write your documents to whatever
+  // this names, so a plaintext endpoint puts both on the wire in the
+  // clear, and an internal address points them at something that is not
+  // yours. The address is checked when the destination is written and
+  // again on every connection, so a name that changes what it resolves
+  // to later is refused then rather than followed.
+  string endpoint = 4;
+}
+
+// DestinationSpec is a destination's definition. It is written whole by
+// UpdateDestination: what is left out is cleared.
+message DestinationSpec {
+  // Name of the destination, unique per owner. It is a handle for
+  // operators and for the customer, and it is not part of any object
+  // key.
+  string name = 1;
+  // OwnerTier is "org" for a destination owned by the organisation of
+  // the caller, or "subject" for one owned by the calling subject. It
+  // defaults to "org", and it cannot be changed after creation: a
+  // subscription may only be attached to a destination with the same
+  // owner, so moving a destination between tiers would silently detach
+  // everything feeding it.
+  string owner_tier = 2;
+  // Transport is where the destination writes. Exactly one arm is set,
+  // and which one is set is what the transport is - there is no separate
+  // field that could disagree with it.
+  oneof transport {
+    S3Transport s3 = 3;
+  }
+  // Format of the delivered payload. "newsdoc" is the only format this
+  // build implements: it is what the Content API serves, through the
+  // same rendition and signing pass, so that moving a customer from pull
+  // to push does not change what they ingest.
+  string format = 4;
+  // NameTemplate decides what an object is called. "event" -
+  // "<prefix>/<event id>-<uuid>-<version>.json", zero-padded so lexical
+  // order is delivery order - is the default and suits a customer
+  // ingesting a stream of immutable objects. "document" -
+  // "<prefix>/<uuid>.json" - overwrites the earlier object on a
+  // correction, and suits a customer mirroring a drop. It is the shape
+  // every migrated newswire customer's ingest already keys on.
+  string name_template = 5;
+  // StickyWindowSeconds is how long after a delivery decision this
+  // destination is owed follow-ups on a document it has been given: a
+  // correction to a story it received goes out even when the correction
+  // matches no rule. Zero means the deployment default, which is the
+  // retention period.
+  int64 sticky_window_seconds = 6;
+  // MaxQueueDepth and MaxQueueAgeSeconds stop the destination's worker
+  // when its undelivered queue grows past them. They alert; they delete
+  // nothing, and what accumulated is still there when the destination is
+  // resumed. Zero means no limit, which is a decision rather than a
+  // default - a destination with no limit and a wedged recipient grows
+  // its queue until somebody notices.
+  int64 max_queue_depth = 7;
+  int64 max_queue_age_seconds = 8;
+  // SigningAudience is the audience rendition links are signed for. It
+  // is derived from the owner for an organisation-owned destination and
+  // must be given for a subject-owned one, because a subject is a URI
+  // and an audience is a short name. A destination whose identity does
+  // not resolve is a configuration error, and this is where it is
+  // discovered.
+  string signing_audience = 9;
+  // DisableRenditionSigning delivers rendition links unsigned. The same
+  // switch the Content API has, and the same warning: unsigned links are
+  // only useful where the asset is public.
+  bool disable_rendition_signing = 10;
+  // DisableRenditions delivers the stored canonical bytes with no
+  // rendition pass. It is the only form whose bytes can be checked
+  // against the document hash in the eventlog, and it takes precedence
+  // over the signing switch.
+  bool disable_renditions = 11;
+  // Enabled is whether the destination delivers. A destination is
+  // created disabled unless this is set, because a destination with no
+  // credentials would otherwise start, fail and back off from the moment
+  // it exists.
+  //
+  // Enabled on its own is not enough to make a destination deliver: it
+  // also needs stored credentials. A destination with none never starts
+  // a worker and never issues a request, rather than falling back to
+  // whatever identity the service itself has.
+  bool enabled = 12;
+}
+
+// Destination is a destination as stored.
+message Destination {
+  // ID assigned by the server.
+  int64 id = 1;
+  // Spec is the definition as stored, with the server's defaults filled
+  // in.
+  DestinationSpec spec = 2;
+  // Owner is the organisation or subject that owns the destination.
+  string owner = 3;
+  // CreatedBy is the subject that created it.
+  string created_by = 4;
+  // CreatedAt and UpdatedAt are RFC 3339 timestamps.
+  string created_at = 5;
+  string updated_at = 6;
+  // State is "ok" or "stalled". A stalled destination has stopped
+  // because its queue passed a limit, and only ResumeDestination
+  // restarts it.
+  string state = 7;
+  // StallReason is "queue_depth" or "queue_age" while stalled, and empty
+  // otherwise. The two are different conversations - a recipient that is
+  // down, and a recipient that is slow - and the state alone cannot say
+  // which.
+  string stall_reason = 8;
+  // StalledAt is when it stopped, RFC 3339, empty when it is running.
+  string stalled_at = 9;
+  // SuspendedAt is set while the owner is suspended. Suspension is an
+  // administrative decision about the customer; a stall is evidence
+  // about the recipient, and clearing one does not clear the other.
+  string suspended_at = 10;
+  // DeletedAt is set on a deleted destination. Its inventory rows
+  // survive it as the record of what it was given.
+  string deleted_at = 11;
+  // LastSuccessAt is when it last delivered anything. The metrics answer
+  // this too and they die with the process, and "when did this last
+  // deliver" outlives a restart.
+  string last_success_at = 12;
+  // PendingDeliveries and OldestPendingAt describe the undelivered
+  // queue: how many rows and when the oldest was queued. Reported here
+  // so that a customer-facing UI does not have to scrape a metric.
+  int64 pending_deliveries = 13;
+  string oldest_pending_at = 14;
+  // Credentials reports which kinds of credential are stored, never
+  // their values.
+  repeated CredentialStatus credentials = 15;
+  // Subscriptions attached to this destination.
+  repeated string subscription_ids = 16;
+}
+
+// CredentialStatus is what a destination will say about a stored
+// credential: that it exists, and when it was written.
+message CredentialStatus {
+  // Kind of credential. "s3" holds an access key id and secret.
+  string kind = 1;
+  // UpdatedAt is when it was last written, RFC 3339.
+  string updated_at = 2;
+  // KeyID names the keyring entry it is encrypted under. Reported only
+  // to callers with "dist_admin", because it is the input to a key
+  // rotation and means nothing to an owner.
+  string key_id = 3;
+}
+
+// S3Credentials are the keys a destination writes to its bucket with.
+message S3Credentials {
+  string access_key_id = 1;
+  string secret_access_key = 2;
+  // SessionToken is optional, for a temporary credential.
+  string session_token = 3;
+}
+
+message CreateDestinationRequest {
+  DestinationSpec spec = 1;
+  // AcknowledgeExpiringLinks accepts that the destination's rendition
+  // links expire. They default to 24 hours, and a pushed object is
+  // durable: a customer mirroring the drop would hold, within a day,
+  // files whose asset links 404 - worse than an ordinary broken link,
+  // because it worked at delivery time and rots later. Set this, or set
+  // disable_rendition_signing, or configure the destination for variants
+  // that carry non-expiring public tokens.
+  bool acknowledge_expiring_links = 2;
+}
+
+message CreateDestinationResponse {
+  Destination destination = 1;
+}
+
+message UpdateDestinationRequest {
+  int64 id = 1;
+  DestinationSpec spec = 2;
+  bool acknowledge_expiring_links = 3;
+}
+
+message UpdateDestinationResponse {
+  Destination destination = 1;
+}
+
+message GetDestinationRequest {
+  int64 id = 1;
+}
+
+message GetDestinationResponse {
+  Destination destination = 1;
+}
+
+message ListDestinationsRequest {
+  // OwnerTier filters on ownership: "org" for the destinations of the
+  // organisation, "subject" for the caller's own. Empty lists both.
+  string owner_tier = 1;
+}
+
+message ListDestinationsResponse {
+  repeated Destination destinations = 1;
+}
+
+message DeleteDestinationRequest {
+  int64 id = 1;
+}
+
+message DeleteDestinationResponse {}
+
+message SetDestinationCredentialsRequest {
+  int64 destination = 1;
+  // The credential to store. Which arm is set is the kind.
+  oneof credentials {
+    S3Credentials s3 = 2;
+  }
+}
+
+message SetDestinationCredentialsResponse {
+  CredentialStatus status = 1;
+}
+
+message AttachSubscriptionRequest {
+  int64 destination = 1;
+  string subscription = 2;
+}
+
+message AttachSubscriptionResponse {
+  // AttachedAtEventId is the log position the attachment was made at.
+  // Everything above it that the subscription matches is delivered to
+  // this destination, and the events between this position and the
+  // matcher noticing the attachment are replayed rather than lost.
+  int64 attached_at_event_id = 1;
+}
+
+message DetachSubscriptionRequest {
+  int64 destination = 1;
+  string subscription = 2;
+}
+
+message DetachSubscriptionResponse {}
+
+message RewindSubscriptionRequest {
+  string subscription = 1;
+  // FromEventId is where the replay starts, exclusive. It may be below
+  // the position the subscription was created at - "start me from
+  // Monday" for a feed created on Tuesday is the case this call exists
+  // for - and the replay evaluates the rules over that window even
+  // though ordinary matching never looks below the creation position.
+  //
+  // Refused while a catch-up is already running for the subscription, or
+  // while it is waiting for its first evaluation, because there is one
+  // replay position per subscription and a second one would overwrite
+  // the first with nothing to say it had.
+  int64 from_event_id = 2;
+  // AcknowledgeBlindWindow runs a replay that crosses the introduction
+  // of a delivery field the rules reference. Below that boundary the
+  // field is absent from every stored row, so a condition on it is a
+  // no-match rather than a missing input, and the replay under-delivers
+  // in a way nothing else would report.
+  bool acknowledge_blind_window = 3;
+  // Reason is recorded with the operation.
+  string reason = 4;
+}
+
+message RewindSubscriptionResponse {
+  // FromEventId the replay will run from.
+  int64 from_event_id = 1;
+  // BlindBeforeEventId is the boundary below which the replay evaluates
+  // rules against rows that predate a field they reference, when the
+  // caller acknowledged one. Zero when there is none.
+  int64 blind_before_event_id = 2;
+}
+
+message GetCatchupStatusRequest {
+  string subscription = 1;
+}
+
+message GetCatchupStatusResponse {
+  // CatchupFrom is where the running catch-up started, and
+  // CatchupPosition how far it has got. Both zero when none is running.
+  int64 catchup_from = 1;
+  int64 catchup_position = 2;
+  // BlindBeforeEventId is the field-introduction boundary the caller
+  // acknowledged when the catch-up was scheduled, and BlindEvents how
+  // many events have so far been evaluated below it - against rows that
+  // predate a field the rules reference, where a condition on that field
+  // reads as a no-match rather than as a missing input.
+  //
+  // BlindEvents is the size of the shortfall that was accepted. It is
+  // the number the acknowledgement is worth nothing without.
+  int64 blind_before_event_id = 3;
+  int64 blind_events = 4;
+  // EnrolledAtEventId is the position ordinary matching has covered the
+  // subscription from, and HeadEventId the current head of the log.
+  int64 enrolled_at_event_id = 5;
+  int64 head_event_id = 6;
+}
+
+// ResumeAction is what happens to what accumulated in a destination's
+// queue.
+enum ResumeAction {
+  // Deliver everything that accumulated. The conservative choice, and
+  // therefore the zero value: skipping is the one that loses content.
+  RESUME_ACTION_DRAIN = 0;
+  // Stamp everything up to and including a position as skipped, and
+  // deliver the rest. Erasures are never skipped: an erasure is a
+  // compliance obligation and skipping one would complete it without
+  // withdrawing anything.
+  RESUME_ACTION_SKIP_TO = 1;
+}
+
+message ResumeDestinationRequest {
+  int64 destination = 1;
+  ResumeAction action = 2;
+  // SkipToSeq is the queue position to skip to, inclusive. The queue is
+  // ordered by its own sequence rather than by event id, because an
+  // erasure has no event, so a sequence is the only thing that can name
+  // every row.
+  int64 skip_to_seq = 3;
+  // SkipToEventId names the position by event id instead, which is what
+  // an operator reading a lag alert has to hand. It is resolved to a
+  // sequence, and the sequence used is reported back.
+  int64 skip_to_event_id = 4;
+  string reason = 5;
+}
+
+message ResumeDestinationResponse {
+  // SkippedSeq is the sequence the skip was applied up to, and
+  // SkippedRows how many rows it stamped.
+  int64 skipped_seq = 1;
+  int64 skipped_rows = 2;
+}
+
+message SuspendSubscriptionsRequest {
+  // OwnerTier and owner name whose delivery stops. Unlike everywhere
+  // else in this service the owner IS taken from the request: this is an
+  // administrative action taken about somebody else.
+  string owner_tier = 1;
+  string owner = 2;
+  string reason = 3;
+}
+
+message SuspendSubscriptionsResponse {
+  // SuspendedAtEventId is the log head at suspension, recorded on every
+  // affected subscription so that a resume can replay from it.
+  int64 suspended_at_event_id = 1;
+  int64 subscriptions = 2;
+  int64 destinations = 3;
+}
+
+// ResumeFrom is where delivery picks up again.
+enum ResumeFrom {
+  // Replay from the position delivery was suspended at. The
+  // conservative choice, and the zero value: resuming at the head is the
+  // one that leaves a hole.
+  RESUME_FROM_PRIOR_POSITION = 0;
+  // Restart from the head of the log, leaving a recorded gap.
+  RESUME_FROM_HEAD = 1;
+}
+
+message ResumeSubscriptionsRequest {
+  string owner_tier = 1;
+  string owner = 2;
+  ResumeFrom from = 3;
+  // DestinationAction is what happens to what accumulated in the
+  // destinations' queues while they were suspended.
+  ResumeAction destination_action = 4;
+  bool acknowledge_blind_window = 5;
+  string reason = 6;
+}
+
+message ResumeSubscriptionsResponse {
+  int64 subscriptions = 1;
+  int64 destinations = 2;
+  // ResumedFromEventId is the position the replay runs from, zero when
+  // resuming at the head.
+  int64 resumed_from_event_id = 3;
+  int64 blind_before_event_id = 4;
+  // BusySubscriptions are the ones that were not given a replay position
+  // because one was already running for them. They are resumed - the
+  // suspension is lifted - but the position they would have replayed
+  // from was not written, because there is one replay position per
+  // subscription and overwriting it would lose whichever came first with
+  // nothing to say it had. Rewind them individually once their current
+  // catch-up finishes.
+  repeated string busy_subscriptions = 5;
+  // StillStalledDestinations are destinations of the owner that are
+  // stopped because their queue passed a limit. A suspension and a stall
+  // are different things and lifting one does not lift the other, so
+  // these need ResumeDestination.
+  repeated int64 still_stalled_destinations = 6;
+}
+
+message SkipDeliveryMatcherRequest {
+  // ToEventId is where the cursor is moved to. Forward only: a target at
+  // or below the current cursor is refused, and so is one above the head
+  // of the log.
+  int64 to_event_id = 1;
+  // Reason is required. A cursor skip discards delivery decisions for
+  // every customer, and an unexplained one is indistinguishable
+  // afterwards from a bug.
+  string reason = 2;
+}
+
+message SkipDeliveryMatcherResponse {
+  // FromEventId is the cursor as it stood when the skip was recorded,
+  // and skipped_events how many events the move discards. The skip is
+  // applied by the matcher on its next pass, so this is what will
+  // happen rather than what has happened.
+  int64 from_event_id = 1;
+  int64 to_event_id = 2;
+  int64 skipped_events = 3;
+}
+
+message RotateDeliveryKeysRequest {
+  // MaxRows bounds one call, so that a rotation over a large deployment
+  // is a sequence of calls rather than one long transaction. Zero uses
+  // the server's own bound.
+  int64 max_rows = 1;
+}
+
+message RotateDeliveryKeysResponse {
+  // Rotated in this call, and remaining under an older key. A retired
+  // key is safe to remove from the environment when remaining is zero.
+  int64 rotated = 1;
+  int64 remaining = 2;
+  // CurrentKeyId is the keyring entry rows were rotated to.
+  string current_key_id = 3;
+}
+
+message DeliveryOperation {
+  int64 id = 1;
+  // Kind is one of "suspend", "resume_head", "resume_prior",
+  // "destination_drain", "destination_skip", "matcher_skip", "rewind".
+  string kind = 2;
+  // SubjectKind is what the operation was about - "owner",
+  // "destination", "subscription" or "matcher" - and subject identifies
+  // it.
+  string subject_kind = 3;
+  string subject = 4;
+  // FromPosition and ToPosition are the log or queue positions the
+  // operation moved between, zero where the kind has none.
+  int64 from_position = 5;
+  int64 to_position = 6;
+  // Actor is the subject of the credentials the call was made with.
+  string actor = 7;
+  string reason = 8;
+  // Acknowledgements the caller made, as name/true pairs.
+  map<string, bool> acknowledged = 9;
+  string created_at = 10;
+  // AppliedAt is when a deferred operation was carried out. Only a
+  // matcher skip is deferred; everything else applies in the call that
+  // records it and is stamped with the same timestamp.
+  string applied_at = 11;
+}
+
+message ListDeliveryOperationsRequest {
+  // SubjectKind and subject filter to one destination, owner or
+  // subscription. Empty lists everything.
+  string subject_kind = 1;
+  string subject = 2;
+  // Limit defaults to 100.
+  int64 limit = 3;
+}
+
+message ListDeliveryOperationsResponse {
+  repeated DeliveryOperation operations = 1;
+}

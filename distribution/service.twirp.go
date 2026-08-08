@@ -5083,7 +5083,7 @@ func (s *configurationServer) serveDeleteIndexGenerationProtobuf(ctx context.Con
 }
 
 func (s *configurationServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 0
+	return twirpFileDescriptor2, 0
 }
 
 func (s *configurationServer) ProtocGenTwirpVersion() string {
@@ -8490,7 +8490,7 @@ func (s *contentServer) serveGetDocumentVersionsProtobuf(ctx context.Context, re
 }
 
 func (s *contentServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 1
+	return twirpFileDescriptor2, 1
 }
 
 func (s *contentServer) ProtocGenTwirpVersion() string {
@@ -9558,7 +9558,7 @@ func (s *archiveServer) serveGetArchivedDocumentProtobuf(ctx context.Context, re
 }
 
 func (s *archiveServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 2
+	return twirpFileDescriptor2, 2
 }
 
 func (s *archiveServer) ProtocGenTwirpVersion() string {
@@ -9572,7 +9572,7 @@ func (s *archiveServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "elephant.distribution", "Archive")
 }
 
-var twirpFileDescriptor1 = []byte{
+var twirpFileDescriptor2 = []byte{
 	// 4349 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x3c, 0x49, 0x6c, 0x24, 0x47,
 	0x72, 0xa8, 0x6e, 0xf6, 0x15, 0xcd, 0x33, 0x87, 0xc3, 0xe1, 0xb4, 0xe6, 0xe0, 0xd4, 0x68, 0x2c,

@@ -3099,7 +3099,7 @@ func (s *subscriptionsServer) servePreviewSubscriptionProtobuf(ctx context.Conte
 }
 
 func (s *subscriptionsServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor2, 0
+	return twirpFileDescriptor3, 0
 }
 
 func (s *subscriptionsServer) ProtocGenTwirpVersion() string {
@@ -3113,7 +3113,7 @@ func (s *subscriptionsServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "elephant.distribution", "Subscriptions")
 }
 
-var twirpFileDescriptor2 = []byte{
+var twirpFileDescriptor3 = []byte{
 	// 2785 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x1a, 0x5d, 0x6f, 0xdb, 0xd6,
 	0xd5, 0xa4, 0x24, 0xcb, 0x3a, 0xb2, 0x64, 0xf9, 0xc6, 0x49, 0x64, 0x35, 0x6d, 0x5c, 0xa6, 0x6d,

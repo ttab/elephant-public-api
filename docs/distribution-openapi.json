@@ -101,6 +101,26 @@
         },
         "type": "object"
       },
+      "elephant.distribution.AttachSubscriptionRequest": {
+        "properties": {
+          "destination": {
+            "type": "integer"
+          },
+          "subscription": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.AttachSubscriptionResponse": {
+        "properties": {
+          "attached_at_event_id": {
+            "description": "AttachedAtEventId is the log position the attachment was made at. Everything above it that the subscription matches is delivered to this destination, and the events between this position and the matcher noticing the attachment are replayed rather than lost.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.BoolQuery": {
         "description": "BoolQuery combines subqueries. Must and should contribute to the score, filter and must_not don't.",
         "properties": {
@@ -373,6 +393,26 @@
         },
         "type": "object"
       },
+      "elephant.distribution.CreateDestinationRequest": {
+        "properties": {
+          "acknowledge_expiring_links": {
+            "description": "AcknowledgeExpiringLinks accepts that the destination's rendition links expire. They default to 24 hours, and a pushed object is durable: a customer mirroring the drop would hold, within a day, files whose asset links 404 - worse than an ordinary broken link, because it worked at delivery time and rots later. Set this, or set disable_rendition_signing, or configure the destination for variants that carry non-expiring public tokens.",
+            "type": "boolean"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/elephant.distribution.DestinationSpec"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.CreateDestinationResponse": {
+        "properties": {
+          "destination": {
+            "$ref": "#/components/schemas/elephant.distribution.Destination"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.CreateImportUploadRequest": {
         "properties": {
           "files": {
@@ -454,6 +494,35 @@
         },
         "type": "object"
       },
+      "elephant.distribution.CredentialStatus": {
+        "description": "CredentialStatus is what a destination will say about a stored credential: that it exists, and when it was written.",
+        "properties": {
+          "key_id": {
+            "description": "KeyID names the keyring entry it is encrypted under. Reported only to callers with \"dist_admin\", because it is the input to a key rotation and means nothing to an owner.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Kind of credential. \"s3\" holds an access key id and secret.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "UpdatedAt is when it was last written, RFC 3339.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteDestinationRequest": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteDestinationResponse": {
+        "type": "object"
+      },
       "elephant.distribution.DeleteIndexGenerationRequest": {
         "properties": {
           "name": {
@@ -504,6 +573,192 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "elephant.distribution.DeliveryOperation": {
+        "properties": {
+          "acknowledged": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Acknowledgements the caller made, as name/true pairs.",
+            "type": "object"
+          },
+          "actor": {
+            "description": "Actor is the subject of the credentials the call was made with.",
+            "type": "string"
+          },
+          "applied_at": {
+            "description": "AppliedAt is when a deferred operation was carried out. Only a matcher skip is deferred; everything else applies in the call that records it and is stamped with the same timestamp.",
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "from_position": {
+            "description": "FromPosition and ToPosition are the log or queue positions the operation moved between, zero where the kind has none.",
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "description": "Kind is one of \"suspend\", \"resume_head\", \"resume_prior\", \"destination_drain\", \"destination_skip\", \"matcher_skip\", \"rewind\".",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "subject_kind": {
+            "description": "SubjectKind is what the operation was about - \"owner\", \"destination\", \"subscription\" or \"matcher\" - and subject identifies it.",
+            "type": "string"
+          },
+          "to_position": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.Destination": {
+        "description": "Destination is a destination as stored.",
+        "properties": {
+          "created_at": {
+            "description": "CreatedAt and UpdatedAt are RFC 3339 timestamps.",
+            "type": "string"
+          },
+          "created_by": {
+            "description": "CreatedBy is the subject that created it.",
+            "type": "string"
+          },
+          "credentials": {
+            "description": "Credentials reports which kinds of credential are stored, never their values.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.CredentialStatus"
+            },
+            "type": "array"
+          },
+          "deleted_at": {
+            "description": "DeletedAt is set on a deleted destination. Its inventory rows survive it as the record of what it was given.",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID assigned by the server.",
+            "type": "integer"
+          },
+          "last_success_at": {
+            "description": "LastSuccessAt is when it last delivered anything. The metrics answer this too and they die with the process, and \"when did this last deliver\" outlives a restart.",
+            "type": "string"
+          },
+          "oldest_pending_at": {
+            "type": "string"
+          },
+          "owner": {
+            "description": "Owner is the organisation or subject that owns the destination.",
+            "type": "string"
+          },
+          "pending_deliveries": {
+            "description": "PendingDeliveries and OldestPendingAt describe the undelivered queue: how many rows and when the oldest was queued. Reported here so that a customer-facing UI does not have to scrape a metric.",
+            "type": "integer"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/elephant.distribution.DestinationSpec"
+          },
+          "stall_reason": {
+            "description": "StallReason is \"queue_depth\" or \"queue_age\" while stalled, and empty otherwise. The two are different conversations - a recipient that is down, and a recipient that is slow - and the state alone cannot say which.",
+            "type": "string"
+          },
+          "stalled_at": {
+            "description": "StalledAt is when it stopped, RFC 3339, empty when it is running.",
+            "type": "string"
+          },
+          "state": {
+            "description": "State is \"ok\" or \"stalled\". A stalled destination has stopped because its queue passed a limit, and only ResumeDestination restarts it.",
+            "type": "string"
+          },
+          "subscription_ids": {
+            "description": "Subscriptions attached to this destination.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "suspended_at": {
+            "description": "SuspendedAt is set while the owner is suspended. Suspension is an administrative decision about the customer; a stall is evidence about the recipient, and clearing one does not clear the other.",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DestinationSpec": {
+        "description": "DestinationSpec is a destination's definition. It is written whole by UpdateDestination: what is left out is cleared.",
+        "properties": {
+          "disable_rendition_signing": {
+            "description": "DisableRenditionSigning delivers rendition links unsigned. The same switch the Content API has, and the same warning: unsigned links are only useful where the asset is public.",
+            "type": "boolean"
+          },
+          "disable_renditions": {
+            "description": "DisableRenditions delivers the stored canonical bytes with no rendition pass. It is the only form whose bytes can be checked against the document hash in the eventlog, and it takes precedence over the signing switch.",
+            "type": "boolean"
+          },
+          "enabled": {
+            "description": "Enabled is whether the destination delivers. A destination is created disabled unless this is set, because a destination with no credentials would otherwise start, fail and back off from the moment it exists.\n Enabled on its own is not enough to make a destination deliver: it also needs stored credentials. A destination with none never starts a worker and never issues a request, rather than falling back to whatever identity the service itself has.",
+            "type": "boolean"
+          },
+          "format": {
+            "description": "Format of the delivered payload. \"newsdoc\" is the only format this build implements: it is what the Content API serves, through the same rendition and signing pass, so that moving a customer from pull to push does not change what they ingest.",
+            "type": "string"
+          },
+          "max_queue_age_seconds": {
+            "type": "integer"
+          },
+          "max_queue_depth": {
+            "description": "MaxQueueDepth and MaxQueueAgeSeconds stop the destination's worker when its undelivered queue grows past them. They alert; they delete nothing, and what accumulated is still there when the destination is resumed. Zero means no limit, which is a decision rather than a default - a destination with no limit and a wedged recipient grows its queue until somebody notices.",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the destination, unique per owner. It is a handle for operators and for the customer, and it is not part of any object key.",
+            "type": "string"
+          },
+          "name_template": {
+            "description": "NameTemplate decides what an object is called. \"event\" - \"\u003cprefix\u003e/\u003cevent id\u003e-\u003cuuid\u003e-\u003cversion\u003e.json\", zero-padded so lexical order is delivery order - is the default and suits a customer ingesting a stream of immutable objects. \"document\" - \"\u003cprefix\u003e/\u003cuuid\u003e.json\" - overwrites the earlier object on a correction, and suits a customer mirroring a drop. It is the shape every migrated newswire customer's ingest already keys on.",
+            "type": "string"
+          },
+          "owner_tier": {
+            "description": "OwnerTier is \"org\" for a destination owned by the organisation of the caller, or \"subject\" for one owned by the calling subject. It defaults to \"org\", and it cannot be changed after creation: a subscription may only be attached to a destination with the same owner, so moving a destination between tiers would silently detach everything feeding it.",
+            "type": "string"
+          },
+          "s3": {
+            "$ref": "#/components/schemas/elephant.distribution.S3Transport"
+          },
+          "signing_audience": {
+            "description": "SigningAudience is the audience rendition links are signed for. It is derived from the owner for an organisation-owned destination and must be given for a subject-owned one, because a subject is a URI and an audience is a short name. A destination whose identity does not resolve is a configuration error, and this is where it is discovered.",
+            "type": "string"
+          },
+          "sticky_window_seconds": {
+            "description": "StickyWindowSeconds is how long after a delivery decision this destination is owed follow-ups on a document it has been given: a correction to a story it received goes out even when the correction matches no rule. Zero means the deployment default, which is the retention period.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DetachSubscriptionRequest": {
+        "properties": {
+          "destination": {
+            "type": "integer"
+          },
+          "subscription": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DetachSubscriptionResponse": {
         "type": "object"
       },
       "elephant.distribution.DocumentEvent": {
@@ -909,6 +1164,40 @@
         },
         "type": "object"
       },
+      "elephant.distribution.GetCatchupStatusRequest": {
+        "properties": {
+          "subscription": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetCatchupStatusResponse": {
+        "properties": {
+          "blind_before_event_id": {
+            "description": "BlindBeforeEventId is the field-introduction boundary the caller acknowledged when the catch-up was scheduled, and BlindEvents how many events have so far been evaluated below it - against rows that predate a field the rules reference, where a condition on that field reads as a no-match rather than as a missing input.\n BlindEvents is the size of the shortfall that was accepted. It is the number the acknowledgement is worth nothing without.",
+            "type": "integer"
+          },
+          "blind_events": {
+            "type": "integer"
+          },
+          "catchup_from": {
+            "description": "CatchupFrom is where the running catch-up started, and CatchupPosition how far it has got. Both zero when none is running.",
+            "type": "integer"
+          },
+          "catchup_position": {
+            "type": "integer"
+          },
+          "enrolled_at_event_id": {
+            "description": "EnrolledAtEventId is the position ordinary matching has covered the subscription from, and HeadEventId the current head of the log.",
+            "type": "integer"
+          },
+          "head_event_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.GetDeliveryFieldsRequest": {
         "type": "object"
       },
@@ -924,6 +1213,22 @@
           "generation": {
             "description": "Generation is the configuration generation the vocabulary was read from. Every delivery_field row records the generation that produced it, so this is what a client compares against to tell whether what it is looking at is what produced the content it is looking at.",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDestinationRequest": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.GetDestinationResponse": {
+        "properties": {
+          "destination": {
+            "$ref": "#/components/schemas/elephant.distribution.Destination"
           }
         },
         "type": "object"
@@ -1555,6 +1860,53 @@
             "description": "Generations without schemas or type configurations populated.",
             "items": {
               "$ref": "#/components/schemas/elephant.distribution.ConfigGeneration"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListDeliveryOperationsRequest": {
+        "properties": {
+          "limit": {
+            "description": "Limit defaults to 100.",
+            "type": "integer"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "subject_kind": {
+            "description": "SubjectKind and subject filter to one destination, owner or subscription. Empty lists everything.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListDeliveryOperationsResponse": {
+        "properties": {
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.DeliveryOperation"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListDestinationsRequest": {
+        "properties": {
+          "owner_tier": {
+            "description": "OwnerTier filters on ownership: \"org\" for the destinations of the organisation, \"subject\" for the caller's own. Empty lists both.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ListDestinationsResponse": {
+        "properties": {
+          "destinations": {
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.Destination"
             },
             "type": "array"
           }
@@ -2587,6 +2939,169 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ResumeAction": {
+        "description": "ResumeAction is what happens to what accumulated in a destination's queue.",
+        "enum": [
+          "RESUME_ACTION_DRAIN",
+          "RESUME_ACTION_SKIP_TO"
+        ],
+        "type": "string"
+      },
+      "elephant.distribution.ResumeDestinationRequest": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/elephant.distribution.ResumeAction"
+          },
+          "destination": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "skip_to_event_id": {
+            "description": "SkipToEventId names the position by event id instead, which is what an operator reading a lag alert has to hand. It is resolved to a sequence, and the sequence used is reported back.",
+            "type": "integer"
+          },
+          "skip_to_seq": {
+            "description": "SkipToSeq is the queue position to skip to, inclusive. The queue is ordered by its own sequence rather than by event id, because an erasure has no event, so a sequence is the only thing that can name every row.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ResumeDestinationResponse": {
+        "properties": {
+          "skipped_rows": {
+            "type": "integer"
+          },
+          "skipped_seq": {
+            "description": "SkippedSeq is the sequence the skip was applied up to, and SkippedRows how many rows it stamped.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ResumeFrom": {
+        "description": "ResumeFrom is where delivery picks up again.",
+        "enum": [
+          "RESUME_FROM_PRIOR_POSITION",
+          "RESUME_FROM_HEAD"
+        ],
+        "type": "string"
+      },
+      "elephant.distribution.ResumeSubscriptionsRequest": {
+        "properties": {
+          "acknowledge_blind_window": {
+            "type": "boolean"
+          },
+          "destination_action": {
+            "$ref": "#/components/schemas/elephant.distribution.ResumeAction"
+          },
+          "from": {
+            "$ref": "#/components/schemas/elephant.distribution.ResumeFrom"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "owner_tier": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ResumeSubscriptionsResponse": {
+        "properties": {
+          "blind_before_event_id": {
+            "type": "integer"
+          },
+          "busy_subscriptions": {
+            "description": "BusySubscriptions are the ones that were not given a replay position because one was already running for them. They are resumed - the suspension is lifted - but the position they would have replayed from was not written, because there is one replay position per subscription and overwriting it would lose whichever came first with nothing to say it had. Rewind them individually once their current catch-up finishes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "destinations": {
+            "type": "integer"
+          },
+          "resumed_from_event_id": {
+            "description": "ResumedFromEventId is the position the replay runs from, zero when resuming at the head.",
+            "type": "integer"
+          },
+          "still_stalled_destinations": {
+            "description": "StillStalledDestinations are destinations of the owner that are stopped because their queue passed a limit. A suspension and a stall are different things and lifting one does not lift the other, so these need ResumeDestination.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "subscriptions": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RewindSubscriptionRequest": {
+        "properties": {
+          "acknowledge_blind_window": {
+            "description": "AcknowledgeBlindWindow runs a replay that crosses the introduction of a delivery field the rules reference. Below that boundary the field is absent from every stored row, so a condition on it is a no-match rather than a missing input, and the replay under-delivers in a way nothing else would report.",
+            "type": "boolean"
+          },
+          "from_event_id": {
+            "description": "FromEventId is where the replay starts, exclusive. It may be below the position the subscription was created at - \"start me from Monday\" for a feed created on Tuesday is the case this call exists for - and the replay evaluates the rules over that window even though ordinary matching never looks below the creation position.\n Refused while a catch-up is already running for the subscription, or while it is waiting for its first evaluation, because there is one replay position per subscription and a second one would overwrite the first with nothing to say it had.",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Reason is recorded with the operation.",
+            "type": "string"
+          },
+          "subscription": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RewindSubscriptionResponse": {
+        "properties": {
+          "blind_before_event_id": {
+            "description": "BlindBeforeEventId is the boundary below which the replay evaluates rules against rows that predate a field they reference, when the caller acknowledged one. Zero when there is none.",
+            "type": "integer"
+          },
+          "from_event_id": {
+            "description": "FromEventId the replay will run from.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RotateDeliveryKeysRequest": {
+        "properties": {
+          "max_rows": {
+            "description": "MaxRows bounds one call, so that a rotation over a large deployment is a sequence of calls rather than one long transaction. Zero uses the server's own bound.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RotateDeliveryKeysResponse": {
+        "properties": {
+          "current_key_id": {
+            "description": "CurrentKeyId is the keyring entry rows were rotated to.",
+            "type": "string"
+          },
+          "remaining": {
+            "type": "integer"
+          },
+          "rotated": {
+            "description": "Rotated in this call, and remaining under an older key. A retired key is safe to remove from the environment when remaining is zero.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.Rule": {
         "description": "Rule is one node of the tree: a group of other rules, or a condition over one delivery field.",
         "properties": {
@@ -2640,6 +3155,44 @@
         },
         "type": "object"
       },
+      "elephant.distribution.S3Credentials": {
+        "description": "S3Credentials are the keys a destination writes to its bucket with.",
+        "properties": {
+          "access_key_id": {
+            "type": "string"
+          },
+          "secret_access_key": {
+            "type": "string"
+          },
+          "session_token": {
+            "description": "SessionToken is optional, for a temporary credential.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.S3Transport": {
+        "description": "S3Transport is an S3 or S3-compatible bucket.",
+        "properties": {
+          "bucket": {
+            "description": "Bucket to write into.",
+            "type": "string"
+          },
+          "endpoint": {
+            "description": "Endpoint overrides the S3 endpoint for an S3-compatible store. An endpoint override also turns on path-style addressing, which is what those stores expect.\n It must be an https URL, and it must not resolve to an address on the loopback, link-local, private or unique-local ranges. We sign requests with your credentials and write your documents to whatever this names, so a plaintext endpoint puts both on the wire in the clear, and an internal address points them at something that is not yours. The address is checked when the destination is written and again on every connection, so a name that changes what it resolves to later is refused then rather than followed.",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Prefix every object key is written under, without a trailing slash. Empty writes at the root of the bucket, which is legal and is usually not what anybody wants.",
+            "type": "string"
+          },
+          "region": {
+            "description": "Region of the bucket. Required, and not defaulted: an SDK that resolves a region from the ambient environment resolves the wrong one, and it does it at the first send rather than here.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.Schema": {
         "properties": {
           "name": {
@@ -2650,6 +3203,25 @@
           },
           "version": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SetDestinationCredentialsRequest": {
+        "properties": {
+          "destination": {
+            "type": "integer"
+          },
+          "s3": {
+            "$ref": "#/components/schemas/elephant.distribution.S3Credentials"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SetDestinationCredentialsResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/elephant.distribution.CredentialStatus"
           }
         },
         "type": "object"
@@ -2713,6 +3285,34 @@
           "similarity": {
             "description": "Similarity at that percentile, on the same scale as VectorClauseMember.min_similarity.",
             "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SkipDeliveryMatcherRequest": {
+        "properties": {
+          "reason": {
+            "description": "Reason is required. A cursor skip discards delivery decisions for every customer, and an unexplained one is indistinguishable afterwards from a bug.",
+            "type": "string"
+          },
+          "to_event_id": {
+            "description": "ToEventId is where the cursor is moved to. Forward only: a target at or below the current cursor is refused, and so is one above the head of the log.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SkipDeliveryMatcherResponse": {
+        "properties": {
+          "from_event_id": {
+            "description": "FromEventId is the cursor as it stood when the skip was recorded, and skipped_events how many events the move discards. The skip is applied by the matcher on its next pass, so this is what will happen rather than what has happened.",
+            "type": "integer"
+          },
+          "skipped_events": {
+            "type": "integer"
+          },
+          "to_event_id": {
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2914,6 +3514,36 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SuspendSubscriptionsRequest": {
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "owner_tier": {
+            "description": "OwnerTier and owner name whose delivery stops. Unlike everywhere else in this service the owner IS taken from the request: this is an administrative action taken about somebody else.",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SuspendSubscriptionsResponse": {
+        "properties": {
+          "destinations": {
+            "type": "integer"
+          },
+          "subscriptions": {
+            "type": "integer"
+          },
+          "suspended_at_event_id": {
+            "description": "SuspendedAtEventId is the log head at suspension, recorded on every affected subscription so that a resume can replay from it.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -3124,6 +3754,28 @@
           "timezone": {
             "description": "Timezone is the timezone the time should be parsed in. Optional, most timestamps should include timezone information, if they don't, parsing will fall back to the default timezone that the repository has been configured with.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.UpdateDestinationRequest": {
+        "properties": {
+          "acknowledge_expiring_links": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/elephant.distribution.DestinationSpec"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.UpdateDestinationResponse": {
+        "properties": {
+          "destination": {
+            "$ref": "#/components/schemas/elephant.distribution.Destination"
           }
         },
         "type": "object"
@@ -4541,6 +5193,614 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Delivery/AttachSubscription": {
+      "post": {
+        "description": "AttachSubscription attaches a delivery subscription to a destination. Both must have the same owner. The attachment records the log position it was made at, and everything above that position that the subscription matches is delivered - including the events between the attachment and the matcher noticing it, which are replayed.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.AttachSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.AttachSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "AttachSubscription",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/CreateDestination": {
+      "post": {
+        "description": "CreateDestination registers a destination. It is created disabled unless the request says otherwise, because a destination with no credentials and no attached subscription is a destination being configured rather than one that is broken.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.CreateDestinationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.CreateDestinationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "CreateDestination",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/DeleteDestination": {
+      "post": {
+        "description": "DeleteDestination marks a destination deleted and wipes its credentials. It is not a row deletion: the inventory of what the destination was given outlives it, because that is the record an erasure request is answered from, and there is no transport left to withdraw with once the credentials are gone.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.DeleteDestinationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.DeleteDestinationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "DeleteDestination",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/DetachSubscription": {
+      "post": {
+        "description": "DetachSubscription removes an attachment. Queue rows already written for the destination are still delivered: they are the destination's, not the subscription's, which is also why a document the destination has had keeps getting its corrections until the sticky window runs out.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.DetachSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.DetachSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "DetachSubscription",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/GetCatchupStatus": {
+      "post": {
+        "description": "GetCatchupStatus reports how a subscription's running catch-up is going: where it started, where it has got to, and - when the caller acknowledged a blind window - the boundary they accepted and how many events have actually been evaluated below it.\n The last number is why this call exists. Acknowledging a blind window accepts a shortfall, and without a reader for it the acknowledgement would be a one-way switch: accepted, and never measured.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetCatchupStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetCatchupStatusResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetCatchupStatus",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/GetDestination": {
+      "post": {
+        "description": "GetDestination returns a destination as stored, with the status of its credentials but never their values.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.GetDestinationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.GetDestinationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetDestination",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/ListDeliveryOperations": {
+      "post": {
+        "description": "ListDeliveryOperations lists the deliberate operator decisions not to deliver something: suspensions, resumes, destination skips and cursor skips. It is the answer to \"why is there a hole in this customer's feed\", which is otherwise only in an incident note.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListDeliveryOperationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListDeliveryOperationsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListDeliveryOperations",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/ListDestinations": {
+      "post": {
+        "description": "ListDestinations lists the destinations the caller can see: the ones owned by the organisation of the caller, and the ones owned by the calling subject.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListDestinationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListDestinationsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListDestinations",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/ResumeDestination": {
+      "post": {
+        "description": "ResumeDestination restarts a destination whose queue grew past its depth or age limit and stopped. The operator chooses what happens to what accumulated: deliver it, or skip up to a position. A skip stamps the rows skipped rather than deleting them, so what was not sent stays a query.\n Only a stalled destination can be resumed. On a running one a skip would stamp rows the worker is in the middle of sending, so a resume of a destination that is not stalled is refused with its state named.\n A resume also rebaselines the queue limits at the current end of the queue. Without that a drain cannot drain: the limit is checked before the first send of a pass, so a destination that stopped because its queue was too deep is still too deep the moment it restarts, and would stop again without delivering anything. What accumulated is delivered; the limits apply to what accumulates after.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ResumeDestinationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ResumeDestinationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ResumeDestination",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/ResumeSubscriptions": {
+      "post": {
+        "description": "ResumeSubscriptions lifts a suspension, from the position it was suspended at or from the head of the log. Resuming at the head leaves a gap, which is recorded rather than silent; resuming at the prior position replays the window, subject to the same two refusals RewindSubscription is subject to.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ResumeSubscriptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ResumeSubscriptionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ResumeSubscriptions",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/RewindSubscription": {
+      "post": {
+        "description": "RewindSubscription replays a subscription from an earlier log position - \"start me from Monday\". It does not move the position the subscription started at, which stays as the record of where the feed began; it schedules a catch-up from the position given, which the matcher runs paged and resumably alongside its ordinary work.\n Refused below the retention horizon, naming it: below that the events and the extracted fields a rule would be evaluated against are both gone, so there is nothing to replay. Refused across the introduction of a field the rules reference, naming the boundary, unless acknowledge_blind_window is set - below that boundary the field is absent from every row and the rule reads as a no-match rather than as a missing input.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.RewindSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.RewindSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RewindSubscription",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/RotateDeliveryKeys": {
+      "post": {
+        "description": "RotateDeliveryKeys re-encrypts stored credentials under the current keyring entry and reports how many rows still name an older one. A retired key is safe to remove from the environment when that number reaches zero.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.RotateDeliveryKeysRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.RotateDeliveryKeysResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RotateDeliveryKeys",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/SetDestinationCredentials": {
+      "post": {
+        "description": "SetDestinationCredentials writes one kind of credential for a destination, replacing whatever was there. There is no call that reads them back.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.SetDestinationCredentialsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.SetDestinationCredentialsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SetDestinationCredentials",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/SkipDeliveryMatcher": {
+      "post": {
+        "description": "SkipDeliveryMatcher moves the delivery matcher's cursor forward, deliberately, leaving a recorded gap in every delivery feed.\n It exists for one situation: the matcher has fallen below the retention horizon, where the events it would read and the fields it would evaluate have both been deleted, and it has halted rather than deciding anything. The cursor cannot be moved by resuming a destination - a destination resume stamps rows in one queue, and the cursor is one row for the whole deployment - so this is its own call, and it records who moved it, from where, to where, and why.\n Forward only. The skip is a request the matcher applies at the top of its next pass; until then it is pending, which is visible.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.SkipDeliveryMatcherRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.SkipDeliveryMatcherResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SkipDeliveryMatcher",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/SuspendSubscriptions": {
+      "post": {
+        "description": "SuspendSubscriptions stops delivery for an owner: every delivery subscription they own or one of their subjects created stops matching, and every destination they own stops sending. Rows already queued hold rather than drain, so a resume can still deliver them.\n It is not expiry and it is not credential revocation. A suspended owner's tokens carry whatever scopes the identity provider grants them, and cutting those is done there.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.SuspendSubscriptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.SuspendSubscriptionsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SuspendSubscriptions",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Delivery/UpdateDestination": {
+      "post": {
+        "description": "UpdateDestination replaces the definition of a destination. The spec is written whole: fields left out of it are cleared, not kept. Credentials are not part of the spec and are not touched. Changing the transport, format or name template restarts the destination's worker, so an in-flight send completes and the next one uses the new definition.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.UpdateDestinationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.UpdateDestinationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UpdateDestination",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Search/GetMappings": {
       "post": {
         "description": "GetMappings returns the searchable fields of a document type and the type of each field, as the union across the language indexes. Use it to find out what can be queried, and how, before building a query.",
@@ -5007,6 +6267,10 @@
     }
   ],
   "tags": [
+    {
+      "description": "Delivery is where a delivery subscription is wired to somewhere to deliver to. A subscription says what; a destination says where and how - transport, credentials and format - and the two are separate so that one drop can be fed by several differently-tuned subscriptions, and so that a subscription can be authored before anything is wired to a transport.\n Ownership is checked when a subscription is attached and re-checked every time the matcher writes a queue row: a subscription may only be attached to a destination with the same owner. The owner is never taken from the request - it is the organisation claim or the subject of the credentials - and owner_tier picks which of the two, defaulting to the organisation, exactly as it does on Subscriptions.\n Credentials are write-only. They are stored encrypted and there is no call that returns them; a destination reports which kinds it holds and when they were last written, and nothing else. Losing them is a re-entry, not a recovery.\n Access requires the \"dist_subscribe\" scope, which is granted by \"dist_admin\". The operator calls - SuspendSubscriptions, ResumeSubscriptions, ResumeDestination, SkipDeliveryMatcher, RotateDeliveryKeys and ListDeliveryOperations - require \"dist_admin\" on its own: they decide that content will not be delivered, and that is not a customer's decision to make about their own feed.",
+      "name": "Delivery"
+    },
     {
       "name": "Configuration"
     },
