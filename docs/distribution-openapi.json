@@ -4065,7 +4065,7 @@
   },
   "info": {
     "title": "distribution API",
-    "version": "v0.0.10"
+    "version": "v0.0.11"
   },
   "openapi": "3.0.0",
   "paths": {
