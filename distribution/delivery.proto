@@ -183,6 +183,46 @@ message S3Transport {
   string endpoint = 4;
 }
 
+// SFTPTransport writes into a directory on a customer's SSH server.
+//
+// The username, the path and the host keys are here rather than in the
+// credential because credentials are write-only at every scope: a username
+// sealed with the secret could never be shown back, and a host key is
+// public - pinning something nobody can read back is not verification.
+message SFTPTransport {
+  // Host of the SSH server. A bare hostname or an IP address, without a
+  // scheme and without a port.
+  //
+  // It must not resolve to an address on the loopback, link-local,
+  // private, unique-local or carrier-grade-NAT ranges. A destination
+  // names somewhere of yours; those are somewhere of ours. The address is
+  // checked when the destination is written and again on every
+  // connection, so a name that changes what it resolves to later is
+  // refused then rather than followed.
+  string host = 1;
+  // Port of the SSH server. Defaults to 22.
+  uint32 port = 2;
+  // Username to authenticate as.
+  string username = 3;
+  // Path is the directory objects are written into. An absolute path is
+  // taken literally; a relative one is resolved against wherever the
+  // account lands, which on a chrooted account is its home. It is created
+  // if it is missing and we are allowed to, and a failure to create it is
+  // logged rather than fatal - an account that may write but not read
+  // cannot be checked, and refusing such an account would refuse a
+  // working destination.
+  string path = 4;
+  // HostKeys are the server's public keys in authorized_keys form -
+  // "ssh-ed25519 AAAA... [comment]". At least one is required, and a
+  // server presenting a key that is not one of these is refused.
+  //
+  // There is no trust-on-first-use and no accept-and-log mode. More than
+  // one key may be given so that a server can be rekeyed without an
+  // outage: add the new key, let the server rotate, remove the old one.
+  // Certificate host keys are not supported.
+  repeated string host_keys = 5;
+}
+
 // DestinationSpec is a destination's definition. It is written whole by
 // UpdateDestination: what is left out is cleared.
 message DestinationSpec {
@@ -200,8 +240,13 @@ message DestinationSpec {
   // Transport is where the destination writes. Exactly one arm is set,
   // and which one is set is what the transport is - there is no separate
   // field that could disagree with it.
+  //
+  // The field numbers are not contiguous because the arms were added in
+  // different releases and the numbers in between belong to the fields
+  // below. Do not renumber them.
   oneof transport {
     S3Transport s3 = 3;
+    SFTPTransport sftp = 13;
   }
   // Format of the delivered payload. "newsdoc" is the only format this
   // build implements: it is what the Content API serves, through the
@@ -309,7 +354,8 @@ message Destination {
 // CredentialStatus is what a destination will say about a stored
 // credential: that it exists, and when it was written.
 message CredentialStatus {
-  // Kind of credential. "s3" holds an access key id and secret.
+  // Kind of credential. "s3" holds an access key id and secret; "sftp"
+  // holds a private key, a password, or both.
   string kind = 1;
   // UpdatedAt is when it was last written, RFC 3339.
   string updated_at = 2;
@@ -325,6 +371,20 @@ message S3Credentials {
   string secret_access_key = 2;
   // SessionToken is optional, for a temporary credential.
   string session_token = 3;
+}
+
+// SFTPCredentials authenticate to the customer's SSH server. At least one
+// of the two has to be set, and both may be - the key is offered first.
+message SFTPCredentials {
+  // PrivateKey is an unencrypted private key, in OpenSSH or PEM form.
+  //
+  // An encrypted key is refused rather than stored beside its passphrase:
+  // a passphrase would be a second secret to hold, rotate and lose, and
+  // it would sit in the same encrypted row as the key it protects.
+  // Decrypt it first: ssh-keygen -p -N '' -f <file>.
+  string private_key = 1;
+  // Password for password authentication.
+  string password = 2;
 }
 
 message CreateDestinationRequest {
@@ -382,11 +442,22 @@ message SetDestinationCredentialsRequest {
   // The credential to store. Which arm is set is the kind.
   oneof credentials {
     S3Credentials s3 = 2;
+    SFTPCredentials sftp = 3;
   }
 }
 
 message SetDestinationCredentialsResponse {
   CredentialStatus status = 1;
+  // PublicKey is the authorized_keys line of the private key that was
+  // just stored, for the customer to install on their server. Empty for a
+  // credential that carries no key.
+  //
+  // It is on this response rather than on CredentialStatus because it is
+  // derived from the plaintext in hand. A readable projection of a
+  // write-only credential would need either a column of its own or a
+  // decryption on a read path reachable with dist_subscribe, which is the
+  // oracle credentials are write-only to avoid.
+  string public_key = 2;
 }
 
 message AttachSubscriptionRequest {
