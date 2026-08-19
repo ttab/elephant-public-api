@@ -1595,7 +1595,7 @@
         "type": "object"
       },
       "elephant.distribution.HTMLRenderingConfiguration": {
-        "description": "HTMLRenderingConfiguration configures delivery-time HTML rendering for the generation: which documents render, which image variant the rendered markup embeds, and the operator-registered renderers that extend or replace the built-in block renderers.\n HTML is rendered when a consumer asks for it - a pull request with include_html, or a push destination configured for it - never on the store path, and the result is cached per document version and configuration. The output is an \u003carticle\u003e fragment: block-level HTML with no document frame, so a caller embeds it directly and a format that promises a whole document wraps it.\n Only data-block-id, which every top-level block element carries so that a consumer can correlate the markup back to the newsdoc blocks, is a versioned part of the markup. Element choices and class names may change between releases; do not write a consumer that depends on them.",
+        "description": "HTMLRenderingConfiguration configures delivery-time HTML rendering for the generation: which documents render, which image variant the rendered markup embeds, and the operator-registered renderers that extend or replace the built-in block renderers.\n HTML is rendered when a consumer asks for it - a pull request with include_html, or a push destination configured for it - never on the store path, and the result is cached per document version and configuration. The output is an \u003carticle\u003e fragment: block-level HTML with no document frame, so a caller embeds it directly and a format that promises a whole document wraps it.\n Only data-block-id, which every top-level block element carries so that a consumer can correlate the markup back to the newsdoc blocks, is a versioned part of the markup. Element choices and class names may change between releases; do not write a consumer that depends on them. The top-level block is the addressable unit throughout: nested blocks carry no id, and a renderer that wants to change something inside one renders the block it sits in.",
         "properties": {
           "document_types": {
             "description": "DocumentTypes are the document types that render HTML. Empty renders no type - a deployment opts its types in, so that planning documents and entity registries do not render markup nobody asked for. A request for HTML on a type outside the list yields no HTML and no error.",
@@ -1609,7 +1609,7 @@
             "type": "string"
           },
           "renderers": {
-            "description": "Renderers extend the built-in block renderers, in declaration order. A block is claimed by the first renderer whose trigger matches it and is never sent to two renderers; blocks no renderer claims are rendered by the built-ins.",
+            "description": "Renderers extend the built-in block renderers, in declaration order. A renderer's triggers decide whether it is invoked for a document, not which blocks belong to it: every invoked renderer is called once with the whole document and may answer for any of its top-level blocks.\n Declaration order is what resolves a disagreement. Where two renderers return a replacement for the same block the one declared first wins and the other's entry is dropped; insertions are applied in the same order. A top-level block no renderer answered for is rendered by the built-ins.",
             "items": {
               "$ref": "#/components/schemas/elephant.distribution.RendererConfiguration"
             },
@@ -2987,7 +2987,7 @@
             "type": "integer"
           },
           "max_in_flight": {
-            "description": "MaxInFlight is the number of concurrent calls to the renderer. Zero defaults to 4. A call that cannot get a slot within the timeout is a failure, and its blocks fall back to the built-ins.",
+            "description": "MaxInFlight is the number of concurrent calls to the renderer. Zero defaults to 4. A call that cannot get a slot within the timeout is a failure, so the renderer contributes nothing to that document and its blocks fall back to the built-ins.",
             "type": "integer"
           },
           "open_duration": {
@@ -3002,7 +3002,7 @@
         "type": "object"
       },
       "elephant.distribution.RendererConfiguration": {
-        "description": "RendererConfiguration is one operator-registered HTML renderer: a script that runs in-process, or an HTTP endpoint that is called.\n A renderer failure of any kind - timeout, open circuit, connection error, non-2xx status, bad response signature, unreadable response, script exception, unresolvable secret - falls back to the built-in renderer for the blocks it had claimed, and delivery proceeds. HTML is an additive convenience; the absence of one custom block never stops a response or a push.",
+        "description": "RendererConfiguration is one operator-registered HTML renderer: a script that runs in-process, or an HTTP endpoint that is called.\n A renderer failure of any kind - timeout, open circuit, connection error, non-2xx status, bad response signature, unreadable response, script exception, unresolvable secret - makes the renderer contribute nothing: every block renders exactly as if the renderer had returned no entry for it, by its built-in renderer where there is one, and delivery proceeds. HTML is an additive convenience; the absence of one custom block never stops a response or a push.",
         "properties": {
           "allow_insecure": {
             "description": "AllowInsecure permits a plain http endpoint. For an in-cluster renderer reached over a trusted network; the HMAC authentication is unaffected either way, but the payload is then in the clear.",
@@ -3017,10 +3017,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "full_document": {
-            "description": "FullDocument sends the whole document with the request beside the selected blocks. Off by default - a renderer that only needs its own blocks should not be handed the document.",
-            "type": "boolean"
           },
           "kind": {
             "description": "Kind is \"js\" for a script run in-process, or \"remote\" for an HTTP endpoint.\n A string rather than an enum, as anchor and TypeDeliveryField.kind are: the zero value has to be invalid, so that a declaration that forgot its kind is refused rather than silently accepted as one of them.",
@@ -3046,7 +3042,7 @@
             "type": "string"
           },
           "triggers": {
-            "description": "Triggers select the blocks this renderer claims. Zero triggers claim every content block of a rendered document.",
+            "description": "Triggers decide when this renderer is invoked: the document is in the renderer's document_types scope and one of its top-level content blocks matches one of the triggers. Zero triggers invoke the renderer for every rendered document of those types.\n A trigger is an invocation condition and nothing more. The request carries the whole document either way, and the renderer decides for itself which of its top-level blocks it answers for.",
             "items": {
               "$ref": "#/components/schemas/elephant.distribution.RendererTrigger"
             },
@@ -3105,10 +3101,10 @@
         "type": "object"
       },
       "elephant.distribution.RendererTrigger": {
-        "description": "RendererTrigger selects the blocks a renderer claims.",
+        "description": "RendererTrigger is one condition that invokes a renderer. It selects when the renderer is called, never what it is sent: the request carries the whole document, and the renderer is free to answer for any of its top-level blocks.",
         "properties": {
           "block_types": {
-            "description": "BlockTypes to claim, e.g. \"core/factbox\". Empty is every block type.",
+            "description": "BlockTypes that invoke the renderer, e.g. \"core/factbox\", matched against the document's top-level content blocks. Empty is every block type.",
             "items": {
               "type": "string"
             },

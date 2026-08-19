@@ -1143,6 +1143,9 @@ message RenditionConfiguration {
 // a consumer can correlate the markup back to the newsdoc blocks, is a
 // versioned part of the markup. Element choices and class names may
 // change between releases; do not write a consumer that depends on them.
+// The top-level block is the addressable unit throughout: nested blocks
+// carry no id, and a renderer that wants to change something inside one
+// renders the block it sits in.
 message HTMLRenderingConfiguration {
   // ImageVariant is the rendition variant the rendered images link to.
   // Empty defaults to "preview". It is service-level by design: the HTML
@@ -1156,8 +1159,15 @@ message HTMLRenderingConfiguration {
   // error.
   repeated string document_types = 2;
   // Renderers extend the built-in block renderers, in declaration order.
-  // A block is claimed by the first renderer whose trigger matches it and
-  // is never sent to two renderers; blocks no renderer claims are
+  // A renderer's triggers decide whether it is invoked for a document,
+  // not which blocks belong to it: every invoked renderer is called once
+  // with the whole document and may answer for any of its top-level
+  // blocks.
+  //
+  // Declaration order is what resolves a disagreement. Where two
+  // renderers return a replacement for the same block the one declared
+  // first wins and the other's entry is dropped; insertions are applied in
+  // the same order. A top-level block no renderer answered for is
   // rendered by the built-ins.
   repeated RendererConfiguration renderers = 3;
 }
@@ -1167,10 +1177,11 @@ message HTMLRenderingConfiguration {
 //
 // A renderer failure of any kind - timeout, open circuit, connection
 // error, non-2xx status, bad response signature, unreadable response,
-// script exception, unresolvable secret - falls back to the built-in
-// renderer for the blocks it had claimed, and delivery proceeds. HTML is
-// an additive convenience; the absence of one custom block never stops a
-// response or a push.
+// script exception, unresolvable secret - makes the renderer contribute
+// nothing: every block renders exactly as if the renderer had returned no
+// entry for it, by its built-in renderer where there is one, and delivery
+// proceeds. HTML is an additive convenience; the absence of one custom
+// block never stops a response or a push.
 message RendererConfiguration {
   // Name identifies the renderer. It labels the metrics and the log
   // lines, and it is the name of the renderer's secret, so it matches
@@ -1207,16 +1218,24 @@ message RendererConfiguration {
   // surface, and an in-cluster renderer on a private address is the
   // expected deployment.
   string url = 5;
-  // FullDocument sends the whole document with the request beside the
-  // selected blocks. Off by default - a renderer that only needs its own
-  // blocks should not be handed the document.
-  bool full_document = 6;
+  // Field 6 was full_document, which sent the whole document beside the
+  // blocks a renderer had claimed. Every invoked renderer is now called
+  // with the whole document, so there is nothing left to opt into. The
+  // field shipped in v0.0.12: the number is reserved and is never reused.
+  reserved 6;
+  reserved "full_document";
   // AllowInsecure permits a plain http endpoint. For an in-cluster
   // renderer reached over a trusted network; the HMAC authentication is
   // unaffected either way, but the payload is then in the clear.
   bool allow_insecure = 7;
-  // Triggers select the blocks this renderer claims. Zero triggers claim
-  // every content block of a rendered document.
+  // Triggers decide when this renderer is invoked: the document is in the
+  // renderer's document_types scope and one of its top-level content
+  // blocks matches one of the triggers. Zero triggers invoke the renderer
+  // for every rendered document of those types.
+  //
+  // A trigger is an invocation condition and nothing more. The request
+  // carries the whole document either way, and the renderer decides for
+  // itself which of its top-level blocks it answers for.
   repeated RendererTrigger triggers = 8;
   // DocumentTypes narrows the renderer to the given document types.
   // Empty is every type the generation renders HTML for.
@@ -1234,9 +1253,14 @@ message RendererConfiguration {
   RendererCircuitBreaker circuit_breaker = 12;
 }
 
-// RendererTrigger selects the blocks a renderer claims.
+// RendererTrigger is one condition that invokes a renderer. It selects
+// when the renderer is called, never what it is sent: the request carries
+// the whole document, and the renderer is free to answer for any of its
+// top-level blocks.
 message RendererTrigger {
-  // BlockTypes to claim, e.g. "core/factbox". Empty is every block type.
+  // BlockTypes that invoke the renderer, e.g. "core/factbox", matched
+  // against the document's top-level content blocks. Empty is every block
+  // type.
   repeated string block_types = 1;
   // Roles narrows the trigger to blocks carrying one of the given roles.
   // Empty is every role.
@@ -1285,7 +1309,8 @@ message RendererCircuitBreaker {
   string open_duration = 3;
   // MaxInFlight is the number of concurrent calls to the renderer. Zero
   // defaults to 4. A call that cannot get a slot within the timeout is a
-  // failure, and its blocks fall back to the built-ins.
+  // failure, so the renderer contributes nothing to that document and its
+  // blocks fall back to the built-ins.
   int32 max_in_flight = 4;
 }
 
@@ -1367,7 +1392,8 @@ message RegisterConfigGenerationRequest {
   repeated RenditionConfiguration renditions = 5;
   // Renderers is the HTML rendering configuration the generation should
   // have. Renderer declaration order is preserved: it is what decides
-  // which renderer claims a block that two of them trigger on.
+  // which renderer wins when two of them return a replacement for the
+  // same block, and the order insertions are applied in.
   //
   // It is validated here rather than at render time - names, kinds, the
   // sanitizer policies, the breaker values, and that every remote
