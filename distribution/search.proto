@@ -192,6 +192,17 @@ message QueryRequest {
   // for when the count matters.
   string date_from = 16;
   string date_to = 17;
+  // IncludeHTML returns each hit's document rendered to HTML beside it,
+  // in rendered_html. It follows the loaded document, so it needs
+  // load_documents or subset, and it requires the same "dist_read" scope
+  // they do. A hit whose document was deferred or is no longer stored
+  // comes back without HTML, as it comes back without a document.
+  //
+  // The HTML is an <article> fragment rendered from the same delivered
+  // document, with the same rendition links. See
+  // Configuration's HTMLRenderingConfiguration for what the markup
+  // promises.
+  bool include_html = 18;
 }
 
 // Query is a single query clause. Exactly one of the conditions must be
@@ -520,6 +531,11 @@ message Hit {
   // A hit with neither a document nor deferred set has no document to
   // load: it was deleted or erased since it was indexed.
   bool deferred = 9;
+  // RenderedHTML is the loaded document rendered to HTML, when the query
+  // asked for it with include_html. It is rendered from the version that
+  // was loaded - the current stored version - not from the projection the
+  // hit was matched on.
+  string rendered_html = 10;
 }
 
 // StringValues is the value of a flat index field. All field values are

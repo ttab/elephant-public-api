@@ -342,6 +342,9 @@
             "description": "ID is assigned by the server on registration.",
             "type": "integer"
           },
+          "renderers": {
+            "$ref": "#/components/schemas/elephant.distribution.HTMLRenderingConfiguration"
+          },
           "renditions": {
             "description": "Renditions configured in the generation, one per asset kind.",
             "items": {
@@ -540,6 +543,18 @@
         },
         "type": "object"
       },
+      "elephant.distribution.DeleteRendererSecretRequest": {
+        "properties": {
+          "name": {
+            "description": "Name of the renderer whose secret to delete.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.DeleteRendererSecretResponse": {
+        "type": "object"
+      },
       "elephant.distribution.DeleteSubscriptionRequest": {
         "properties": {
           "id": {
@@ -714,6 +729,10 @@
             "description": "Format of the delivered payload. \"newsdoc\" is the only format this build implements: it is what the Content API serves, through the same rendition and signing pass, so that moving a customer from pull to push does not change what they ingest.",
             "type": "string"
           },
+          "include_html": {
+            "description": "IncludeHTML delivers the document rendered to HTML with it: the envelope gains a rendered_html member beside document, an \u003carticle\u003e fragment with the same rendition links the delivered document carries.\n It can be changed on an existing destination. It changes an envelope member, not an object key, so nothing a customer has already ingested is renamed or contradicted - the next delivery of a document simply carries the member, and the ingest contract's obligation to ignore unknown members is what a consumer that has not caught up relies on. The envelope version is not bumped for it.\n A retraction never carries HTML: it has no document to render. Neither does a document of a type the configuration renders no HTML for, and a render that had to fall back to the built-in renderers still ships.",
+            "type": "boolean"
+          },
           "max_queue_age_seconds": {
             "type": "integer"
           },
@@ -829,6 +848,10 @@
           },
           "event": {
             "$ref": "#/components/schemas/elephant.distribution.DocumentEvent"
+          },
+          "rendered_html": {
+            "description": "RenderedHTML is the document rendered to HTML, when the request asked for it with include_html. An \u003carticle\u003e fragment, and empty whenever there is no document to render it from: a deferred item, a tombstone, or a type the configuration renders no HTML for.",
+            "type": "string"
           },
           "subset": {
             "description": "Subset is the extracted subset of the document.",
@@ -1246,6 +1269,10 @@
             "description": "DisableRenditions serves the document without any rendition links. See GetNewDocumentsRequest.disable_renditions.",
             "type": "boolean"
           },
+          "include_html": {
+            "description": "IncludeHTML delivers the document rendered to HTML beside it. See GetNewDocumentsRequest.include_html.",
+            "type": "boolean"
+          },
           "renditions": {
             "additionalProperties": {
               "$ref": "#/components/schemas/elephant.distribution.RenditionParameters"
@@ -1275,6 +1302,10 @@
           },
           "published_at": {
             "description": "PublishedAt is when the returned version became public, in the canonical fixed-width RFC 3339 form (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision). For a version served from the archive rather than the hot store this is empty: the archived object carries the document, not the timestamps of the row it was pruned from.",
+            "type": "string"
+          },
+          "rendered_html": {
+            "description": "RenderedHTML is the document rendered to HTML, when the request asked for it with include_html. An \u003carticle\u003e fragment; empty when the document's type renders no HTML.",
             "type": "string"
           },
           "version": {
@@ -1307,6 +1338,10 @@
           },
           "disable_renditions": {
             "description": "DisableRenditions serves documents without any rendition links.",
+            "type": "boolean"
+          },
+          "include_html": {
+            "description": "IncludeHTML delivers each version rendered to HTML beside it. See GetNewDocumentsRequest.include_html.",
             "type": "boolean"
           },
           "load_documents": {
@@ -1416,6 +1451,10 @@
           },
           "disable_renditions": {
             "description": "DisableRenditions serves documents without any rendition links: the stored canonical bytes. This is the only mode whose payload matches the stored and archived document, so it is what a doc-hash verification against the transparency log must use. Takes precedence over disable_rendition_signing, which has no effect when this is set.",
+            "type": "boolean"
+          },
+          "include_html": {
+            "description": "IncludeHTML delivers the document rendered to HTML beside it, in rendered_html. It follows the document: an item whose document was not loaded - deferred, or not asked for - carries no HTML either, and a document of a type the active configuration does not render HTML for comes back without it rather than as an error.\n The HTML is an \u003carticle\u003e fragment: block-level markup with no document frame, with the image links of the delivered document. Only data-block-id is a stable hook - see HTMLRenderingConfiguration.",
             "type": "boolean"
           },
           "load_documents": {
@@ -1555,6 +1594,30 @@
         },
         "type": "object"
       },
+      "elephant.distribution.HTMLRenderingConfiguration": {
+        "description": "HTMLRenderingConfiguration configures delivery-time HTML rendering for the generation: which documents render, which image variant the rendered markup embeds, and the operator-registered renderers that extend or replace the built-in block renderers.\n HTML is rendered when a consumer asks for it - a pull request with include_html, or a push destination configured for it - never on the store path, and the result is cached per document version and configuration. The output is an \u003carticle\u003e fragment: block-level HTML with no document frame, so a caller embeds it directly and a format that promises a whole document wraps it.\n Only data-block-id, which every top-level block element carries so that a consumer can correlate the markup back to the newsdoc blocks, is a versioned part of the markup. Element choices and class names may change between releases; do not write a consumer that depends on them.",
+        "properties": {
+          "document_types": {
+            "description": "DocumentTypes are the document types that render HTML. Empty renders no type - a deployment opts its types in, so that planning documents and entity registries do not render markup nobody asked for. A request for HTML on a type outside the list yields no HTML and no error.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "image_variant": {
+            "description": "ImageVariant is the rendition variant the rendered images link to. Empty defaults to \"preview\". It is service-level by design: the HTML is cached across callers, so the variant embedded in it cannot be a request parameter.",
+            "type": "string"
+          },
+          "renderers": {
+            "description": "Renderers extend the built-in block renderers, in declaration order. A block is claimed by the first renderer whose trigger matches it and is never sent to two renderers; blocks no renderer claims are rendered by the built-ins.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.RendererConfiguration"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.Hit": {
         "properties": {
           "deferred": {
@@ -1581,6 +1644,10 @@
           },
           "published_at": {
             "description": "PublishedAt is when the indexed version of the document became public, in the canonical fixed-width RFC 3339 form (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision).\n It dates the projection that matched, which is not necessarily the document that was loaded: a document corrected since it was indexed is delivered as it stands now, and this is the version the hit was matched on. Empty for a hit out of an index that predates the field.",
+            "type": "string"
+          },
+          "rendered_html": {
+            "description": "RenderedHTML is the loaded document rendered to HTML, when the query asked for it with include_html. It is rendered from the version that was loaded - the current stored version - not from the projection the hit was matched on.",
             "type": "string"
           },
           "score": {
@@ -1982,6 +2049,10 @@
             "description": "From is the start of the interval on the planned date, inclusive, as an RFC 3339 timestamp with an offset. Required. See ListPublishedVersionsRequest.from for why this is an interval and not a day.",
             "type": "string"
           },
+          "include_html": {
+            "description": "IncludeHTML delivers each entry's document rendered to HTML beside it. See GetNewDocumentsRequest.include_html.",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Limit is the maximum number of entries to return. Defaults to 50 and is capped at 200.",
             "type": "integer"
@@ -2063,6 +2134,10 @@
             "description": "From is the start of the interval, inclusive, as an RFC 3339 timestamp with an offset. Required.\n The server has no notion of a day: what a day is, in which timezone, and whether the boundary falls at midnight or at the start of a shift is the client's decision. The interval is normalised to UTC for the scan, so an offset is how a local day is expressed.",
             "type": "string"
           },
+          "include_html": {
+            "description": "IncludeHTML delivers each entry's document rendered to HTML beside it. See GetNewDocumentsRequest.include_html.",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Limit is the maximum number of entries to return. Defaults to 50 and is capped at 200.",
             "type": "integer"
@@ -2112,6 +2187,21 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ListRendererSecretsRequest": {
+        "type": "object"
+      },
+      "elephant.distribution.ListRendererSecretsResponse": {
+        "properties": {
+          "secrets": {
+            "description": "Secrets in name order.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.RendererSecretStatus"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.ListSubscriptionsRequest": {
         "properties": {
           "include_deactivated": {
@@ -2156,6 +2246,10 @@
           },
           "published_at": {
             "description": "PublishedAt is when this version became public, in the canonical fixed-width RFC 3339 form. Empty for a version served from the archive.",
+            "type": "string"
+          },
+          "rendered_html": {
+            "description": "RenderedHTML is this version rendered to HTML, when the request asked for it with include_html. Absent for a deferred version, exactly as the document is.",
             "type": "string"
           },
           "subset": {
@@ -2524,6 +2618,10 @@
             "description": "PublishedAt is when this version became public, in the canonical fixed-width RFC 3339 form (\"2006-01-02T15:04:05.000000Z\", UTC, microsecond precision). This is what ListPublishedVersions orders and filters on.",
             "type": "string"
           },
+          "rendered_html": {
+            "description": "RenderedHTML is this version rendered to HTML, when the request asked for it with include_html. It follows the document: a deferred entry carries no HTML either.",
+            "type": "string"
+          },
           "subset": {
             "description": "Subset is what the document type's extractors collected from the delivered document, when the request named the type in subset.",
             "items": {
@@ -2625,6 +2723,10 @@
           "generation": {
             "description": "Generation answers the query from a named index generation instead of the active one, naming it as Configuration.ListIndexGenerations does. Empty is the active generation, and the only value an ordinary caller may send: naming a generation requires the \"dist_admin\" scope.\n It is the validation surface for a rebuild or a move to another cluster. A candidate generation is built and kept up to date while the active one serves, and this is how real queries are pointed at it and the results compared before it is activated. A generation that doesn't exist, or one whose cluster is unreachable, is an error rather than a silent fall back to the active generation - a comparison that quietly queried the wrong index set would be worse than no comparison.",
             "type": "string"
+          },
+          "include_html": {
+            "description": "IncludeHTML returns each hit's document rendered to HTML beside it, in rendered_html. It follows the loaded document, so it needs load_documents or subset, and it requires the same \"dist_read\" scope they do. A hit whose document was deferred or is no longer stored comes back without HTML, as it comes back without a document.\n The HTML is an \u003carticle\u003e fragment rendered from the same delivered document, with the same rendition links. See Configuration's HTMLRenderingConfiguration for what the markup promises.",
+            "type": "boolean"
           },
           "knn": {
             "$ref": "#/components/schemas/elephant.distribution.KnnQuery"
@@ -2754,6 +2856,9 @@
             "description": "Description is an optional human-readable tag for the new generation.",
             "type": "string"
           },
+          "renderers": {
+            "$ref": "#/components/schemas/elephant.distribution.HTMLRenderingConfiguration"
+          },
           "renditions": {
             "description": "Renditions the generation should contain, one per asset kind. Order of the sources within each kind is preserved.",
             "items": {
@@ -2857,6 +2962,164 @@
         "properties": {
           "status": {
             "$ref": "#/components/schemas/elephant.distribution.RematerializationStatus"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RendererAttributes": {
+        "description": "RendererAttributes is the attribute names permitted on one element. A message rather than a repeated value because a proto3 map cannot carry a list directly.",
+        "properties": {
+          "attributes": {
+            "description": "Attributes permitted on the element.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RendererCircuitBreaker": {
+        "description": "RendererCircuitBreaker bounds the calls to a renderer and stops calling one that is failing. The breaker counts consecutive failures; every failure that reached the renderer counts against it, and one that never did - an unresolvable secret, or a call refused because the circuit is already open - does not.",
+        "properties": {
+          "failure_threshold": {
+            "description": "FailureThreshold is the number of consecutive failures that opens the circuit. Zero defaults to 5.",
+            "type": "integer"
+          },
+          "max_in_flight": {
+            "description": "MaxInFlight is the number of concurrent calls to the renderer. Zero defaults to 4. A call that cannot get a slot within the timeout is a failure, and its blocks fall back to the built-ins.",
+            "type": "integer"
+          },
+          "open_duration": {
+            "description": "OpenDuration is how long the circuit stays open before one half-open probe is let through, as a duration string. Empty defaults to 30 seconds.",
+            "type": "string"
+          },
+          "timeout": {
+            "description": "Timeout of one renderer call, as a duration string (\"1s\", \"750ms\"). Empty defaults to one second. It bounds the whole call, waiting for an in-flight slot included, and it is the interrupt deadline of a \"js\" renderer too.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RendererConfiguration": {
+        "description": "RendererConfiguration is one operator-registered HTML renderer: a script that runs in-process, or an HTTP endpoint that is called.\n A renderer failure of any kind - timeout, open circuit, connection error, non-2xx status, bad response signature, unreadable response, script exception, unresolvable secret - falls back to the built-in renderer for the blocks it had claimed, and delivery proceeds. HTML is an additive convenience; the absence of one custom block never stops a response or a push.",
+        "properties": {
+          "allow_insecure": {
+            "description": "AllowInsecure permits a plain http endpoint. For an in-cluster renderer reached over a trusted network; the HMAC authentication is unaffected either way, but the payload is then in the clear.",
+            "type": "boolean"
+          },
+          "circuit_breaker": {
+            "$ref": "#/components/schemas/elephant.distribution.RendererCircuitBreaker"
+          },
+          "document_types": {
+            "description": "DocumentTypes narrows the renderer to the given document types. Empty is every type the generation renders HTML for.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "full_document": {
+            "description": "FullDocument sends the whole document with the request beside the selected blocks. Off by default - a renderer that only needs its own blocks should not be handed the document.",
+            "type": "boolean"
+          },
+          "kind": {
+            "description": "Kind is \"js\" for a script run in-process, or \"remote\" for an HTTP endpoint.\n A string rather than an enum, as anchor and TypeDeliveryField.kind are: the zero value has to be invalid, so that a declaration that forgot its kind is refused rather than silently accepted as one of them.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name identifies the renderer. It labels the metrics and the log lines, and it is the name of the renderer's secret, so it matches ^[a-z0-9][a-z0-9_-]*$ - the pattern an environment variable name can be derived from.",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/elephant.distribution.RendererPolicy"
+          },
+          "policy_preset": {
+            "description": "PolicyPreset names a built-in sanitizer policy instead of spelling one out: \"strict\" or \"rich-text\". Mutually exclusive with policy.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Revision is the cache-busting counter of the renderer's output, and it must be at least 1. The rendered HTML is cached on the identity of the configuration that produced it, and a remote renderer's own output is not part of that identity - so a deploy of the renderer that changes what it emits must bump this, or the cache keeps serving what the previous revision rendered. Output changes are configuration changes by contract.",
+            "type": "integer"
+          },
+          "script": {
+            "description": "Script is the renderer script, for the \"js\" kind. It is the script content, not a path: the operator tooling resolves its script_file before the call, exactly as it does for a type's transform script. Mutually exclusive with url.",
+            "type": "string"
+          },
+          "triggers": {
+            "description": "Triggers select the blocks this renderer claims. Zero triggers claim every content block of a rendered document.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.RendererTrigger"
+            },
+            "type": "array"
+          },
+          "url": {
+            "description": "URL is the endpoint to POST the render request to, for the \"remote\" kind. Mutually exclusive with script.\n It must be https unless allow_insecure is set. Unlike a push destination's endpoint it is not checked against a forbidden-address predicate: a renderer is configured by an operator on a \"dist_admin\" surface, and an in-cluster renderer on a private address is the expected deployment.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RendererPolicy": {
+        "description": "RendererPolicy is the sanitizer applied to a renderer's output. What it does not allow is removed; an entry whose HTML the policy reduces to nothing is a rendered-empty block, not a failure.",
+        "properties": {
+          "attributes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/elephant.distribution.RendererAttributes"
+            },
+            "description": "Attributes are the permitted attributes per element name, e.g. \"a\" -\u003e [\"href\"]. An element with no entry keeps no attributes.",
+            "type": "object"
+          },
+          "elements": {
+            "description": "Elements are the permitted element names, e.g. \"p\", \"em\", \"aside\".",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "url_schemes": {
+            "description": "URLSchemes are the permitted URL schemes on attributes that carry one, e.g. \"https\".",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RendererSecretStatus": {
+        "description": "RendererSecretStatus is what the API says about a stored renderer secret: that it exists, when it was written, and which keyring entry it is sealed under. Never its value.",
+        "properties": {
+          "key_id": {
+            "description": "KeyID names the keyring entry it is encrypted under. It is the input to a key rotation.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the renderer the secret belongs to.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "UpdatedAt is when it was last written, RFC 3339.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.RendererTrigger": {
+        "description": "RendererTrigger selects the blocks a renderer claims.",
+        "properties": {
+          "block_types": {
+            "description": "BlockTypes to claim, e.g. \"core/factbox\". Empty is every block type.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "description": "Roles narrows the trigger to blocks carrying one of the given roles. Empty is every role.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -3275,6 +3538,27 @@
           },
           "status": {
             "$ref": "#/components/schemas/elephant.distribution.CredentialStatus"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SetRendererSecretRequest": {
+        "properties": {
+          "name": {
+            "description": "Name of the renderer the secret belongs to, matching RendererConfiguration.name. The renderer need not be configured yet.",
+            "type": "string"
+          },
+          "secret": {
+            "description": "Secret is the shared secret the HMAC request and response signatures are computed with. It never crosses the wire to the renderer itself.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.SetRendererSecretResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/elephant.distribution.RendererSecretStatus"
           }
         },
         "type": "object"
@@ -4335,6 +4619,44 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Configuration/DeleteRendererSecret": {
+      "post": {
+        "description": "DeleteRendererSecret removes a stored renderer secret. It does not invalidate a configuration generation that names the renderer: the renderer is skipped at render time, its blocks fall back to the built-in renderers, and the missing-secret gauge is raised.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.DeleteRendererSecretRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.DeleteRendererSecretResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "DeleteRendererSecret",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Configuration/EraseDocument": {
       "post": {
         "description": "EraseDocument erases the content of a document from every store that holds it: the stored document versions, the archived document objects and their vector cache, the search index copies, and the placement and subscription bookkeeping that names it.\n The eventlog is untouched. Its entries carry identifiers and hashes only, never document content, so the transparency log survives an erasure with its hash chain intact.\n Erasure is point-in-time. It removes the content that exists when it is ordered and does not blocklist the UUID: a document re-published afterwards is a new document and is distributed and indexed normally.\n The call is idempotent and returns the recorded request. A request is complete once no archived index snapshot holds a copy any more, which can require the affected partitions to be re-materialized - use GetErasureStatus to prove completion.",
@@ -4715,6 +5037,44 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Configuration/ListRendererSecrets": {
+      "post": {
+        "description": "ListRendererSecrets lists the stored renderer secrets by name, with the keyring entry each one is sealed under and when it was last written. Never their values.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ListRendererSecretsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ListRendererSecretsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ListRendererSecrets",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Configuration/RegisterConfigGeneration": {
       "post": {
         "description": "RegisterConfigGeneration registers a complete configuration set (schemas + type configurations) as a new generation. Existing schema versions can be re-used by name and version without re-supplying the spec; if the spec is supplied for an existing version it must match the stored one. Returns the new generation ID.",
@@ -4786,6 +5146,44 @@
           }
         ],
         "summary": "RematerializePartition",
+        "tags": [
+          "Configuration"
+        ]
+      }
+    },
+    "/twirp/elephant.distribution.Configuration/SetRendererSecret": {
+      "post": {
+        "description": "SetRendererSecret stores the shared secret a remote HTML renderer authenticates with. A renderer names its secret implicitly: the renderer \"factbox-special\" uses the secret \"factbox-special\".\n The secret is write-only. It is stored encrypted under the delivery keyring and there is no call that returns it; ListRendererSecrets reports which secrets exist and when they were written, and nothing else. An environment-provided secret takes precedence over a stored one, so an emergency override does not need a write here.\n Store the secret before registering a generation that names the renderer: registration resolves every remote renderer's secret and refuses a generation whose secrets are not resolvable.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.SetRendererSecretRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.SetRendererSecretResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SetRendererSecret",
         "tags": [
           "Configuration"
         ]

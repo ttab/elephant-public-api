@@ -301,6 +301,23 @@ message DestinationSpec {
   // a worker and never issues a request, rather than falling back to
   // whatever identity the service itself has.
   bool enabled = 12;
+  // IncludeHTML delivers the document rendered to HTML with it: the
+  // envelope gains a rendered_html member beside document, an <article>
+  // fragment with the same rendition links the delivered document
+  // carries.
+  //
+  // It can be changed on an existing destination. It changes an envelope
+  // member, not an object key, so nothing a customer has already ingested
+  // is renamed or contradicted - the next delivery of a document simply
+  // carries the member, and the ingest contract's obligation to ignore
+  // unknown members is what a consumer that has not caught up relies on.
+  // The envelope version is not bumped for it.
+  //
+  // A retraction never carries HTML: it has no document to render.
+  // Neither does a document of a type the configuration renders no HTML
+  // for, and a render that had to fall back to the built-in renderers
+  // still ships.
+  bool include_html = 14;
 }
 
 // Destination is a destination as stored.

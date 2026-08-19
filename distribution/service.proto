@@ -33,6 +33,29 @@ service Configuration {
   // GetTypeConfiguration returns the configuration for a type in the
   // active generation.
   rpc GetTypeConfiguration(GetTypeConfigurationRequest) returns (GetTypeConfigurationResponse);
+  // SetRendererSecret stores the shared secret a remote HTML renderer
+  // authenticates with. A renderer names its secret implicitly: the
+  // renderer "factbox-special" uses the secret "factbox-special".
+  //
+  // The secret is write-only. It is stored encrypted under the delivery
+  // keyring and there is no call that returns it; ListRendererSecrets
+  // reports which secrets exist and when they were written, and nothing
+  // else. An environment-provided secret takes precedence over a stored
+  // one, so an emergency override does not need a write here.
+  //
+  // Store the secret before registering a generation that names the
+  // renderer: registration resolves every remote renderer's secret and
+  // refuses a generation whose secrets are not resolvable.
+  rpc SetRendererSecret(SetRendererSecretRequest) returns (SetRendererSecretResponse);
+  // DeleteRendererSecret removes a stored renderer secret. It does not
+  // invalidate a configuration generation that names the renderer: the
+  // renderer is skipped at render time, its blocks fall back to the
+  // built-in renderers, and the missing-secret gauge is raised.
+  rpc DeleteRendererSecret(DeleteRendererSecretRequest) returns (DeleteRendererSecretResponse);
+  // ListRendererSecrets lists the stored renderer secrets by name, with
+  // the keyring entry each one is sealed under and when it was last
+  // written. Never their values.
+  rpc ListRendererSecrets(ListRendererSecretsRequest) returns (ListRendererSecretsResponse);
   // SetSyncState sets the desired state of the distribution sync worker.
   // A cold-started service (no configuration, no sync position) starts
   // out paused so that the repository eventlog isn't consumed - and
@@ -326,6 +349,16 @@ message GetNewDocumentsRequest {
   // Off by default: the three fields are a few hundred bytes an event
   // that a consumer which doesn't verify would carry for nothing.
   bool verification = 8;
+  // IncludeHTML delivers the document rendered to HTML beside it, in
+  // rendered_html. It follows the document: an item whose document was
+  // not loaded - deferred, or not asked for - carries no HTML either, and
+  // a document of a type the active configuration does not render HTML
+  // for comes back without it rather than as an error.
+  //
+  // The HTML is an <article> fragment: block-level markup with no
+  // document frame, with the image links of the delivered document. Only
+  // data-block-id is a stable hook - see HTMLRenderingConfiguration.
+  bool include_html = 9;
 }
 
 // RenditionParameters selects the renditions to generate for one asset
@@ -354,6 +387,9 @@ message GetDocumentRequest {
   // DisableRenditions serves the document without any rendition links.
   // See GetNewDocumentsRequest.disable_renditions.
   bool disable_renditions = 5;
+  // IncludeHTML delivers the document rendered to HTML beside it. See
+  // GetNewDocumentsRequest.include_html.
+  bool include_html = 6;
 }
 
 message GetDocumentResponse {
@@ -372,6 +408,10 @@ message GetDocumentResponse {
   // only ever been published once. Empty for a document whose
   // first-published record has been erased or was never written.
   string first_published = 4;
+  // RenderedHTML is the document rendered to HTML, when the request asked
+  // for it with include_html. An <article> fragment; empty when the
+  // document's type renders no HTML.
+  string rendered_html = 5;
 }
 
 // PublishedVersion is one stored document version in a daily view.
@@ -420,6 +460,10 @@ message PublishedVersion {
   // An entry with neither a document nor deferred set has no document to
   // load - it has been erased - so don't ask for it again.
   bool deferred = 10;
+  // RenderedHTML is this version rendered to HTML, when the request asked
+  // for it with include_html. It follows the document: a deferred entry
+  // carries no HTML either.
+  string rendered_html = 11;
 }
 
 // DocumentVersionRef identifies one version to load.
@@ -449,6 +493,9 @@ message GetDocumentVersionsRequest {
   bool disable_renditions = 5;
   // DisableRenditionSigning serves generated but unsigned rendition URLs.
   bool disable_rendition_signing = 6;
+  // IncludeHTML delivers each version rendered to HTML beside it. See
+  // GetNewDocumentsRequest.include_html.
+  bool include_html = 7;
 }
 
 message LoadedDocumentVersion {
@@ -475,6 +522,10 @@ message LoadedDocumentVersion {
   // Found is false when the version is in neither the store nor the
   // archive: erased, deleted, or never distributed. Don't ask again.
   bool found = 8;
+  // RenderedHTML is this version rendered to HTML, when the request asked
+  // for it with include_html. Absent for a deferred version, exactly as
+  // the document is.
+  string rendered_html = 9;
 }
 
 message GetDocumentVersionsResponse {
@@ -543,6 +594,9 @@ message ListPublishedVersionsRequest {
   // rendition URLs. See
   // GetNewDocumentsRequest.disable_rendition_signing.
   bool disable_rendition_signing = 11;
+  // IncludeHTML delivers each entry's document rendered to HTML beside
+  // it. See GetNewDocumentsRequest.include_html.
+  bool include_html = 12;
 }
 
 message ListPublishedVersionsResponse {
@@ -599,6 +653,9 @@ message ListPlannedVersionsRequest {
   // DisableRenditionSigning serves documents with generated but unsigned
   // rendition URLs.
   bool disable_rendition_signing = 11;
+  // IncludeHTML delivers each entry's document rendered to HTML beside
+  // it. See GetNewDocumentsRequest.include_html.
+  bool include_html = 12;
 }
 
 message ListPlannedVersionsResponse {
@@ -863,6 +920,11 @@ message DocumentItem {
   // load: it is a tombstone, or the document has been deleted or erased.
   // Don't ask for it again.
   bool deferred = 4;
+  // RenderedHTML is the document rendered to HTML, when the request asked
+  // for it with include_html. An <article> fragment, and empty whenever
+  // there is no document to render it from: a deferred item, a tombstone,
+  // or a type the configuration renders no HTML for.
+  string rendered_html = 5;
 }
 
 message ExtractedValues {
@@ -1065,6 +1127,208 @@ message RenditionConfiguration {
   repeated RenditionSource sources = 4;
 }
 
+// HTMLRenderingConfiguration configures delivery-time HTML rendering for
+// the generation: which documents render, which image variant the
+// rendered markup embeds, and the operator-registered renderers that
+// extend or replace the built-in block renderers.
+//
+// HTML is rendered when a consumer asks for it - a pull request with
+// include_html, or a push destination configured for it - never on the
+// store path, and the result is cached per document version and
+// configuration. The output is an <article> fragment: block-level HTML
+// with no document frame, so a caller embeds it directly and a format
+// that promises a whole document wraps it.
+//
+// Only data-block-id, which every top-level block element carries so that
+// a consumer can correlate the markup back to the newsdoc blocks, is a
+// versioned part of the markup. Element choices and class names may
+// change between releases; do not write a consumer that depends on them.
+message HTMLRenderingConfiguration {
+  // ImageVariant is the rendition variant the rendered images link to.
+  // Empty defaults to "preview". It is service-level by design: the HTML
+  // is cached across callers, so the variant embedded in it cannot be a
+  // request parameter.
+  string image_variant = 1;
+  // DocumentTypes are the document types that render HTML. Empty renders
+  // no type - a deployment opts its types in, so that planning documents
+  // and entity registries do not render markup nobody asked for. A
+  // request for HTML on a type outside the list yields no HTML and no
+  // error.
+  repeated string document_types = 2;
+  // Renderers extend the built-in block renderers, in declaration order.
+  // A block is claimed by the first renderer whose trigger matches it and
+  // is never sent to two renderers; blocks no renderer claims are
+  // rendered by the built-ins.
+  repeated RendererConfiguration renderers = 3;
+}
+
+// RendererConfiguration is one operator-registered HTML renderer: a
+// script that runs in-process, or an HTTP endpoint that is called.
+//
+// A renderer failure of any kind - timeout, open circuit, connection
+// error, non-2xx status, bad response signature, unreadable response,
+// script exception, unresolvable secret - falls back to the built-in
+// renderer for the blocks it had claimed, and delivery proceeds. HTML is
+// an additive convenience; the absence of one custom block never stops a
+// response or a push.
+message RendererConfiguration {
+  // Name identifies the renderer. It labels the metrics and the log
+  // lines, and it is the name of the renderer's secret, so it matches
+  // ^[a-z0-9][a-z0-9_-]*$ - the pattern an environment variable name can
+  // be derived from.
+  string name = 1;
+  // Kind is "js" for a script run in-process, or "remote" for an HTTP
+  // endpoint.
+  //
+  // A string rather than an enum, as anchor and TypeDeliveryField.kind
+  // are: the zero value has to be invalid, so that a declaration that
+  // forgot its kind is refused rather than silently accepted as one of
+  // them.
+  string kind = 2;
+  // Revision is the cache-busting counter of the renderer's output, and
+  // it must be at least 1. The rendered HTML is cached on the identity of
+  // the configuration that produced it, and a remote renderer's own
+  // output is not part of that identity - so a deploy of the renderer
+  // that changes what it emits must bump this, or the cache keeps serving
+  // what the previous revision rendered. Output changes are
+  // configuration changes by contract.
+  int64 revision = 3;
+  // Script is the renderer script, for the "js" kind. It is the script
+  // content, not a path: the operator tooling resolves its script_file
+  // before the call, exactly as it does for a type's transform script.
+  // Mutually exclusive with url.
+  string script = 4;
+  // URL is the endpoint to POST the render request to, for the "remote"
+  // kind. Mutually exclusive with script.
+  //
+  // It must be https unless allow_insecure is set. Unlike a push
+  // destination's endpoint it is not checked against a forbidden-address
+  // predicate: a renderer is configured by an operator on a "dist_admin"
+  // surface, and an in-cluster renderer on a private address is the
+  // expected deployment.
+  string url = 5;
+  // FullDocument sends the whole document with the request beside the
+  // selected blocks. Off by default - a renderer that only needs its own
+  // blocks should not be handed the document.
+  bool full_document = 6;
+  // AllowInsecure permits a plain http endpoint. For an in-cluster
+  // renderer reached over a trusted network; the HMAC authentication is
+  // unaffected either way, but the payload is then in the clear.
+  bool allow_insecure = 7;
+  // Triggers select the blocks this renderer claims. Zero triggers claim
+  // every content block of a rendered document.
+  repeated RendererTrigger triggers = 8;
+  // DocumentTypes narrows the renderer to the given document types.
+  // Empty is every type the generation renders HTML for.
+  repeated string document_types = 9;
+  // Policy is the sanitizer the renderer's output is filtered through.
+  // Either this or policy_preset is required: nothing a renderer returns
+  // is trusted markup.
+  RendererPolicy policy = 10;
+  // PolicyPreset names a built-in sanitizer policy instead of spelling
+  // one out: "strict" or "rich-text". Mutually exclusive with policy.
+  string policy_preset = 11;
+  // CircuitBreaker bounds the calls to a remote renderer. Omitted takes
+  // the defaults. A "js" renderer reads the timeout from it and ignores
+  // the rest.
+  RendererCircuitBreaker circuit_breaker = 12;
+}
+
+// RendererTrigger selects the blocks a renderer claims.
+message RendererTrigger {
+  // BlockTypes to claim, e.g. "core/factbox". Empty is every block type.
+  repeated string block_types = 1;
+  // Roles narrows the trigger to blocks carrying one of the given roles.
+  // Empty is every role.
+  repeated string roles = 2;
+}
+
+// RendererPolicy is the sanitizer applied to a renderer's output. What it
+// does not allow is removed; an entry whose HTML the policy reduces to
+// nothing is a rendered-empty block, not a failure.
+message RendererPolicy {
+  // Elements are the permitted element names, e.g. "p", "em", "aside".
+  repeated string elements = 1;
+  // Attributes are the permitted attributes per element name, e.g.
+  // "a" -> ["href"]. An element with no entry keeps no attributes.
+  map<string, RendererAttributes> attributes = 2;
+  // URLSchemes are the permitted URL schemes on attributes that carry
+  // one, e.g. "https".
+  repeated string url_schemes = 3;
+}
+
+// RendererAttributes is the attribute names permitted on one element. A
+// message rather than a repeated value because a proto3 map cannot carry
+// a list directly.
+message RendererAttributes {
+  // Attributes permitted on the element.
+  repeated string attributes = 1;
+}
+
+// RendererCircuitBreaker bounds the calls to a renderer and stops calling
+// one that is failing. The breaker counts consecutive failures; every
+// failure that reached the renderer counts against it, and one that never
+// did - an unresolvable secret, or a call refused because the circuit is
+// already open - does not.
+message RendererCircuitBreaker {
+  // Timeout of one renderer call, as a duration string ("1s", "750ms").
+  // Empty defaults to one second. It bounds the whole call, waiting for
+  // an in-flight slot included, and it is the interrupt deadline of a
+  // "js" renderer too.
+  string timeout = 1;
+  // FailureThreshold is the number of consecutive failures that opens the
+  // circuit. Zero defaults to 5.
+  int32 failure_threshold = 2;
+  // OpenDuration is how long the circuit stays open before one half-open
+  // probe is let through, as a duration string. Empty defaults to 30
+  // seconds.
+  string open_duration = 3;
+  // MaxInFlight is the number of concurrent calls to the renderer. Zero
+  // defaults to 4. A call that cannot get a slot within the timeout is a
+  // failure, and its blocks fall back to the built-ins.
+  int32 max_in_flight = 4;
+}
+
+// RendererSecretStatus is what the API says about a stored renderer
+// secret: that it exists, when it was written, and which keyring entry it
+// is sealed under. Never its value.
+message RendererSecretStatus {
+  // Name of the renderer the secret belongs to.
+  string name = 1;
+  // KeyID names the keyring entry it is encrypted under. It is the input
+  // to a key rotation.
+  string key_id = 2;
+  // UpdatedAt is when it was last written, RFC 3339.
+  string updated_at = 3;
+}
+
+message SetRendererSecretRequest {
+  // Name of the renderer the secret belongs to, matching
+  // RendererConfiguration.name. The renderer need not be configured yet.
+  string name = 1;
+  // Secret is the shared secret the HMAC request and response signatures
+  // are computed with. It never crosses the wire to the renderer itself.
+  string secret = 2;
+}
+
+message SetRendererSecretResponse {
+  RendererSecretStatus status = 1;
+}
+
+message DeleteRendererSecretRequest {
+  // Name of the renderer whose secret to delete.
+  string name = 1;
+}
+
+message DeleteRendererSecretResponse {}
+
+message ListRendererSecretsRequest {}
+
+message ListRendererSecretsResponse {
+  // Secrets in name order.
+  repeated RendererSecretStatus secrets = 1;
+}
+
 message ConfigGeneration {
   // ID is assigned by the server on registration.
   int64 id                                  = 1;
@@ -1081,6 +1345,10 @@ message ConfigGeneration {
   repeated ConfigGenerationType types       = 6;
   // Renditions configured in the generation, one per asset kind.
   repeated RenditionConfiguration renditions = 7;
+  // Renderers is the generation's HTML rendering configuration: the
+  // document types that render, the image variant the markup embeds, and
+  // the registered renderers. Absent when the generation renders no HTML.
+  HTMLRenderingConfiguration renderers      = 8;
 }
 
 message RegisterConfigGenerationRequest {
@@ -1097,6 +1365,16 @@ message RegisterConfigGenerationRequest {
   // Renditions the generation should contain, one per asset kind. Order
   // of the sources within each kind is preserved.
   repeated RenditionConfiguration renditions = 5;
+  // Renderers is the HTML rendering configuration the generation should
+  // have. Renderer declaration order is preserved: it is what decides
+  // which renderer claims a block that two of them trigger on.
+  //
+  // It is validated here rather than at render time - names, kinds, the
+  // sanitizer policies, the breaker values, and that every remote
+  // renderer's secret resolves - so that a generation which cannot render
+  // is never created. Absent leaves the generation with no HTML
+  // rendering.
+  HTMLRenderingConfiguration renderers       = 6;
 }
 
 message RegisterConfigGenerationResponse {
