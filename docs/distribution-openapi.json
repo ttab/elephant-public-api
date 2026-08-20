@@ -324,6 +324,40 @@
         },
         "type": "object"
       },
+      "elephant.distribution.ClearDeliveryErasureObligationRequest": {
+        "properties": {
+          "acknowledge": {
+            "description": "Acknowledge must be true. Clearing an obligation asserts that a copy of erased content was dealt with outside this system, and the acknowledgement is what makes that a deliberate act.",
+            "type": "boolean"
+          },
+          "destination": {
+            "description": "Destination whose obligation is being discharged.",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Reason the copy could not be withdrawn and how it was accounted for. Required, recorded on the obligation and in the operator action log.",
+            "type": "string"
+          },
+          "uuid": {
+            "description": "UUID of the erased document.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.distribution.ClearDeliveryErasureObligationResponse": {
+        "properties": {
+          "complete": {
+            "description": "Complete is whether the erasure became provable as a result.",
+            "type": "boolean"
+          },
+          "objects_written_off": {
+            "description": "ObjectsWrittenOff is how many inventory rows the destination still holds for the document. The rows are kept; this is the count an operator is signing for.",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.ConfigGeneration": {
         "properties": {
           "activated_at": {
@@ -567,6 +601,52 @@
       "elephant.distribution.DeleteSubscriptionResponse": {
         "type": "object"
       },
+      "elephant.distribution.DeliveryErasureObligation": {
+        "description": "DeliveryErasureObligation is one destination that holds, or held, a pushed copy of an erased document.",
+        "properties": {
+          "cleared_at": {
+            "description": "ClearedAt is when the obligation was discharged, RFC3339, and empty while it is outstanding.",
+            "type": "string"
+          },
+          "cleared_by": {
+            "description": "ClearedBy is the subject of the credentials an operator cleared the obligation with, and is empty for every other reason: a withdrawal and a destination deletion are the system's own doing.",
+            "type": "string"
+          },
+          "cleared_reason": {
+            "description": "ClearedReason is how it was discharged: \"withdrawn\" (we deleted every object), \"destination_deleted\" (the destination and its credentials are gone, so there is nothing left to withdraw with), or \"operator_cleared\" (an operator recorded that it was dealt with outside this system).",
+            "type": "string"
+          },
+          "deliverable": {
+            "description": "Deliverable is whether a push worker will currently attempt this obligation. False means the destination is disabled, stalled, suspended, deleted or has no stored credential, and that the obligation will not clear until that is fixed or an operator clears it. True is not a promise that it will clear: a destination whose stored credential no longer authenticates is deliverable and fails on every connect, which last_success_at is how you tell.",
+            "type": "boolean"
+          },
+          "destination": {
+            "description": "Destination the copy was pushed to.",
+            "type": "integer"
+          },
+          "last_success_at": {
+            "description": "LastSuccessAt is when the destination last completed any delivery, RFC3339, and empty if it never has. Read beside deliverable: an attempting destination that has not succeeded since the erasure was ordered is failing rather than progressing.",
+            "type": "string"
+          },
+          "objects_at_request": {
+            "description": "ObjectsAtRequest is how many objects the destination held when the erasure was ordered.",
+            "type": "integer"
+          },
+          "objects_outstanding": {
+            "description": "ObjectsOutstanding is how many of them we still believe it holds.",
+            "type": "integer"
+          },
+          "sweep_state": {
+            "description": "SweepState is whether this destination's drop can be enumerated for stale temporary files: \"ok\", \"unreadable\" (the account may write but not read, so temporary files cannot be found), \"no_reference\" (the reference file the sweep dates entries against could not be written or read back, so no sweep has run), \"none\" for a transport that leaves no temporary files, and empty when no worker has looked yet.",
+            "type": "string"
+          },
+          "transport": {
+            "description": "Transport of the destination, \"s3\" or \"sftp\".",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.distribution.DeliveryField": {
         "description": "DeliveryField is one entry in the vocabulary: the fold of every type's declaration of the name.",
         "properties": {
@@ -618,7 +698,7 @@
             "type": "integer"
           },
           "kind": {
-            "description": "Kind is one of \"suspend\", \"resume_head\", \"resume_prior\", \"destination_drain\", \"destination_skip\", \"matcher_skip\", \"rewind\".",
+            "description": "Kind is one of \"suspend\", \"resume_head\", \"resume_prior\", \"destination_drain\", \"destination_skip\", \"matcher_skip\", \"rewind\", \"erasure_obligation_cleared\".",
             "type": "string"
           },
           "reason": {
@@ -898,12 +978,19 @@
         "description": "ErasureStatus is the state of one document's erasure.",
         "properties": {
           "complete": {
-            "description": "Complete is true when the erasure is provably done, i.e. completed_at is set.",
+            "description": "Complete is true when the erasure is provably done, i.e. completed_at is set: no copy we wrote and can still reach survives. That covers our own stores and the objects pushed to destinations we hold credentials for. It has never covered content a customer has already ingested into their own systems.",
             "type": "boolean"
           },
           "completed_at": {
-            "description": "CompletedAt is when the erasure became provable, RFC3339, and empty while it is outstanding. It is set once no archived index snapshot holds a copy of the document any more.",
+            "description": "CompletedAt is when the erasure became provable, RFC3339, and empty while it is outstanding. It is set once no archived index snapshot holds a copy of the document any more and every destination that was given a copy has been accounted for.",
             "type": "string"
+          },
+          "pending_deliveries": {
+            "description": "PendingDeliveries is every destination that was given a copy of this document, with how each one was accounted for. Entries are kept after they are discharged, because the record of who held a copy and what happened to it is the compliance value: an outstanding entry is one with an empty cleared_at.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.distribution.DeliveryErasureObligation"
+            },
+            "type": "array"
           },
           "pending_partitions": {
             "description": "PendingPartitions are the archived index partitions that still hold a copy. A mounted snapshot is read-only, so the copy in it only goes away when the partition is re-materialized, and the erasure is outstanding until every one of these has been.",
@@ -4655,7 +4742,7 @@
     },
     "/twirp/elephant.distribution.Configuration/EraseDocument": {
       "post": {
-        "description": "EraseDocument erases the content of a document from every store that holds it: the stored document versions, the archived document objects and their vector cache, the search index copies, and the placement and subscription bookkeeping that names it.\n The eventlog is untouched. Its entries carry identifiers and hashes only, never document content, so the transparency log survives an erasure with its hash chain intact.\n Erasure is point-in-time. It removes the content that exists when it is ordered and does not blocklist the UUID: a document re-published afterwards is a new document and is distributed and indexed normally.\n The call is idempotent and returns the recorded request. A request is complete once no archived index snapshot holds a copy any more, which can require the affected partitions to be re-materialized - use GetErasureStatus to prove completion.",
+        "description": "EraseDocument erases the content of a document from every store that holds it and from every copy we pushed out and can still reach: the stored document versions, the archived document objects and their vector cache, the search index copies, the extracted delivery fields, the placement and subscription bookkeeping that names it, and the objects written to delivery destinations.\n The eventlog is untouched. Its entries carry identifiers and hashes only, never document content, so the transparency log survives an erasure with its hash chain intact.\n Erasure is point-in-time. It removes the content that exists when it is ordered and does not blocklist the UUID: a document re-published afterwards is a new document and is distributed and indexed normally.\n The call is idempotent and returns the recorded request. A request is complete once no archived index snapshot holds a copy any more, which can require the affected partitions to be re-materialized, and once every destination that was given a copy has been accounted for - the objects withdrawn, the destination and its credentials gone, or an operator's write-off recorded. Use GetErasureStatus to prove completion.\n What it has never covered, and cannot: content a customer has already ingested from a destination into their own systems. The proof is over the copies we wrote and can still reach.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4807,7 +4894,7 @@
     },
     "/twirp/elephant.distribution.Configuration/GetErasureStatus": {
       "post": {
-        "description": "GetErasureStatus returns the recorded erasure request for a document, including the archived partitions that are still awaiting re-materialization.",
+        "description": "GetErasureStatus returns the recorded erasure request for a document and what it is still waiting for: the archived index partitions awaiting re-materialization, and the delivery destinations that were given a copy and have not been accounted for.\n Two narrow windows sit outside the proof, and they are stated here rather than left to a design document. An object whose write completed but whose inventory row was never recorded - a process that died between the two, or a lost acknowledgement from the recipient - is indistinguishable from a file the customer put there themselves, and is not enumerated. And on an SFTP destination whose account may write but not list, temporary files a failed write left behind cannot be found; sweep_state on the obligation is how that destination reports it.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5678,6 +5765,44 @@
         ]
       }
     },
+    "/twirp/elephant.distribution.Delivery/ClearDeliveryErasureObligation": {
+      "post": {
+        "description": "ClearDeliveryErasureObligation discharges one destination's erasure obligation by hand, for a destination that will never be reachable again. It does not withdraw anything: it records that an operator accounted for the copy outside this system, and the destination's inventory rows are KEPT as the record of which objects were written off.\n It is refused for a destination a push worker would currently be started for, because letting the worker withdraw the copy is the truthful outcome and clearing it would be a lie with an audit trail. The ordinary recovery is the destination's own: fix it, and the withdrawal runs. This call is for the case where that will never happen.\n It applies where it is written rather than being a request the way a matcher skip is: there is by construction no running pass to overwrite it, since the obligation is against a destination with no worker.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.distribution.ClearDeliveryErasureObligationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.distribution.ClearDeliveryErasureObligationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ClearDeliveryErasureObligation",
+        "tags": [
+          "Delivery"
+        ]
+      }
+    },
     "/twirp/elephant.distribution.Delivery/CreateDestination": {
       "post": {
         "description": "CreateDestination registers a destination. It is created disabled unless the request says otherwise, because a destination with no credentials and no attached subscription is a destination being configured rather than one that is broken.",
@@ -5718,7 +5843,7 @@
     },
     "/twirp/elephant.distribution.Delivery/DeleteDestination": {
       "post": {
-        "description": "DeleteDestination marks a destination deleted and wipes its credentials. It is not a row deletion: the inventory of what the destination was given outlives it, because that is the record an erasure request is answered from, and there is no transport left to withdraw with once the credentials are gone.",
+        "description": "DeleteDestination marks a destination deleted and wipes its credentials. It is not a row deletion: the inventory of what the destination was given outlives it, because that is the record an erasure request is answered from, and there is no transport left to withdraw with once the credentials are gone.\n For the same reason the deletion discharges the destination's outstanding erasure obligations, recorded as \"destination_deleted\". The inventory rows are kept as the record of what it held.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5870,7 +5995,7 @@
     },
     "/twirp/elephant.distribution.Delivery/ListDeliveryOperations": {
       "post": {
-        "description": "ListDeliveryOperations lists the deliberate operator decisions not to deliver something: suspensions, resumes, destination skips and cursor skips. It is the answer to \"why is there a hole in this customer's feed\", which is otherwise only in an incident note.",
+        "description": "ListDeliveryOperations lists the deliberate operator decisions not to deliver something, and not to withdraw something: suspensions, resumes, destination skips, cursor skips and erasure obligations cleared by hand. It is the answer to \"why is there a hole in this customer's feed\", which is otherwise only in an incident note.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -6715,7 +6840,7 @@
   ],
   "tags": [
     {
-      "description": "Delivery is where a delivery subscription is wired to somewhere to deliver to. A subscription says what; a destination says where and how - transport, credentials and format - and the two are separate so that one drop can be fed by several differently-tuned subscriptions, and so that a subscription can be authored before anything is wired to a transport.\n Ownership is checked when a subscription is attached and re-checked every time the matcher writes a queue row: a subscription may only be attached to a destination with the same owner. The owner is never taken from the request - it is the organisation claim or the subject of the credentials - and owner_tier picks which of the two, defaulting to the organisation, exactly as it does on Subscriptions.\n Credentials are write-only. They are stored encrypted and there is no call that returns them; a destination reports which kinds it holds and when they were last written, and nothing else. Losing them is a re-entry, not a recovery.\n Access requires the \"dist_subscribe\" scope, which is granted by \"dist_admin\". The operator calls - SuspendSubscriptions, ResumeSubscriptions, ResumeDestination, SkipDeliveryMatcher, RotateDeliveryKeys and ListDeliveryOperations - require \"dist_admin\" on its own: they decide that content will not be delivered, and that is not a customer's decision to make about their own feed.",
+      "description": "Delivery is where a delivery subscription is wired to somewhere to deliver to. A subscription says what; a destination says where and how - transport, credentials and format - and the two are separate so that one drop can be fed by several differently-tuned subscriptions, and so that a subscription can be authored before anything is wired to a transport.\n Ownership is checked when a subscription is attached and re-checked every time the matcher writes a queue row: a subscription may only be attached to a destination with the same owner. The owner is never taken from the request - it is the organisation claim or the subject of the credentials - and owner_tier picks which of the two, defaulting to the organisation, exactly as it does on Subscriptions.\n Credentials are write-only. They are stored encrypted and there is no call that returns them; a destination reports which kinds it holds and when they were last written, and nothing else. Losing them is a re-entry, not a recovery.\n Access requires the \"dist_subscribe\" scope, which is granted by \"dist_admin\". The operator calls - SuspendSubscriptions, ResumeSubscriptions, ResumeDestination, SkipDeliveryMatcher, ClearDeliveryErasureObligation, RotateDeliveryKeys and ListDeliveryOperations - require \"dist_admin\" on its own: they decide that content will not be delivered, or that a copy of erased content is written off, and that is not a customer's decision to make about their own feed.",
       "name": "Delivery"
     },
     {

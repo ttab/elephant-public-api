@@ -66,9 +66,11 @@ service Configuration {
   // repository eventlog.
   rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
   // EraseDocument erases the content of a document from every store that
-  // holds it: the stored document versions, the archived document objects
-  // and their vector cache, the search index copies, and the placement and
-  // subscription bookkeeping that names it.
+  // holds it and from every copy we pushed out and can still reach: the
+  // stored document versions, the archived document objects and their
+  // vector cache, the search index copies, the extracted delivery fields,
+  // the placement and subscription bookkeeping that names it, and the
+  // objects written to delivery destinations.
   //
   // The eventlog is untouched. Its entries carry identifiers and hashes
   // only, never document content, so the transparency log survives an
@@ -80,12 +82,30 @@ service Configuration {
   //
   // The call is idempotent and returns the recorded request. A request is
   // complete once no archived index snapshot holds a copy any more, which
-  // can require the affected partitions to be re-materialized - use
-  // GetErasureStatus to prove completion.
+  // can require the affected partitions to be re-materialized, and once
+  // every destination that was given a copy has been accounted for - the
+  // objects withdrawn, the destination and its credentials gone, or an
+  // operator's write-off recorded. Use GetErasureStatus to prove
+  // completion.
+  //
+  // What it has never covered, and cannot: content a customer has already
+  // ingested from a destination into their own systems. The proof is over
+  // the copies we wrote and can still reach.
   rpc EraseDocument(EraseDocumentRequest) returns (EraseDocumentResponse);
-  // GetErasureStatus returns the recorded erasure request for a document,
-  // including the archived partitions that are still awaiting
-  // re-materialization.
+  // GetErasureStatus returns the recorded erasure request for a document
+  // and what it is still waiting for: the archived index partitions
+  // awaiting re-materialization, and the delivery destinations that were
+  // given a copy and have not been accounted for.
+  //
+  // Two narrow windows sit outside the proof, and they are stated here
+  // rather than left to a design document. An object whose write completed
+  // but whose inventory row was never recorded - a process that died
+  // between the two, or a lost acknowledgement from the recipient - is
+  // indistinguishable from a file the customer put there themselves, and
+  // is not enumerated. And on an SFTP destination whose account may write
+  // but not list, temporary files a failed write left behind cannot be
+  // found; sweep_state on the obligation is how that destination reports
+  // it.
   rpc GetErasureStatus(GetErasureStatusRequest) returns (GetErasureStatusResponse);
   // RematerializePartition orders an archived index partition to be
   // rebuilt from the archive: overlay corrections are folded in, deleted
@@ -1684,7 +1704,8 @@ message ErasureStatus {
   string requested_at                = 2;
   // CompletedAt is when the erasure became provable, RFC3339, and empty
   // while it is outstanding. It is set once no archived index snapshot
-  // holds a copy of the document any more.
+  // holds a copy of the document any more and every destination that was
+  // given a copy has been accounted for.
   string completed_at                = 3;
   // PendingPartitions are the archived index partitions that still hold a
   // copy. A mounted snapshot is read-only, so the copy in it only goes
@@ -1692,8 +1713,64 @@ message ErasureStatus {
   // outstanding until every one of these has been.
   repeated string pending_partitions = 4;
   // Complete is true when the erasure is provably done, i.e. completed_at
-  // is set.
+  // is set: no copy we wrote and can still reach survives. That covers our
+  // own stores and the objects pushed to destinations we hold credentials
+  // for. It has never covered content a customer has already ingested into
+  // their own systems.
   bool complete                      = 5;
+  // PendingDeliveries is every destination that was given a copy of this
+  // document, with how each one was accounted for. Entries are kept after
+  // they are discharged, because the record of who held a copy and what
+  // happened to it is the compliance value: an outstanding entry is one
+  // with an empty cleared_at.
+  repeated DeliveryErasureObligation pending_deliveries = 6;
+}
+
+// DeliveryErasureObligation is one destination that holds, or held, a
+// pushed copy of an erased document.
+message DeliveryErasureObligation {
+  // Destination the copy was pushed to.
+  int64 destination         = 1;
+  // Transport of the destination, "s3" or "sftp".
+  string transport          = 2;
+  // ObjectsAtRequest is how many objects the destination held when the
+  // erasure was ordered.
+  int64 objects_at_request  = 3;
+  // ObjectsOutstanding is how many of them we still believe it holds.
+  int64 objects_outstanding = 4;
+  // ClearedAt is when the obligation was discharged, RFC3339, and empty
+  // while it is outstanding.
+  string cleared_at         = 5;
+  // ClearedReason is how it was discharged: "withdrawn" (we deleted every
+  // object), "destination_deleted" (the destination and its credentials
+  // are gone, so there is nothing left to withdraw with), or
+  // "operator_cleared" (an operator recorded that it was dealt with
+  // outside this system).
+  string cleared_reason     = 6;
+  // Deliverable is whether a push worker will currently attempt this
+  // obligation. False means the destination is disabled, stalled,
+  // suspended, deleted or has no stored credential, and that the
+  // obligation will not clear until that is fixed or an operator clears
+  // it. True is not a promise that it will clear: a destination whose
+  // stored credential no longer authenticates is deliverable and fails on
+  // every connect, which last_success_at is how you tell.
+  bool deliverable          = 7;
+  // SweepState is whether this destination's drop can be enumerated for
+  // stale temporary files: "ok", "unreadable" (the account may write but
+  // not read, so temporary files cannot be found), "no_reference" (the
+  // reference file the sweep dates entries against could not be written
+  // or read back, so no sweep has run), "none" for a transport that
+  // leaves no temporary files, and empty when no worker has looked yet.
+  string sweep_state        = 8;
+  // LastSuccessAt is when the destination last completed any delivery,
+  // RFC3339, and empty if it never has. Read beside deliverable: an
+  // attempting destination that has not succeeded since the erasure was
+  // ordered is failing rather than progressing.
+  string last_success_at    = 9;
+  // ClearedBy is the subject of the credentials an operator cleared the
+  // obligation with, and is empty for every other reason: a withdrawal
+  // and a destination deletion are the system's own doing.
+  string cleared_by         = 10;
 }
 
 message RematerializePartitionRequest {
