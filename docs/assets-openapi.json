@@ -416,7 +416,7 @@
   },
   "info": {
     "title": "assets API",
-    "version": "v0.0.13"
+    "version": "v0.0.14"
   },
   "openapi": "3.0.0",
   "paths": {
