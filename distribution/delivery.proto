@@ -26,11 +26,16 @@ option go_package = "github.com/ttab/elephant-public-api/distribution";
 // Access requires the "dist_subscribe" scope, which is granted by
 // "dist_admin". The operator calls - SuspendSubscriptions,
 // ResumeSubscriptions, ResumeDestination, SkipDeliveryMatcher,
-// ClearDeliveryErasureObligation, RotateDeliveryKeys and
-// ListDeliveryOperations - require "dist_admin" on its own: they decide
-// that content will not be delivered, or that a copy of erased content
-// is written off, and that is not a customer's decision to make about
-// their own feed.
+// RotateDeliveryKeys and ListDeliveryOperations - require "dist_admin" on
+// its own: they decide that content will not be delivered, and that is
+// not a customer's decision to make about their own feed.
+//
+// v0.0.15 removed ClearDeliveryErasureObligation, the per-document
+// erasure write-off. Erasure informs rather than withdraws: nothing is
+// deleted at a destination, an unreachable destination's obligation is an
+// ordinary undelivered queue row that delivers when the destination
+// recovers, and DeleteDestination is the one write-off left - it removes
+// the ability to deliver rather than recording that we will not.
 service Delivery {
   // CreateDestination registers a destination. It is created disabled
   // unless the request says otherwise, because a destination with no
@@ -54,12 +59,12 @@ service Delivery {
   // DeleteDestination marks a destination deleted and wipes its
   // credentials. It is not a row deletion: the inventory of what the
   // destination was given outlives it, because that is the record an
-  // erasure request is answered from, and there is no transport left to
-  // withdraw with once the credentials are gone.
+  // erasure request is answered from, and there is no way left to tell
+  // the destination anything once the credentials are gone.
   //
   // For the same reason the deletion discharges the destination's
   // outstanding erasure obligations, recorded as "destination_deleted".
-  // The inventory rows are kept as the record of what it held.
+  // The inventory rows are kept as the record of what it was given.
   rpc DeleteDestination(DeleteDestinationRequest) returns (DeleteDestinationResponse);
   // SetDestinationCredentials writes one kind of credential for a
   // destination, replacing whatever was there. There is no call that
@@ -150,34 +155,14 @@ service Delivery {
   // Forward only. The skip is a request the matcher applies at the top
   // of its next pass; until then it is pending, which is visible.
   rpc SkipDeliveryMatcher(SkipDeliveryMatcherRequest) returns (SkipDeliveryMatcherResponse);
-  // ClearDeliveryErasureObligation discharges one destination's erasure
-  // obligation by hand, for a destination that will never be reachable
-  // again. It does not withdraw anything: it records that an operator
-  // accounted for the copy outside this system, and the destination's
-  // inventory rows are KEPT as the record of which objects were written
-  // off.
-  //
-  // It is refused for a destination a push worker would currently be
-  // started for, because letting the worker withdraw the copy is the
-  // truthful outcome and clearing it would be a lie with an audit trail.
-  // The ordinary recovery is the destination's own: fix it, and the
-  // withdrawal runs. This call is for the case where that will never
-  // happen.
-  //
-  // It applies where it is written rather than being a request the way a
-  // matcher skip is: there is by construction no running pass to
-  // overwrite it, since the obligation is against a destination with no
-  // worker.
-  rpc ClearDeliveryErasureObligation(ClearDeliveryErasureObligationRequest) returns (ClearDeliveryErasureObligationResponse);
   // RotateDeliveryKeys re-encrypts stored credentials under the current
   // keyring entry and reports how many rows still name an older one. A
   // retired key is safe to remove from the environment when that number
   // reaches zero.
   rpc RotateDeliveryKeys(RotateDeliveryKeysRequest) returns (RotateDeliveryKeysResponse);
   // ListDeliveryOperations lists the deliberate operator decisions not to
-  // deliver something, and not to withdraw something: suspensions,
-  // resumes, destination skips, cursor skips and erasure obligations
-  // cleared by hand. It is the answer to "why is there a hole in this
+  // deliver something: suspensions, resumes, destination skips, cursor
+  // skips and rewinds. It is the answer to "why is there a hole in this
   // customer's feed", which is otherwise only in an incident note.
   rpc ListDeliveryOperations(ListDeliveryOperationsRequest) returns (ListDeliveryOperationsResponse);
 }
@@ -587,9 +572,10 @@ enum ResumeAction {
   // therefore the zero value: skipping is the one that loses content.
   RESUME_ACTION_DRAIN = 0;
   // Stamp everything up to and including a position as skipped, and
-  // deliver the rest. Erasures are never skipped: an erasure is a
-  // compliance obligation and skipping one would complete it without
-  // withdrawing anything.
+  // deliver the rest. Erasures are never skipped: an erasure row
+  // announces that the content must go, it is a compliance obligation,
+  // and skipping one would complete it without telling the destination
+  // anything.
   RESUME_ACTION_SKIP_TO = 1;
 }
 
@@ -598,8 +584,8 @@ message ResumeDestinationRequest {
   ResumeAction action = 2;
   // SkipToSeq is the queue position to skip to, inclusive. The queue is
   // ordered by its own sequence rather than by event id, because an
-  // erasure has no event, so a sequence is the only thing that can name
-  // every row.
+  // obligation-driven erasure row has no event, so a sequence is the only
+  // thing that can name every row.
   int64 skip_to_seq = 3;
   // SkipToEventId names the position by event id instead, which is what
   // an operator reading a lag alert has to hand. It is resolved to a
@@ -696,29 +682,6 @@ message SkipDeliveryMatcherResponse {
   int64 skipped_events = 3;
 }
 
-message ClearDeliveryErasureObligationRequest {
-  // UUID of the erased document.
-  string uuid        = 1;
-  // Destination whose obligation is being discharged.
-  int64 destination  = 2;
-  // Reason the copy could not be withdrawn and how it was accounted for.
-  // Required, recorded on the obligation and in the operator action log.
-  string reason      = 3;
-  // Acknowledge must be true. Clearing an obligation asserts that a copy
-  // of erased content was dealt with outside this system, and the
-  // acknowledgement is what makes that a deliberate act.
-  bool acknowledge   = 4;
-}
-
-message ClearDeliveryErasureObligationResponse {
-  // ObjectsWrittenOff is how many inventory rows the destination still
-  // holds for the document. The rows are kept; this is the count an
-  // operator is signing for.
-  int64 objects_written_off = 1;
-  // Complete is whether the erasure became provable as a result.
-  bool complete             = 2;
-}
-
 message RotateDeliveryKeysRequest {
   // MaxRows bounds one call, so that a rotation over a large deployment
   // is a sequence of calls rather than one long transaction. Zero uses
@@ -738,8 +701,7 @@ message RotateDeliveryKeysResponse {
 message DeliveryOperation {
   int64 id = 1;
   // Kind is one of "suspend", "resume_head", "resume_prior",
-  // "destination_drain", "destination_skip", "matcher_skip", "rewind",
-  // "erasure_obligation_cleared".
+  // "destination_drain", "destination_skip", "matcher_skip", "rewind".
   string kind = 2;
   // SubjectKind is what the operation was about - "owner",
   // "destination", "subscription" or "matcher" - and subject identifies

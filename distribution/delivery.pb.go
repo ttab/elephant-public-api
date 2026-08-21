@@ -29,9 +29,10 @@ const (
 	// therefore the zero value: skipping is the one that loses content.
 	ResumeAction_RESUME_ACTION_DRAIN ResumeAction = 0
 	// Stamp everything up to and including a position as skipped, and
-	// deliver the rest. Erasures are never skipped: an erasure is a
-	// compliance obligation and skipping one would complete it without
-	// withdrawing anything.
+	// deliver the rest. Erasures are never skipped: an erasure row
+	// announces that the content must go, it is a compliance obligation,
+	// and skipping one would complete it without telling the destination
+	// anything.
 	ResumeAction_RESUME_ACTION_SKIP_TO ResumeAction = 1
 )
 
@@ -2054,8 +2055,8 @@ type ResumeDestinationRequest struct {
 	Action      ResumeAction           `protobuf:"varint,2,opt,name=action,proto3,enum=elephant.distribution.ResumeAction" json:"action,omitempty"`
 	// SkipToSeq is the queue position to skip to, inclusive. The queue is
 	// ordered by its own sequence rather than by event id, because an
-	// erasure has no event, so a sequence is the only thing that can name
-	// every row.
+	// obligation-driven erasure row has no event, so a sequence is the only
+	// thing that can name every row.
 	SkipToSeq int64 `protobuf:"varint,3,opt,name=skip_to_seq,json=skipToSeq,proto3" json:"skip_to_seq,omitempty"`
 	// SkipToEventId names the position by event id instead, which is what
 	// an operator reading a lag alert has to hand. It is resolved to a
@@ -2615,137 +2616,6 @@ func (x *SkipDeliveryMatcherResponse) GetSkippedEvents() int64 {
 	return 0
 }
 
-type ClearDeliveryErasureObligationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID of the erased document.
-	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	// Destination whose obligation is being discharged.
-	Destination int64 `protobuf:"varint,2,opt,name=destination,proto3" json:"destination,omitempty"`
-	// Reason the copy could not be withdrawn and how it was accounted for.
-	// Required, recorded on the obligation and in the operator action log.
-	Reason string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	// Acknowledge must be true. Clearing an obligation asserts that a copy
-	// of erased content was dealt with outside this system, and the
-	// acknowledgement is what makes that a deliberate act.
-	Acknowledge   bool `protobuf:"varint,4,opt,name=acknowledge,proto3" json:"acknowledge,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClearDeliveryErasureObligationRequest) Reset() {
-	*x = ClearDeliveryErasureObligationRequest{}
-	mi := &file_distribution_delivery_proto_msgTypes[35]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClearDeliveryErasureObligationRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClearDeliveryErasureObligationRequest) ProtoMessage() {}
-
-func (x *ClearDeliveryErasureObligationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[35]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClearDeliveryErasureObligationRequest.ProtoReflect.Descriptor instead.
-func (*ClearDeliveryErasureObligationRequest) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{35}
-}
-
-func (x *ClearDeliveryErasureObligationRequest) GetUuid() string {
-	if x != nil {
-		return x.Uuid
-	}
-	return ""
-}
-
-func (x *ClearDeliveryErasureObligationRequest) GetDestination() int64 {
-	if x != nil {
-		return x.Destination
-	}
-	return 0
-}
-
-func (x *ClearDeliveryErasureObligationRequest) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-func (x *ClearDeliveryErasureObligationRequest) GetAcknowledge() bool {
-	if x != nil {
-		return x.Acknowledge
-	}
-	return false
-}
-
-type ClearDeliveryErasureObligationResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ObjectsWrittenOff is how many inventory rows the destination still
-	// holds for the document. The rows are kept; this is the count an
-	// operator is signing for.
-	ObjectsWrittenOff int64 `protobuf:"varint,1,opt,name=objects_written_off,json=objectsWrittenOff,proto3" json:"objects_written_off,omitempty"`
-	// Complete is whether the erasure became provable as a result.
-	Complete      bool `protobuf:"varint,2,opt,name=complete,proto3" json:"complete,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClearDeliveryErasureObligationResponse) Reset() {
-	*x = ClearDeliveryErasureObligationResponse{}
-	mi := &file_distribution_delivery_proto_msgTypes[36]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClearDeliveryErasureObligationResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClearDeliveryErasureObligationResponse) ProtoMessage() {}
-
-func (x *ClearDeliveryErasureObligationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[36]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClearDeliveryErasureObligationResponse.ProtoReflect.Descriptor instead.
-func (*ClearDeliveryErasureObligationResponse) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{36}
-}
-
-func (x *ClearDeliveryErasureObligationResponse) GetObjectsWrittenOff() int64 {
-	if x != nil {
-		return x.ObjectsWrittenOff
-	}
-	return 0
-}
-
-func (x *ClearDeliveryErasureObligationResponse) GetComplete() bool {
-	if x != nil {
-		return x.Complete
-	}
-	return false
-}
-
 type RotateDeliveryKeysRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// MaxRows bounds one call, so that a rotation over a large deployment
@@ -2758,7 +2628,7 @@ type RotateDeliveryKeysRequest struct {
 
 func (x *RotateDeliveryKeysRequest) Reset() {
 	*x = RotateDeliveryKeysRequest{}
-	mi := &file_distribution_delivery_proto_msgTypes[37]
+	mi := &file_distribution_delivery_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2770,7 +2640,7 @@ func (x *RotateDeliveryKeysRequest) String() string {
 func (*RotateDeliveryKeysRequest) ProtoMessage() {}
 
 func (x *RotateDeliveryKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[37]
+	mi := &file_distribution_delivery_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2783,7 +2653,7 @@ func (x *RotateDeliveryKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateDeliveryKeysRequest.ProtoReflect.Descriptor instead.
 func (*RotateDeliveryKeysRequest) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{37}
+	return file_distribution_delivery_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RotateDeliveryKeysRequest) GetMaxRows() int64 {
@@ -2807,7 +2677,7 @@ type RotateDeliveryKeysResponse struct {
 
 func (x *RotateDeliveryKeysResponse) Reset() {
 	*x = RotateDeliveryKeysResponse{}
-	mi := &file_distribution_delivery_proto_msgTypes[38]
+	mi := &file_distribution_delivery_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2819,7 +2689,7 @@ func (x *RotateDeliveryKeysResponse) String() string {
 func (*RotateDeliveryKeysResponse) ProtoMessage() {}
 
 func (x *RotateDeliveryKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[38]
+	mi := &file_distribution_delivery_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2832,7 +2702,7 @@ func (x *RotateDeliveryKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateDeliveryKeysResponse.ProtoReflect.Descriptor instead.
 func (*RotateDeliveryKeysResponse) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{38}
+	return file_distribution_delivery_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RotateDeliveryKeysResponse) GetRotated() int64 {
@@ -2860,8 +2730,7 @@ type DeliveryOperation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Kind is one of "suspend", "resume_head", "resume_prior",
-	// "destination_drain", "destination_skip", "matcher_skip", "rewind",
-	// "erasure_obligation_cleared".
+	// "destination_drain", "destination_skip", "matcher_skip", "rewind".
 	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubjectKind is what the operation was about - "owner",
 	// "destination", "subscription" or "matcher" - and subject identifies
@@ -2888,7 +2757,7 @@ type DeliveryOperation struct {
 
 func (x *DeliveryOperation) Reset() {
 	*x = DeliveryOperation{}
-	mi := &file_distribution_delivery_proto_msgTypes[39]
+	mi := &file_distribution_delivery_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2900,7 +2769,7 @@ func (x *DeliveryOperation) String() string {
 func (*DeliveryOperation) ProtoMessage() {}
 
 func (x *DeliveryOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[39]
+	mi := &file_distribution_delivery_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2913,7 +2782,7 @@ func (x *DeliveryOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryOperation.ProtoReflect.Descriptor instead.
 func (*DeliveryOperation) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{39}
+	return file_distribution_delivery_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DeliveryOperation) GetId() int64 {
@@ -3007,7 +2876,7 @@ type ListDeliveryOperationsRequest struct {
 
 func (x *ListDeliveryOperationsRequest) Reset() {
 	*x = ListDeliveryOperationsRequest{}
-	mi := &file_distribution_delivery_proto_msgTypes[40]
+	mi := &file_distribution_delivery_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3019,7 +2888,7 @@ func (x *ListDeliveryOperationsRequest) String() string {
 func (*ListDeliveryOperationsRequest) ProtoMessage() {}
 
 func (x *ListDeliveryOperationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[40]
+	mi := &file_distribution_delivery_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3032,7 +2901,7 @@ func (x *ListDeliveryOperationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDeliveryOperationsRequest.ProtoReflect.Descriptor instead.
 func (*ListDeliveryOperationsRequest) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{40}
+	return file_distribution_delivery_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListDeliveryOperationsRequest) GetSubjectKind() string {
@@ -3065,7 +2934,7 @@ type ListDeliveryOperationsResponse struct {
 
 func (x *ListDeliveryOperationsResponse) Reset() {
 	*x = ListDeliveryOperationsResponse{}
-	mi := &file_distribution_delivery_proto_msgTypes[41]
+	mi := &file_distribution_delivery_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3077,7 +2946,7 @@ func (x *ListDeliveryOperationsResponse) String() string {
 func (*ListDeliveryOperationsResponse) ProtoMessage() {}
 
 func (x *ListDeliveryOperationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_distribution_delivery_proto_msgTypes[41]
+	mi := &file_distribution_delivery_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3090,7 +2959,7 @@ func (x *ListDeliveryOperationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDeliveryOperationsResponse.ProtoReflect.Descriptor instead.
 func (*ListDeliveryOperationsResponse) Descriptor() ([]byte, []int) {
-	return file_distribution_delivery_proto_rawDescGZIP(), []int{41}
+	return file_distribution_delivery_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListDeliveryOperationsResponse) GetOperations() []*DeliveryOperation {
@@ -3442,24 +3311,7 @@ var file_distribution_delivery_proto_rawDesc = []byte{
 	0x74, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x74, 0x6f, 0x45, 0x76,
 	0x65, 0x6e, 0x74, 0x49, 0x64, 0x12, 0x25, 0x0a, 0x0e, 0x73, 0x6b, 0x69, 0x70, 0x70, 0x65, 0x64,
 	0x5f, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0d, 0x73,
-	0x6b, 0x69, 0x70, 0x70, 0x65, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x22, 0x97, 0x01, 0x0a,
-	0x25, 0x43, 0x6c, 0x65, 0x61, 0x72, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x45, 0x72,
-	0x61, 0x73, 0x75, 0x72, 0x65, 0x4f, 0x62, 0x6c, 0x69, 0x67, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69, 0x64, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65,
-	0x73, 0x74, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52,
-	0x0b, 0x64, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x16, 0x0a, 0x06,
-	0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65,
-	0x61, 0x73, 0x6f, 0x6e, 0x12, 0x20, 0x0a, 0x0b, 0x61, 0x63, 0x6b, 0x6e, 0x6f, 0x77, 0x6c, 0x65,
-	0x64, 0x67, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x61, 0x63, 0x6b, 0x6e, 0x6f,
-	0x77, 0x6c, 0x65, 0x64, 0x67, 0x65, 0x22, 0x74, 0x0a, 0x26, 0x43, 0x6c, 0x65, 0x61, 0x72, 0x44,
-	0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x45, 0x72, 0x61, 0x73, 0x75, 0x72, 0x65, 0x4f, 0x62,
-	0x6c, 0x69, 0x67, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x2e, 0x0a, 0x13, 0x6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x5f, 0x77, 0x72, 0x69, 0x74,
-	0x74, 0x65, 0x6e, 0x5f, 0x6f, 0x66, 0x66, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x11, 0x6f,
-	0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x57, 0x72, 0x69, 0x74, 0x74, 0x65, 0x6e, 0x4f, 0x66, 0x66,
-	0x12, 0x1a, 0x0a, 0x08, 0x63, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x08, 0x52, 0x08, 0x63, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x22, 0x36, 0x0a, 0x19,
+	0x6b, 0x69, 0x70, 0x70, 0x65, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x22, 0x36, 0x0a, 0x19,
 	0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x4b, 0x65,
 	0x79, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x19, 0x0a, 0x08, 0x6d, 0x61, 0x78,
 	0x5f, 0x72, 0x6f, 0x77, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07, 0x6d, 0x61, 0x78,
@@ -3522,7 +3374,7 @@ var file_distribution_delivery_proto_rawDesc = []byte{
 	0x52, 0x45, 0x53, 0x55, 0x4d, 0x45, 0x5f, 0x46, 0x52, 0x4f, 0x4d, 0x5f, 0x50, 0x52, 0x49, 0x4f,
 	0x52, 0x5f, 0x50, 0x4f, 0x53, 0x49, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10,
 	0x52, 0x45, 0x53, 0x55, 0x4d, 0x45, 0x5f, 0x46, 0x52, 0x4f, 0x4d, 0x5f, 0x48, 0x45, 0x41, 0x44,
-	0x10, 0x01, 0x32, 0xe5, 0x10, 0x0a, 0x08, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x12,
+	0x10, 0x01, 0x32, 0xc5, 0x0f, 0x0a, 0x08, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x12,
 	0x76, 0x0a, 0x11, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x61,
 	0x74, 0x69, 0x6f, 0x6e, 0x12, 0x2f, 0x2e, 0x65, 0x6c, 0x65, 0x70, 0x68, 0x61, 0x6e, 0x74, 0x2e,
 	0x64, 0x69, 0x73, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x72, 0x65,
@@ -3630,16 +3482,6 @@ var file_distribution_delivery_proto_rawDesc = []byte{
 	0x65, 0x73, 0x74, 0x1a, 0x32, 0x2e, 0x65, 0x6c, 0x65, 0x70, 0x68, 0x61, 0x6e, 0x74, 0x2e, 0x64,
 	0x69, 0x73, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x53, 0x6b, 0x69, 0x70,
 	0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x65, 0x72, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x9d, 0x01, 0x0a, 0x1e, 0x43, 0x6c, 0x65, 0x61,
-	0x72, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x45, 0x72, 0x61, 0x73, 0x75, 0x72, 0x65,
-	0x4f, 0x62, 0x6c, 0x69, 0x67, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x3c, 0x2e, 0x65, 0x6c, 0x65,
-	0x70, 0x68, 0x61, 0x6e, 0x74, 0x2e, 0x64, 0x69, 0x73, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x69,
-	0x6f, 0x6e, 0x2e, 0x43, 0x6c, 0x65, 0x61, 0x72, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79,
-	0x45, 0x72, 0x61, 0x73, 0x75, 0x72, 0x65, 0x4f, 0x62, 0x6c, 0x69, 0x67, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x3d, 0x2e, 0x65, 0x6c, 0x65, 0x70, 0x68,
-	0x61, 0x6e, 0x74, 0x2e, 0x64, 0x69, 0x73, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x69, 0x6f, 0x6e,
-	0x2e, 0x43, 0x6c, 0x65, 0x61, 0x72, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x45, 0x72,
-	0x61, 0x73, 0x75, 0x72, 0x65, 0x4f, 0x62, 0x6c, 0x69, 0x67, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
 	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x79, 0x0a, 0x12, 0x52, 0x6f, 0x74, 0x61, 0x74,
 	0x65, 0x44, 0x65, 0x6c, 0x69, 0x76, 0x65, 0x72, 0x79, 0x4b, 0x65, 0x79, 0x73, 0x12, 0x30, 0x2e,
 	0x65, 0x6c, 0x65, 0x70, 0x68, 0x61, 0x6e, 0x74, 0x2e, 0x64, 0x69, 0x73, 0x74, 0x72, 0x69, 0x62,
@@ -3676,53 +3518,51 @@ func file_distribution_delivery_proto_rawDescGZIP() []byte {
 }
 
 var file_distribution_delivery_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_distribution_delivery_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_distribution_delivery_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_distribution_delivery_proto_goTypes = []any{
-	(ResumeAction)(0),                              // 0: elephant.distribution.ResumeAction
-	(ResumeFrom)(0),                                // 1: elephant.distribution.ResumeFrom
-	(*S3Transport)(nil),                            // 2: elephant.distribution.S3Transport
-	(*SFTPTransport)(nil),                          // 3: elephant.distribution.SFTPTransport
-	(*DestinationSpec)(nil),                        // 4: elephant.distribution.DestinationSpec
-	(*Destination)(nil),                            // 5: elephant.distribution.Destination
-	(*CredentialStatus)(nil),                       // 6: elephant.distribution.CredentialStatus
-	(*S3Credentials)(nil),                          // 7: elephant.distribution.S3Credentials
-	(*SFTPCredentials)(nil),                        // 8: elephant.distribution.SFTPCredentials
-	(*CreateDestinationRequest)(nil),               // 9: elephant.distribution.CreateDestinationRequest
-	(*CreateDestinationResponse)(nil),              // 10: elephant.distribution.CreateDestinationResponse
-	(*UpdateDestinationRequest)(nil),               // 11: elephant.distribution.UpdateDestinationRequest
-	(*UpdateDestinationResponse)(nil),              // 12: elephant.distribution.UpdateDestinationResponse
-	(*GetDestinationRequest)(nil),                  // 13: elephant.distribution.GetDestinationRequest
-	(*GetDestinationResponse)(nil),                 // 14: elephant.distribution.GetDestinationResponse
-	(*ListDestinationsRequest)(nil),                // 15: elephant.distribution.ListDestinationsRequest
-	(*ListDestinationsResponse)(nil),               // 16: elephant.distribution.ListDestinationsResponse
-	(*DeleteDestinationRequest)(nil),               // 17: elephant.distribution.DeleteDestinationRequest
-	(*DeleteDestinationResponse)(nil),              // 18: elephant.distribution.DeleteDestinationResponse
-	(*SetDestinationCredentialsRequest)(nil),       // 19: elephant.distribution.SetDestinationCredentialsRequest
-	(*SetDestinationCredentialsResponse)(nil),      // 20: elephant.distribution.SetDestinationCredentialsResponse
-	(*AttachSubscriptionRequest)(nil),              // 21: elephant.distribution.AttachSubscriptionRequest
-	(*AttachSubscriptionResponse)(nil),             // 22: elephant.distribution.AttachSubscriptionResponse
-	(*DetachSubscriptionRequest)(nil),              // 23: elephant.distribution.DetachSubscriptionRequest
-	(*DetachSubscriptionResponse)(nil),             // 24: elephant.distribution.DetachSubscriptionResponse
-	(*RewindSubscriptionRequest)(nil),              // 25: elephant.distribution.RewindSubscriptionRequest
-	(*RewindSubscriptionResponse)(nil),             // 26: elephant.distribution.RewindSubscriptionResponse
-	(*GetCatchupStatusRequest)(nil),                // 27: elephant.distribution.GetCatchupStatusRequest
-	(*GetCatchupStatusResponse)(nil),               // 28: elephant.distribution.GetCatchupStatusResponse
-	(*ResumeDestinationRequest)(nil),               // 29: elephant.distribution.ResumeDestinationRequest
-	(*ResumeDestinationResponse)(nil),              // 30: elephant.distribution.ResumeDestinationResponse
-	(*SuspendSubscriptionsRequest)(nil),            // 31: elephant.distribution.SuspendSubscriptionsRequest
-	(*SuspendSubscriptionsResponse)(nil),           // 32: elephant.distribution.SuspendSubscriptionsResponse
-	(*ResumeSubscriptionsRequest)(nil),             // 33: elephant.distribution.ResumeSubscriptionsRequest
-	(*ResumeSubscriptionsResponse)(nil),            // 34: elephant.distribution.ResumeSubscriptionsResponse
-	(*SkipDeliveryMatcherRequest)(nil),             // 35: elephant.distribution.SkipDeliveryMatcherRequest
-	(*SkipDeliveryMatcherResponse)(nil),            // 36: elephant.distribution.SkipDeliveryMatcherResponse
-	(*ClearDeliveryErasureObligationRequest)(nil),  // 37: elephant.distribution.ClearDeliveryErasureObligationRequest
-	(*ClearDeliveryErasureObligationResponse)(nil), // 38: elephant.distribution.ClearDeliveryErasureObligationResponse
-	(*RotateDeliveryKeysRequest)(nil),              // 39: elephant.distribution.RotateDeliveryKeysRequest
-	(*RotateDeliveryKeysResponse)(nil),             // 40: elephant.distribution.RotateDeliveryKeysResponse
-	(*DeliveryOperation)(nil),                      // 41: elephant.distribution.DeliveryOperation
-	(*ListDeliveryOperationsRequest)(nil),          // 42: elephant.distribution.ListDeliveryOperationsRequest
-	(*ListDeliveryOperationsResponse)(nil),         // 43: elephant.distribution.ListDeliveryOperationsResponse
-	nil,                                            // 44: elephant.distribution.DeliveryOperation.AcknowledgedEntry
+	(ResumeAction)(0),                         // 0: elephant.distribution.ResumeAction
+	(ResumeFrom)(0),                           // 1: elephant.distribution.ResumeFrom
+	(*S3Transport)(nil),                       // 2: elephant.distribution.S3Transport
+	(*SFTPTransport)(nil),                     // 3: elephant.distribution.SFTPTransport
+	(*DestinationSpec)(nil),                   // 4: elephant.distribution.DestinationSpec
+	(*Destination)(nil),                       // 5: elephant.distribution.Destination
+	(*CredentialStatus)(nil),                  // 6: elephant.distribution.CredentialStatus
+	(*S3Credentials)(nil),                     // 7: elephant.distribution.S3Credentials
+	(*SFTPCredentials)(nil),                   // 8: elephant.distribution.SFTPCredentials
+	(*CreateDestinationRequest)(nil),          // 9: elephant.distribution.CreateDestinationRequest
+	(*CreateDestinationResponse)(nil),         // 10: elephant.distribution.CreateDestinationResponse
+	(*UpdateDestinationRequest)(nil),          // 11: elephant.distribution.UpdateDestinationRequest
+	(*UpdateDestinationResponse)(nil),         // 12: elephant.distribution.UpdateDestinationResponse
+	(*GetDestinationRequest)(nil),             // 13: elephant.distribution.GetDestinationRequest
+	(*GetDestinationResponse)(nil),            // 14: elephant.distribution.GetDestinationResponse
+	(*ListDestinationsRequest)(nil),           // 15: elephant.distribution.ListDestinationsRequest
+	(*ListDestinationsResponse)(nil),          // 16: elephant.distribution.ListDestinationsResponse
+	(*DeleteDestinationRequest)(nil),          // 17: elephant.distribution.DeleteDestinationRequest
+	(*DeleteDestinationResponse)(nil),         // 18: elephant.distribution.DeleteDestinationResponse
+	(*SetDestinationCredentialsRequest)(nil),  // 19: elephant.distribution.SetDestinationCredentialsRequest
+	(*SetDestinationCredentialsResponse)(nil), // 20: elephant.distribution.SetDestinationCredentialsResponse
+	(*AttachSubscriptionRequest)(nil),         // 21: elephant.distribution.AttachSubscriptionRequest
+	(*AttachSubscriptionResponse)(nil),        // 22: elephant.distribution.AttachSubscriptionResponse
+	(*DetachSubscriptionRequest)(nil),         // 23: elephant.distribution.DetachSubscriptionRequest
+	(*DetachSubscriptionResponse)(nil),        // 24: elephant.distribution.DetachSubscriptionResponse
+	(*RewindSubscriptionRequest)(nil),         // 25: elephant.distribution.RewindSubscriptionRequest
+	(*RewindSubscriptionResponse)(nil),        // 26: elephant.distribution.RewindSubscriptionResponse
+	(*GetCatchupStatusRequest)(nil),           // 27: elephant.distribution.GetCatchupStatusRequest
+	(*GetCatchupStatusResponse)(nil),          // 28: elephant.distribution.GetCatchupStatusResponse
+	(*ResumeDestinationRequest)(nil),          // 29: elephant.distribution.ResumeDestinationRequest
+	(*ResumeDestinationResponse)(nil),         // 30: elephant.distribution.ResumeDestinationResponse
+	(*SuspendSubscriptionsRequest)(nil),       // 31: elephant.distribution.SuspendSubscriptionsRequest
+	(*SuspendSubscriptionsResponse)(nil),      // 32: elephant.distribution.SuspendSubscriptionsResponse
+	(*ResumeSubscriptionsRequest)(nil),        // 33: elephant.distribution.ResumeSubscriptionsRequest
+	(*ResumeSubscriptionsResponse)(nil),       // 34: elephant.distribution.ResumeSubscriptionsResponse
+	(*SkipDeliveryMatcherRequest)(nil),        // 35: elephant.distribution.SkipDeliveryMatcherRequest
+	(*SkipDeliveryMatcherResponse)(nil),       // 36: elephant.distribution.SkipDeliveryMatcherResponse
+	(*RotateDeliveryKeysRequest)(nil),         // 37: elephant.distribution.RotateDeliveryKeysRequest
+	(*RotateDeliveryKeysResponse)(nil),        // 38: elephant.distribution.RotateDeliveryKeysResponse
+	(*DeliveryOperation)(nil),                 // 39: elephant.distribution.DeliveryOperation
+	(*ListDeliveryOperationsRequest)(nil),     // 40: elephant.distribution.ListDeliveryOperationsRequest
+	(*ListDeliveryOperationsResponse)(nil),    // 41: elephant.distribution.ListDeliveryOperationsResponse
+	nil,                                       // 42: elephant.distribution.DeliveryOperation.AcknowledgedEntry
 }
 var file_distribution_delivery_proto_depIdxs = []int32{
 	2,  // 0: elephant.distribution.DestinationSpec.s3:type_name -> elephant.distribution.S3Transport
@@ -3741,8 +3581,8 @@ var file_distribution_delivery_proto_depIdxs = []int32{
 	0,  // 13: elephant.distribution.ResumeDestinationRequest.action:type_name -> elephant.distribution.ResumeAction
 	1,  // 14: elephant.distribution.ResumeSubscriptionsRequest.from:type_name -> elephant.distribution.ResumeFrom
 	0,  // 15: elephant.distribution.ResumeSubscriptionsRequest.destination_action:type_name -> elephant.distribution.ResumeAction
-	44, // 16: elephant.distribution.DeliveryOperation.acknowledged:type_name -> elephant.distribution.DeliveryOperation.AcknowledgedEntry
-	41, // 17: elephant.distribution.ListDeliveryOperationsResponse.operations:type_name -> elephant.distribution.DeliveryOperation
+	42, // 16: elephant.distribution.DeliveryOperation.acknowledged:type_name -> elephant.distribution.DeliveryOperation.AcknowledgedEntry
+	39, // 17: elephant.distribution.ListDeliveryOperationsResponse.operations:type_name -> elephant.distribution.DeliveryOperation
 	9,  // 18: elephant.distribution.Delivery.CreateDestination:input_type -> elephant.distribution.CreateDestinationRequest
 	11, // 19: elephant.distribution.Delivery.UpdateDestination:input_type -> elephant.distribution.UpdateDestinationRequest
 	13, // 20: elephant.distribution.Delivery.GetDestination:input_type -> elephant.distribution.GetDestinationRequest
@@ -3757,28 +3597,26 @@ var file_distribution_delivery_proto_depIdxs = []int32{
 	31, // 29: elephant.distribution.Delivery.SuspendSubscriptions:input_type -> elephant.distribution.SuspendSubscriptionsRequest
 	33, // 30: elephant.distribution.Delivery.ResumeSubscriptions:input_type -> elephant.distribution.ResumeSubscriptionsRequest
 	35, // 31: elephant.distribution.Delivery.SkipDeliveryMatcher:input_type -> elephant.distribution.SkipDeliveryMatcherRequest
-	37, // 32: elephant.distribution.Delivery.ClearDeliveryErasureObligation:input_type -> elephant.distribution.ClearDeliveryErasureObligationRequest
-	39, // 33: elephant.distribution.Delivery.RotateDeliveryKeys:input_type -> elephant.distribution.RotateDeliveryKeysRequest
-	42, // 34: elephant.distribution.Delivery.ListDeliveryOperations:input_type -> elephant.distribution.ListDeliveryOperationsRequest
-	10, // 35: elephant.distribution.Delivery.CreateDestination:output_type -> elephant.distribution.CreateDestinationResponse
-	12, // 36: elephant.distribution.Delivery.UpdateDestination:output_type -> elephant.distribution.UpdateDestinationResponse
-	14, // 37: elephant.distribution.Delivery.GetDestination:output_type -> elephant.distribution.GetDestinationResponse
-	16, // 38: elephant.distribution.Delivery.ListDestinations:output_type -> elephant.distribution.ListDestinationsResponse
-	18, // 39: elephant.distribution.Delivery.DeleteDestination:output_type -> elephant.distribution.DeleteDestinationResponse
-	20, // 40: elephant.distribution.Delivery.SetDestinationCredentials:output_type -> elephant.distribution.SetDestinationCredentialsResponse
-	22, // 41: elephant.distribution.Delivery.AttachSubscription:output_type -> elephant.distribution.AttachSubscriptionResponse
-	24, // 42: elephant.distribution.Delivery.DetachSubscription:output_type -> elephant.distribution.DetachSubscriptionResponse
-	26, // 43: elephant.distribution.Delivery.RewindSubscription:output_type -> elephant.distribution.RewindSubscriptionResponse
-	28, // 44: elephant.distribution.Delivery.GetCatchupStatus:output_type -> elephant.distribution.GetCatchupStatusResponse
-	30, // 45: elephant.distribution.Delivery.ResumeDestination:output_type -> elephant.distribution.ResumeDestinationResponse
-	32, // 46: elephant.distribution.Delivery.SuspendSubscriptions:output_type -> elephant.distribution.SuspendSubscriptionsResponse
-	34, // 47: elephant.distribution.Delivery.ResumeSubscriptions:output_type -> elephant.distribution.ResumeSubscriptionsResponse
-	36, // 48: elephant.distribution.Delivery.SkipDeliveryMatcher:output_type -> elephant.distribution.SkipDeliveryMatcherResponse
-	38, // 49: elephant.distribution.Delivery.ClearDeliveryErasureObligation:output_type -> elephant.distribution.ClearDeliveryErasureObligationResponse
-	40, // 50: elephant.distribution.Delivery.RotateDeliveryKeys:output_type -> elephant.distribution.RotateDeliveryKeysResponse
-	43, // 51: elephant.distribution.Delivery.ListDeliveryOperations:output_type -> elephant.distribution.ListDeliveryOperationsResponse
-	35, // [35:52] is the sub-list for method output_type
-	18, // [18:35] is the sub-list for method input_type
+	37, // 32: elephant.distribution.Delivery.RotateDeliveryKeys:input_type -> elephant.distribution.RotateDeliveryKeysRequest
+	40, // 33: elephant.distribution.Delivery.ListDeliveryOperations:input_type -> elephant.distribution.ListDeliveryOperationsRequest
+	10, // 34: elephant.distribution.Delivery.CreateDestination:output_type -> elephant.distribution.CreateDestinationResponse
+	12, // 35: elephant.distribution.Delivery.UpdateDestination:output_type -> elephant.distribution.UpdateDestinationResponse
+	14, // 36: elephant.distribution.Delivery.GetDestination:output_type -> elephant.distribution.GetDestinationResponse
+	16, // 37: elephant.distribution.Delivery.ListDestinations:output_type -> elephant.distribution.ListDestinationsResponse
+	18, // 38: elephant.distribution.Delivery.DeleteDestination:output_type -> elephant.distribution.DeleteDestinationResponse
+	20, // 39: elephant.distribution.Delivery.SetDestinationCredentials:output_type -> elephant.distribution.SetDestinationCredentialsResponse
+	22, // 40: elephant.distribution.Delivery.AttachSubscription:output_type -> elephant.distribution.AttachSubscriptionResponse
+	24, // 41: elephant.distribution.Delivery.DetachSubscription:output_type -> elephant.distribution.DetachSubscriptionResponse
+	26, // 42: elephant.distribution.Delivery.RewindSubscription:output_type -> elephant.distribution.RewindSubscriptionResponse
+	28, // 43: elephant.distribution.Delivery.GetCatchupStatus:output_type -> elephant.distribution.GetCatchupStatusResponse
+	30, // 44: elephant.distribution.Delivery.ResumeDestination:output_type -> elephant.distribution.ResumeDestinationResponse
+	32, // 45: elephant.distribution.Delivery.SuspendSubscriptions:output_type -> elephant.distribution.SuspendSubscriptionsResponse
+	34, // 46: elephant.distribution.Delivery.ResumeSubscriptions:output_type -> elephant.distribution.ResumeSubscriptionsResponse
+	36, // 47: elephant.distribution.Delivery.SkipDeliveryMatcher:output_type -> elephant.distribution.SkipDeliveryMatcherResponse
+	38, // 48: elephant.distribution.Delivery.RotateDeliveryKeys:output_type -> elephant.distribution.RotateDeliveryKeysResponse
+	41, // 49: elephant.distribution.Delivery.ListDeliveryOperations:output_type -> elephant.distribution.ListDeliveryOperationsResponse
+	34, // [34:50] is the sub-list for method output_type
+	18, // [18:34] is the sub-list for method input_type
 	18, // [18:18] is the sub-list for extension type_name
 	18, // [18:18] is the sub-list for extension extendee
 	0,  // [0:18] is the sub-list for field type_name
@@ -3803,7 +3641,7 @@ func file_distribution_delivery_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_distribution_delivery_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   43,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
