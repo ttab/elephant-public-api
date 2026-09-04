@@ -51,6 +51,11 @@ service Hub {
   rpc RegisterOrgPublishingKey(RegisterOrgPublishingKeyRequest) returns (RegisterOrgPublishingKeyResponse);
   // ListPublishingKeys lists registered publishing keys.
   rpc ListPublishingKeys(ListPublishingKeysRequest) returns (ListPublishingKeysResponse);
+  // GetPublishingKey returns a single publishing key by fingerprint, so that a
+  // consumer verifying an artifact signature can check the status of the
+  // signing key. Public: no authentication is required, as for the artifact
+  // browsing RPCs.
+  rpc GetPublishingKey(GetPublishingKeyRequest) returns (GetPublishingKeyResponse);
   // DeactivatePublishingKey deactivates an active publishing key (e.g. for rotation).
   rpc DeactivatePublishingKey(DeactivatePublishingKeyRequest) returns (DeactivatePublishingKeyResponse);
   // ActivatePublishingKey activates a pending or deactivated publishing key.
@@ -219,6 +224,18 @@ message GetArtifactVersionResponse {
   // Raw manifest bytes.
   bytes               manifest = 3;
   repeated AssetInfo  assets   = 4;
+  // Signature over the exact manifest bytes returned in the manifest field,
+  // as stored at publish time. Verify it against those bytes as they are,
+  // without re-serialising, reformatting or otherwise normalising the
+  // manifest. Empty for versions signed with SIGNATURE_TYPE_SIGSTORE.
+  bytes               signature = 5;
+  // Raw 32-byte Ed25519 public key of the publishing key identified by
+  // VersionInfo.signing_identity. A valid signature only shows which key
+  // signed the manifest, not that the key is still trusted, so a consumer
+  // should also check the key status through GetPublishingKey to honour
+  // deactivation and revocation. Empty for versions signed with
+  // SIGNATURE_TYPE_SIGSTORE.
+  bytes               public_key = 6;
 }
 
 message GetArtifactAssetRequest {
@@ -340,6 +357,25 @@ message RegisterOrgPublishingKeyResponse {
 message ListPublishingKeysRequest {}
 message ListPublishingKeysResponse {
   repeated PublishingKeyInfo publishing_keys = 1;
+}
+
+message GetPublishingKeyRequest {
+  // Publishing key fingerprint in SSH SHA256 form, as carried by
+  // VersionInfo.signing_identity (e.g. "SHA256:5rMv...").
+  string fingerprint = 1;
+}
+message GetPublishingKeyResponse {
+  // Publishing key fingerprint in SSH SHA256 form.
+  string              fingerprint  = 1;
+  // Raw 32-byte Ed25519 public key.
+  bytes               public_key   = 2;
+  // Current status of the key. Only a key that is
+  // PUBLISHING_KEY_STATUS_ACTIVE may publish, and a signature made by a
+  // revoked key must not be trusted even if it verifies.
+  PublishingKeyStatus status       = 3;
+  // URI of the organisation the key belongs to (e.g. core://org/tt).
+  string              organisation = 4;
+  string              created_at   = 5;
 }
 
 message DeactivatePublishingKeyRequest {

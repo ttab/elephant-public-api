@@ -278,6 +278,14 @@
             "description": "Raw manifest bytes.",
             "type": "string"
           },
+          "public_key": {
+            "description": "Raw 32-byte Ed25519 public key of the publishing key identified by VersionInfo.signing_identity. A valid signature only shows which key signed the manifest, not that the key is still trusted, so a consumer should also check the key status through GetPublishingKey to honour deactivation and revocation. Empty for versions signed with SIGNATURE_TYPE_SIGSTORE.",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature over the exact manifest bytes returned in the manifest field, as stored at publish time. Verify it against those bytes as they are, without re-serialising, reformatting or otherwise normalising the manifest. Empty for versions signed with SIGNATURE_TYPE_SIGSTORE.",
+            "type": "string"
+          },
           "version": {
             "$ref": "#/components/schemas/elephant.hub.VersionInfo"
           }
@@ -314,6 +322,38 @@
           },
           "sha256": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.hub.GetPublishingKeyRequest": {
+        "properties": {
+          "fingerprint": {
+            "description": "Publishing key fingerprint in SSH SHA256 form, as carried by VersionInfo.signing_identity (e.g. \"SHA256:5rMv...\").",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.hub.GetPublishingKeyResponse": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "description": "Publishing key fingerprint in SSH SHA256 form.",
+            "type": "string"
+          },
+          "organisation": {
+            "description": "URI of the organisation the key belongs to (e.g. core://org/tt).",
+            "type": "string"
+          },
+          "public_key": {
+            "description": "Raw 32-byte Ed25519 public key.",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/elephant.hub.PublishingKeyStatus"
           }
         },
         "type": "object"
@@ -1056,6 +1096,44 @@
           }
         ],
         "summary": "GetDocumentation",
+        "tags": [
+          "Hub"
+        ]
+      }
+    },
+    "/twirp/elephant.hub.Hub/GetPublishingKey": {
+      "post": {
+        "description": "GetPublishingKey returns a single publishing key by fingerprint, so that a consumer verifying an artifact signature can check the status of the signing key. Public: no authentication is required, as for the artifact browsing RPCs.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.hub.GetPublishingKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.hub.GetPublishingKeyResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetPublishingKey",
         "tags": [
           "Hub"
         ]
