@@ -715,7 +715,7 @@
   },
   "info": {
     "title": "hub API",
-    "version": "v0.0.15"
+    "version": "v0.0.16"
   },
   "openapi": "3.0.0",
   "paths": {
