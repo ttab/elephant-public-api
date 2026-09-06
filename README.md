@@ -206,16 +206,12 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-While the Connect migration is in flight this module is not the first thing
-tagged. The shared repositories are released in a fixed order, because each
-one's pin has to be a tag before the next can be released against it:
-`ttab/mage` is tagged first, with its `protoc-gen-elephant-rpc` pin still a
-pseudo-version; then `elephantine`, which carries the plugin; then `ttab/mage`
-again with the plugin pinned to that tag; then the declaration modules,
-including this one, are bumped onto the mage tag, regenerated and tagged; then
-the services. **Do not tag this module while `github.com/ttab/mage` in
-`go.mod` is a pseudo-version** — the generated code would be reproducible only
-from a branch commit that can be force-pushed away.
+The generators this module is built with are released: `ttab/mage` v0.13.1
+runs buf and the plugins at pinned versions and pins `protoc-gen-elephant-rpc`
+to elephantine v0.29.0, so the generated code in a tag is reproducible from
+released code. Keep it that way: a `ttab/mage` requirement that is a
+pseudo-version of a branch is a reason not to tag, since the branch can be
+force-pushed out from under the tag.
 
 ## License
 
