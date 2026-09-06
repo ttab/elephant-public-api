@@ -171,7 +171,8 @@ with the regenerated files.
 ## Releasing
 
 A release is a git tag and nothing else. Nothing is stamped with a version, so
-there is no "bump to vX.Y.Z" commit. From a clean tree on `main` where
+there is no "bump to vX.Y.Z" commit. What changed in each release is in
+[CHANGELOG.md](CHANGELOG.md). From a clean tree on `main` where
 `mage rpc:generate` produces no diff:
 
 ```bash
