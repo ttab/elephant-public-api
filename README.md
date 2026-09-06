@@ -2,9 +2,10 @@
 
 Public API declarations for the Elephant platform. Each service is declared in
 a `.proto` file and shipped with generated Go code for
-[Connect](https://connectrpc.com/), which also serves gRPC and gRPC-Web. There
-is no Twirp: these services are Connect only, and nothing here is served on a
-`/twirp/` path.
+[Connect](https://connectrpc.com/). There is no Twirp: these services are
+Connect only, and nothing here is served on a `/twirp/` path.
+
+Building the generated code needs Go 1.27.1 or later.
 
 ## The APIs
 
@@ -88,13 +89,27 @@ Authorization: Bearer …
 {"id": "…"}
 ```
 
-The content types are `application/json` and `application/proto`, and the
-services that mount these declarations serve gRPC and gRPC-Web on the same
-paths, selected by content type. Connect clients send a
-`Connect-Protocol-Version: 1` header and may send `Connect-Timeout-Ms`, which
-becomes the handler's deadline; the servers require neither, so a plain `curl`
-or `fetch` works. Connect has runtimes for TypeScript, Swift, Kotlin and
-others, all generating from the `.proto` file.
+The content types are `application/json` and `application/proto`. Connect
+clients send a `Connect-Protocol-Version: 1` header and may send
+`Connect-Timeout-Ms`, which becomes the handler's deadline; the servers
+require neither, so a plain `curl` or `fetch` works. Connect has runtimes for
+TypeScript, Swift, Kotlin and others, all generating from the `.proto` file.
+
+A JSON response spells its fields in protojson's lowerCamelCase
+(`documentUuid`), not in the names the `.proto` declares (`document_uuid`).
+That is standard Connect and the services that mount these declarations do not
+deviate from it, so a consumer that reads a response by hand — with `fetch` or
+`curl` rather than through a generated client — reads the camelCase spelling.
+Requests are unaffected: protojson unmarshalling accepts both spellings, so a
+caller may send either. Unpopulated fields are omitted from a response.
+
+The services that mount these declarations also answer gRPC and gRPC-Web on
+the same paths, selected by content type, but only from inside the cluster:
+the fleet's ingress speaks HTTP/1.1 to its targets and no externally reachable
+gRPC target group is provided, so an external caller uses Connect over HTTP
+`POST`. gRPC-Web is not a browser protocol here either — its errors arrive as
+trailers that a browser cannot read cross-origin, and a browser client uses
+Connect, which is what `@connectrpc/connect-web` speaks.
 
 There is no OpenAPI specification: the `.proto` file is the declaration a
 non-Go consumer generates its client from.
@@ -138,10 +153,16 @@ and nothing is taken off `PATH`. A generator version moves when `ttab/mage` is
 bumped, and the regenerated files show up in the bump's diff. Run the targets
 from the repository root.
 
+Generation needs the network. Every plugin runs as its own module and `go run`
+queries the module proxy on each invocation, so `GOPROXY=off` fails even with
+a warm module cache. The targets pin the toolchain the generators run under
+and drop a `-mod` flag from `GOFLAGS`, so the output does not depend on the Go
+version or the module mode that happens to be configured on the machine.
+
 | Target | Purpose |
 | --- | --- |
 | `mage rpc:generate` | Regenerate the Go and Connect artifacts for every service. |
-| `mage rpc:stub <app> <service> <method>` | Scaffold a new service proto. |
+| `mage rpc:stub <app> <service> <method>` | Scaffold a new service proto, in the versioned layout `<app>/v1/service.proto`. |
 | `mage rpc:vendorProto <module> <file>` | Copy a `.proto` file this repository imports out of another module and into `rpc/vendor`. |
 
 Per service directory, generation writes `service.pb.go` (the messages),
@@ -150,6 +171,11 @@ Per service directory, generation writes `service.pb.go` (the messages),
 plus `service.elephant.go` (the adapters that put them on the plain interface).
 A `.proto` file that declares no service is compiled to messages and nothing
 else, and nothing but Go is generated.
+
+The existing declarations sit one directory per API (`assets/service.proto`);
+`mage rpc:generate` discovers both that layout and the versioned
+`<app>/v1/service.proto` one, so a new API can be scaffolded versioned without
+moving the ones that are already released.
 
 buf compiles what is in its workspace and a workspace cannot reach outside the
 repository, so a `.proto` imported from another module is vendored:
@@ -179,6 +205,17 @@ there is no "bump to vX.Y.Z" commit. What changed in each release is in
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
+
+While the Connect migration is in flight this module is not the first thing
+tagged. The shared repositories are released in a fixed order, because each
+one's pin has to be a tag before the next can be released against it:
+`ttab/mage` is tagged first, with its `protoc-gen-elephant-rpc` pin still a
+pseudo-version; then `elephantine`, which carries the plugin; then `ttab/mage`
+again with the plugin pinned to that tag; then the declaration modules,
+including this one, are bumped onto the mage tag, regenerated and tagged; then
+the services. **Do not tag this module while `github.com/ttab/mage` in
+`go.mod` is a pseudo-version** — the generated code would be reproducible only
+from a branch commit that can be force-pushed away.
 
 ## License
 

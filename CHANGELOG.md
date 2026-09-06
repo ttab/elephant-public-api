@@ -22,20 +22,66 @@ its mount line, a client its constructor. Error checks move from
 `elephantine.IsTwirpErrorCode` to `rpc.IsCode(err, connect.Code…)` and error
 construction to the `rpc` helpers, both from `github.com/ttab/elephantine/rpc`.
 The paths become the unprefixed `/<package>.<Service>/<Method>`, so an ingress
-rule that routes on `/twirp/` needs one for them, and a service mounting these
-declarations answers gRPC and gRPC-Web on the same paths, selected by content
-type. An error body is Connect's `{"code","message","details"}` where Twirp's
-was `{"code","msg","meta"}`: there is no free-form meta map, so the key/value
-metadata travels as an `elephantine.rpc.ErrorMeta` detail, read with
-`rpc.Meta(err)` in Go and with the Connect runtime's `findDetails` elsewhere.
+rule that routes on `/twirp/` needs one for them. An error body is Connect's
+`{"code","message","details"}` where Twirp's was `{"code","msg","meta"}`:
+there is no free-form meta map, so the key/value metadata travels as an
+`elephantine.rpc.ErrorMeta` detail, read with `rpc.Meta(err)` in Go and with
+the Connect runtime's `findDetails` elsewhere. A service mounting these
+declarations also answers gRPC and gRPC-Web on the same paths, selected by
+content type, but that reach ends at the cluster: the fleet's ingress speaks
+HTTP/1.1 to its targets and no externally reachable gRPC target group is
+provided, so gRPC and gRPC-Web are an in-cluster calling convention and are
+not offered to external callers or to browsers.
 
-This is a clean break rather than a dual-stack transition because nothing that
-consumes these declarations is in production yet. The repositories that import
-the module, and that have to move when they bump it: elephant-assets,
-elephant-assets-client, elephant-distribution, elephant-hub, elephant-live,
-distconf and dist-import. elephant-assets, elephant-distribution, elephant-hub
-and elephant-live serve these declarations; elephant-assets-client, distconf
-and dist-import call them.
+**Breaking (JSON field names):** a JSON response now spells its fields in
+protojson's lowerCamelCase (`documentUuid`) where the Twirp servers spelled
+them the way the `.proto` declares them (`document_uuid`). Connect's JSON
+codec is protojson with its default options and a service must not install a
+`UseProtoNames` codec to paper over the difference — every Connect runtime and
+proxy assumes the standard encoding. Requests are unaffected, because
+protojson unmarshalling accepts both spellings, so a caller can move its path
+before it moves its field names. Generated clients — Go, `@protobuf-ts`,
+`connect-es` — parse into the generated types and see nothing of this. The
+consumer this reaches is the one that reads a response body by hand with
+`fetch` or `curl`: change only the path and every multi-word field reads
+`undefined`.
+
+**Migration order for the consumers.** Seven repositories pin this module and
+three of them are libraries, which fixes the order they have to move in.
+`elephant-assets-client` first: it is imported by `elephant-distribution`'s
+own packages, so minimal version selection drags its `elephant-public-api` pin
+into distribution's build and a distribution that moves first fails to compile
+in a dependency. Its `twirp.BadRoute` fallback in `fetchVariants` — the one
+that lets key fetching keep working against an asset service that predates
+`GetVariants` — has to become `rpc.IsCode(err, connect.CodeUnimplemented)`:
+`errors.As` to a `twirp.Error` never matches a `*connect.Error`, so left as it
+is the fallback stops firing and the degradation is silent. Then `distconf`.
+Then `elephant-hub` and `elephant-live`, which `replace` the module to a local
+checkout and therefore already fail `go build ./...` against this branch. Then
+`elephant-assets`. Then `elephant-distribution`, the largest of them, with
+some 750 `twirp.*` references across 47 files and a hand-rolled sequence of
+`New<Service>Server` mounts in `cmd/elephant-distribution/main.go` that has to
+grow a Connect arm. Then `dist-import`.
+
+`elephant-assets` needs one thing more than a bump. It is deployed on TT stage
+behind an ingress scoped to `path: /twirp/`
+(`apps/elephant-assets/base/ingress.yaml` in `ttab/deploy`, the only
+path-scoped RPC ingress in the fleet; the prefix exists to keep the `/v1/`
+serving path CloudFront-only, so widening it to `/` is not the fix). Its
+Connect mount must therefore ship with per-service Connect path rules for
+`/elephant.assets.Keys/` and `/elephant.assets.Management/` in the same
+change, in the base and in the stage overlay, or every Connect call returns
+404 from ingress-nginx. Stage is not production — the assets clients are not
+deployed there at all, and nothing that consumes these declarations runs in
+production — which is why a clean Connect-only break is acceptable rather than
+a dual-stack period.
+
+**Build:** the `go` directive moves from 1.26.5 to 1.27.1, so every consumer's
+own floor moves with it: a module that imports this one and declares an older
+`go` directive stops building until it is raised, and a CI job that resolves
+its toolchain from `go.mod` downloads 1.27.1. The floor is the toolchain the
+pinned generators are run under, which is what makes the committed output
+reproducible rather than a function of whatever Go is on the machine.
 
 **New service (hub):** `elephant.hub` gains a `Client` service for the hub's
 machine callers — elephant-repository instances and the elephant BFF — which
@@ -62,8 +108,18 @@ a client from them, and the generator that wrote them cannot run under buf. The
 nothing left to stamp a version into, a release is a plain git tag: there is no
 `rpc:release` target and no "bump to vX.Y.Z" commit any more.
 
-**Build change (generation):** the artifacts are generated with buf through the
-`rpc` namespace of `ttab/mage`, which runs the compiler and every plugin as
+**Release order:** this module cannot be tagged first. The `ttab/mage` pin is
+still a pre-release pseudo-version of the branch that carries the `rpc`
+namespace, `v0.12.1-0.20260906115506-1fdd25ad152b`, and that branch's own pin
+of `protoc-gen-elephant-rpc` is a pseudo-version of an `elephantine` branch.
+The order that resolves is: tag `ttab/mage`, with the plugin pin still a
+pseudo-version; tag `elephantine`; repoint the plugin pin and tag `ttab/mage`
+again; bump this module onto that tag, regenerate and tag it; then the
+services. **Do not tag v0.1.0 while `github.com/ttab/mage` in `go.mod` is a
+pseudo-version.**
+
+**Generation:** the artifacts are generated with buf through the `rpc`
+namespace of `ttab/mage`, which runs the compiler and every plugin as
 `go run <module>@<version>` from a pin it holds, so regenerating needs no
 Docker, installs nothing and takes nothing off `PATH`. `mage rpc:generate`
 replaces `mage twirp:generate`, and `mage rpc:vendorProto <module> <file>`
@@ -72,12 +128,13 @@ copies a `.proto` this repository imports out of another module into
 declarations import, is vendored out of elephant-api that way. The copy keeps
 its path, so the imports are unchanged, and the generated `buf.yaml` declares
 the vendor directory as a buf module root of its own; the target is idempotent,
-so CI can run it and let `git diff --exit-code` report drift.
-`google.golang.org/protobuf` moves to v1.36.12 to match the generator, and the
-`go` directive stays at 1.26.5. The `ttab/mage` pin is a pre-release
-pseudo-version of the branch that carries the `rpc` namespace,
-`v0.12.1-0.20260906072420-ffadac84894f`: **it has to become a tag before this
-module is released**, so do not tag v0.1.0 until it is.
+so CI can run it and let `git diff --exit-code` report drift. Regeneration
+needs the network — every plugin is its own module and `go run` queries the
+module proxy on each invocation, so `GOPROXY=off` fails even with a warm
+module cache — and the targets pin the toolchain the generators run under, so
+the committed output does not depend on the Go version installed on the
+machine. `google.golang.org/protobuf` is v1.36.12, which is the version the
+pinned `protoc-gen-go` stamps into the generated headers.
 
 Changes:
 
@@ -108,9 +165,15 @@ Changes:
 - Each `<package>connect` package has a test that fails to compile if a
   regeneration renames or drops an adapter, and fails if a mount path grows a
   prefix. (#1)
+- `mage rpc:generate` now discovers a service declared as
+  `<app>/v1/service.proto` as well as `<app>/service.proto`, and `mage
+  rpc:stub` scaffolds the versioned layout. The declarations released so far
+  keep the flat layout and regenerate identically; a new API can be added
+  versioned without moving them. (#1)
 - The README now describes the services per API, the Go client and handler
-  constructors, the JSON-over-POST call and the error body for a non-Go
-  consumer, the buf generation and what a release is, and points at
+  constructors, the JSON-over-POST call, the lowerCamelCase JSON field names
+  and the error body for a non-Go consumer, that gRPC and gRPC-Web are
+  in-cluster only, the buf generation and what a release is, and points at
   elephantine's `docs/connect.md` for the codes and the conventions the fleet
   shares. (#1)
 
