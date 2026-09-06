@@ -4,6 +4,6 @@
 package main
 
 import (
-	//mage:import twirp
-	_ "github.com/ttab/mage/twirp"
+	//mage:import rpc
+	_ "github.com/ttab/mage/rpc"
 )
