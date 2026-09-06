@@ -4,7 +4,7 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
-## [v0.1.0] - Unreleased
+## [v0.1.0] - 2026-09-06
 
 **Breaking:** the module is Connect only. The Twirp clients, the Twirp servers
 and the `/twirp/` paths are gone rather than kept beside the new surface, so
