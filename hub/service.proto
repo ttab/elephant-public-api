@@ -79,6 +79,31 @@ service Hub {
 
 }
 
+// Client is the API for machine clients of the hub: elephant-repository
+// instances and the elephant BFF. Callers authenticate with OIDC client
+// credentials from the nexus realm; the org claim identifies the
+// organisation and the scope claim gates each method.
+service Client {
+  // --- Schema generations ---
+
+  // RegisterGeneration records the schema set an elephant-repository
+  // instance has activated. Idempotent on (caller, number). Every
+  // (name, version) must be a published, non-revoked schema artifact
+  // visible to the caller's organisation. Scope: hub_generations.
+  rpc RegisterGeneration(RegisterGenerationRequest) returns (RegisterGenerationResponse);
+  // GetLatestGeneration returns the highest generation number the caller
+  // has registered, so a repository can resume after a restart.
+  // Scope: hub_generations.
+  rpc GetLatestGeneration(GetLatestGenerationRequest) returns (GetLatestGenerationResponse);
+
+  // --- Asset URLs ---
+
+  // GetAssetURLs resolves artifacts to their manifests, signatures and
+  // signed CDN asset URLs. Access is decided per artifact: public, or
+  // owned by the caller's organisation. Scope: hub_assets.
+  rpc GetAssetURLs(GetAssetURLsRequest) returns (GetAssetURLsResponse);
+}
+
 // --- Enums ---
 
 enum ArtifactKind {
@@ -118,6 +143,16 @@ enum SchemaUsage {
   SCHEMA_USAGE_DISTRIBUTION = 2;
   SCHEMA_USAGE_SETTINGS     = 3;
   SCHEMA_USAGE_MESSAGES     = 4;
+}
+
+// Reason an artifact in a GetAssetURLs request could not be resolved to
+// asset URLs.
+enum AssetURLError {
+  ASSET_URL_ERROR_UNSPECIFIED = 0;
+  ASSET_URL_ERROR_NOT_FOUND   = 1;
+  ASSET_URL_ERROR_FORBIDDEN   = 2;
+  ASSET_URL_ERROR_REVOKED     = 3;
+  ASSET_URL_ERROR_INVALID     = 4;
 }
 
 // --- Common types ---
@@ -445,4 +480,91 @@ message ArtifactPublisherInfo {
   string provider_name = 2;
   string repository    = 3;
   string ref_pattern   = 4;
+}
+
+// --- Generation requests/responses ---
+
+message SchemaRef {
+  // Full schema name in reverse-domain notation (e.g. se.tt.core).
+  string name    = 1;
+  string version = 2;
+}
+
+message RegisterGenerationRequest {
+  int64              number  = 1;
+  repeated SchemaRef schemas = 2;
+}
+message RegisterGenerationResponse {
+  int64 id      = 1;
+  int64 number  = 2;
+  // True when the generation was already registered by this caller.
+  bool  existed = 3;
+}
+
+message GetLatestGenerationRequest {}
+message GetLatestGenerationResponse {
+  // Zero when the caller has registered nothing yet.
+  int64 number = 1;
+}
+
+// --- Asset URL requests/responses ---
+
+message ArtifactRef {
+  ArtifactKind kind                  = 1;
+  // Full artifact name in reverse-domain notation.
+  string       name                  = 2;
+  // Empty resolves to the latest non-revoked, non-prerelease version.
+  string       version               = 3;
+  // Also mint URLs for the documentation assets (README.md, agents/*.md).
+  // Off by default: they are read by tooling, not by the editor at load
+  // time, and stay out of the hot path.
+  bool         include_documentation = 4;
+}
+
+message GetAssetURLsRequest {
+  // At most 100.
+  repeated ArtifactRef artifacts = 1;
+}
+
+message SignedAsset {
+  string filename = 1;
+  string sha256   = 2;
+  string url      = 3;
+}
+
+message ArtifactAssetURLs {
+  ArtifactKind         kind             = 1;
+  // Full artifact name in reverse-domain notation.
+  string               name             = 2;
+  // The resolved version.
+  string               version          = 3;
+  // Raw manifest bytes.
+  bytes                manifest         = 4;
+  // Signature over the exact manifest bytes returned in the manifest
+  // field, as stored at publish time. Verify it against those bytes as
+  // they are, without re-serialising or otherwise normalising the
+  // manifest.
+  bytes                signature        = 5;
+  // Publishing key fingerprint in SSH SHA256 form.
+  string               signing_identity = 6;
+  // Raw 32-byte Ed25519 public key of the signing publishing key.
+  bytes                public_key       = 7;
+  // Current status of the signing key. A manifest signed by a key that is
+  // no longer PUBLISHING_KEY_STATUS_ACTIVE must not be trusted even if the
+  // signature verifies.
+  PublishingKeyStatus  key_status       = 8;
+  repeated SignedAsset assets           = 9;
+  // Set instead of the fields above when this artifact could not be
+  // resolved; the other entries are unaffected.
+  AssetURLError        error            = 10;
+  string               error_message    = 11;
+}
+
+message GetAssetURLsResponse {
+  // RFC 3339: the earliest expiry among the URLs in this response, so
+  // every URL in it is valid at least until then. Individual URLs may
+  // outlive it by the time the hub took to mint the set. Empty when
+  // nothing was minted, which is the case when every artifact failed.
+  string                     expires_at = 1;
+  repeated ArtifactAssetURLs artifacts  = 2;
 }

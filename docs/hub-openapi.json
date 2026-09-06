@@ -41,6 +41,53 @@
       "elephant.hub.ApproveOrganisationResponse": {
         "type": "object"
       },
+      "elephant.hub.ArtifactAssetURLs": {
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/elephant.hub.SignedAsset"
+            },
+            "type": "array"
+          },
+          "error": {
+            "$ref": "#/components/schemas/elephant.hub.AssetURLError"
+          },
+          "error_message": {
+            "type": "string"
+          },
+          "key_status": {
+            "$ref": "#/components/schemas/elephant.hub.PublishingKeyStatus"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
+          },
+          "manifest": {
+            "description": "Raw manifest bytes.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "public_key": {
+            "description": "Raw 32-byte Ed25519 public key of the signing publishing key.",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature over the exact manifest bytes returned in the manifest field, as stored at publish time. Verify it against those bytes as they are, without re-serialising or otherwise normalising the manifest.",
+            "type": "string"
+          },
+          "signing_identity": {
+            "description": "Publishing key fingerprint in SSH SHA256 form.",
+            "type": "string"
+          },
+          "version": {
+            "description": "The resolved version.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.hub.ArtifactInfo": {
         "properties": {
           "created_at": {
@@ -95,6 +142,26 @@
         },
         "type": "object"
       },
+      "elephant.hub.ArtifactRef": {
+        "properties": {
+          "include_documentation": {
+            "description": "Also mint URLs for the documentation assets (README.md, agents/*.md). Off by default: they are read by tooling, not by the editor at load time, and stay out of the hot path.",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/elephant.hub.ArtifactKind"
+          },
+          "name": {
+            "description": "Full artifact name in reverse-domain notation.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Empty resolves to the latest non-revoked, non-prerelease version.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.hub.AssetInfo": {
         "properties": {
           "filename": {
@@ -105,6 +172,17 @@
           }
         },
         "type": "object"
+      },
+      "elephant.hub.AssetURLError": {
+        "description": "Reason an artifact in a GetAssetURLs request could not be resolved to asset URLs.",
+        "enum": [
+          "ASSET_URL_ERROR_UNSPECIFIED",
+          "ASSET_URL_ERROR_NOT_FOUND",
+          "ASSET_URL_ERROR_FORBIDDEN",
+          "ASSET_URL_ERROR_REVOKED",
+          "ASSET_URL_ERROR_INVALID"
+        ],
+        "type": "string"
       },
       "elephant.hub.BulkPublishItem": {
         "description": "A single item in a bulk publish request.",
@@ -292,6 +370,33 @@
         },
         "type": "object"
       },
+      "elephant.hub.GetAssetURLsRequest": {
+        "properties": {
+          "artifacts": {
+            "description": "At most 100.",
+            "items": {
+              "$ref": "#/components/schemas/elephant.hub.ArtifactRef"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.hub.GetAssetURLsResponse": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/elephant.hub.ArtifactAssetURLs"
+            },
+            "type": "array"
+          },
+          "expires_at": {
+            "description": "RFC 3339: the earliest expiry among the URLs in this response, so every URL in it is valid at least until then. Individual URLs may outlive it by the time the hub took to mint the set. Empty when nothing was minted, which is the case when every artifact failed.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.hub.GetDocumentationRequest": {
         "properties": {
           "filename": {
@@ -322,6 +427,18 @@
           },
           "sha256": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.hub.GetLatestGenerationRequest": {
+        "type": "object"
+      },
+      "elephant.hub.GetLatestGenerationResponse": {
+        "properties": {
+          "number": {
+            "description": "Zero when the caller has registered nothing yet.",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -601,6 +718,35 @@
         ],
         "type": "string"
       },
+      "elephant.hub.RegisterGenerationRequest": {
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "schemas": {
+            "items": {
+              "$ref": "#/components/schemas/elephant.hub.SchemaRef"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "elephant.hub.RegisterGenerationResponse": {
+        "properties": {
+          "existed": {
+            "description": "True when the generation was already registered by this caller.",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "number": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "elephant.hub.RegisterOrgPublishingKeyRequest": {
         "properties": {
           "organisation_id": {
@@ -685,6 +831,18 @@
       "elephant.hub.RevokeVersionResponse": {
         "type": "object"
       },
+      "elephant.hub.SchemaRef": {
+        "properties": {
+          "name": {
+            "description": "Full schema name in reverse-domain notation (e.g. se.tt.core).",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "elephant.hub.SchemaUsage": {
         "enum": [
           "SCHEMA_USAGE_UNSPECIFIED",
@@ -720,6 +878,20 @@
           "SIGNATURE_TYPE_SIGSTORE"
         ],
         "type": "string"
+      },
+      "elephant.hub.SignedAsset": {
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
       },
       "elephant.hub.VersionInfo": {
         "properties": {
@@ -759,6 +931,120 @@
   },
   "openapi": "3.0.0",
   "paths": {
+    "/twirp/elephant.hub.Client/GetAssetURLs": {
+      "post": {
+        "description": "GetAssetURLs resolves artifacts to their manifests, signatures and signed CDN asset URLs. Access is decided per artifact: public, or owned by the caller's organisation. Scope: hub_assets.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.hub.GetAssetURLsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.hub.GetAssetURLsResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetAssetURLs",
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/twirp/elephant.hub.Client/GetLatestGeneration": {
+      "post": {
+        "description": "GetLatestGeneration returns the highest generation number the caller has registered, so a repository can resume after a restart. Scope: hub_generations.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.hub.GetLatestGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.hub.GetLatestGenerationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "GetLatestGeneration",
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/twirp/elephant.hub.Client/RegisterGeneration": {
+      "post": {
+        "description": "RegisterGeneration records the schema set an elephant-repository instance has activated. Idempotent on (caller, number). Every (name, version) must be a published, non-revoked schema artifact visible to the caller's organisation. Scope: hub_generations.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/elephant.hub.RegisterGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/elephant.hub.RegisterGenerationResponse"
+                }
+              }
+            },
+            "description": "Method response"
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RegisterGeneration",
+        "tags": [
+          "Client"
+        ]
+      }
+    },
     "/twirp/elephant.hub.Hub/ActivatePublishingKey": {
       "post": {
         "description": "ActivatePublishingKey activates a pending or deactivated publishing key.",
@@ -1608,6 +1894,10 @@
     {
       "description": "Hub provides the API for managing schemas and plugins in the Elephant Hub registry.",
       "name": "Hub"
+    },
+    {
+      "description": "Client is the API for machine clients of the hub: elephant-repository instances and the elephant BFF. Callers authenticate with OIDC client credentials from the nexus realm; the org claim identifies the organisation and the scope claim gates each method.",
+      "name": "Client"
     }
   ]
 }
