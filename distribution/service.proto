@@ -444,6 +444,20 @@ message GetDocumentResponse {
   // for it with include_html. An <article> fragment; empty when the
   // document's type renders no HTML.
   string rendered_html = 5;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 6;
 }
 
 // PublishedVersion is one stored document version in a daily view.
@@ -496,6 +510,20 @@ message PublishedVersion {
   // for it with include_html. It follows the document: a deferred entry
   // carries no HTML either.
   string rendered_html = 11;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 12;
 }
 
 // DocumentVersionRef identifies one version to load.
@@ -558,6 +586,20 @@ message LoadedDocumentVersion {
   // for it with include_html. Absent for a deferred version, exactly as
   // the document is.
   string rendered_html = 9;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 10;
 }
 
 message GetDocumentVersionsResponse {
@@ -957,6 +999,20 @@ message DocumentItem {
   // there is no document to render it from: a deferred item, a tombstone,
   // or a type the configuration renders no HTML for.
   string rendered_html = 5;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 6;
 }
 
 message ExtractedValues {

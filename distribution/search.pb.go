@@ -1734,9 +1734,23 @@ type Hit struct {
 	// asked for it with include_html. It is rendered from the version that
 	// was loaded - the current stored version - not from the projection the
 	// hit was matched on.
-	RenderedHtml  string `protobuf:"bytes,10,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RenderedHtml string `protobuf:"bytes,10,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
+	// RenderedHtmlDeferred says the fragment was not rendered because the
+	// response ran out of render budget, and that asking again is worth
+	// it. It is the HTML half of `deferred` and carries that field's exact
+	// contract: "ask again" and only that. A response renders a bounded
+	// number of cache misses, so a page of documents nobody has asked for
+	// yet warms over several calls instead of rendering fifty fragments
+	// serially in one.
+	//
+	// False for every other reason a fragment is absent - a type nothing
+	// renders HTML for, a caller who did not ask for it, a renderer that
+	// failed - because those are answers, and a client that retries them
+	// retries for ever. Re-ask through GetDocumentVersions with the exact
+	// (uuid, version), the same way a deferred document is re-asked.
+	RenderedHtmlDeferred bool `protobuf:"varint,11,opt,name=rendered_html_deferred,json=renderedHtmlDeferred,proto3" json:"rendered_html_deferred,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Hit) Reset() {
@@ -1837,6 +1851,13 @@ func (x *Hit) GetRenderedHtml() string {
 		return x.RenderedHtml
 	}
 	return ""
+}
+
+func (x *Hit) GetRenderedHtmlDeferred() bool {
+	if x != nil {
+		return x.RenderedHtmlDeferred
+	}
+	return false
 }
 
 // StringValues is the value of a flat index field. All field values are
@@ -2234,7 +2255,7 @@ const file_distribution_search_proto_rawDesc = "" +
 	"\x04hits\x18\x02 \x03(\v2\x1a.elephant.distribution.HitR\x04hits\"=\n" +
 	"\tHitsTotal\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\x03R\x05value\x12\x1a\n" +
-	"\brelation\x18\x02 \x01(\tR\brelation\"\xe1\x03\n" +
+	"\brelation\x18\x02 \x01(\tR\brelation\"\x97\x04\n" +
 	"\x03Hit\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05score\x18\x02 \x01(\x02R\x05score\x12>\n" +
@@ -2246,7 +2267,8 @@ const file_distribution_search_proto_rawDesc = "" +
 	"\x0ffirst_published\x18\b \x01(\tR\x0efirstPublished\x12\x1a\n" +
 	"\bdeferred\x18\t \x01(\bR\bdeferred\x12#\n" +
 	"\rrendered_html\x18\n" +
-	" \x01(\tR\frenderedHtml\x1a^\n" +
+	" \x01(\tR\frenderedHtml\x124\n" +
+	"\x16rendered_html_deferred\x18\v \x01(\bR\x14renderedHtmlDeferred\x1a^\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x129\n" +
 	"\x05value\x18\x02 \x01(\v2#.elephant.distribution.StringValuesR\x05value:\x028\x01\"&\n" +

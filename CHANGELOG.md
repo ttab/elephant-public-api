@@ -24,6 +24,16 @@ Changes:
   highest version within a generation is that generation's state, and a
   document that comes back after a deletion arrives under a new nonce with its
   versions starting over. The nil UUID means imported history.
+- `rendered_html_deferred` on `DocumentItem`, `PublishedVersion`,
+  `LoadedDocumentVersion`, `Hit` and `GetDocumentResponse` says the HTML
+  fragment was not rendered because the response ran out of render budget, and
+  that asking again is worth it. It is the HTML half of `deferred` and carries
+  the same contract — "ask again" and only that — so it is false for every
+  other reason a fragment is absent, and the re-ask is
+  `Content.GetDocumentVersions` at the exact `(uuid, version)`. A response now
+  renders a bounded number of cache misses rather than every one of them
+  serially, so a page of documents nobody has asked for yet warms over several
+  calls.
 - `SubscriptionMatch.event_type` documents what it actually reports. Only
   stored versions are matched, so the value is always `"published"`; a consumer
   that has to react to unpublishes and deletions follows the eventlog through

@@ -349,9 +349,23 @@ type GetDocumentResponse struct {
 	// RenderedHTML is the document rendered to HTML, when the request asked
 	// for it with include_html. An <article> fragment; empty when the
 	// document's type renders no HTML.
-	RenderedHtml  string `protobuf:"bytes,5,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RenderedHtml string `protobuf:"bytes,5,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
+	// RenderedHtmlDeferred says the fragment was not rendered because the
+	// response ran out of render budget, and that asking again is worth
+	// it. It is the HTML half of `deferred` and carries that field's exact
+	// contract: "ask again" and only that. A response renders a bounded
+	// number of cache misses, so a page of documents nobody has asked for
+	// yet warms over several calls instead of rendering fifty fragments
+	// serially in one.
+	//
+	// False for every other reason a fragment is absent - a type nothing
+	// renders HTML for, a caller who did not ask for it, a renderer that
+	// failed - because those are answers, and a client that retries them
+	// retries for ever. Re-ask through GetDocumentVersions with the exact
+	// (uuid, version), the same way a deferred document is re-asked.
+	RenderedHtmlDeferred bool `protobuf:"varint,6,opt,name=rendered_html_deferred,json=renderedHtmlDeferred,proto3" json:"rendered_html_deferred,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *GetDocumentResponse) Reset() {
@@ -419,6 +433,13 @@ func (x *GetDocumentResponse) GetRenderedHtml() string {
 	return ""
 }
 
+func (x *GetDocumentResponse) GetRenderedHtmlDeferred() bool {
+	if x != nil {
+		return x.RenderedHtmlDeferred
+	}
+	return false
+}
+
 // PublishedVersion is one stored document version in a daily view.
 type PublishedVersion struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -469,9 +490,23 @@ type PublishedVersion struct {
 	// RenderedHTML is this version rendered to HTML, when the request asked
 	// for it with include_html. It follows the document: a deferred entry
 	// carries no HTML either.
-	RenderedHtml  string `protobuf:"bytes,11,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RenderedHtml string `protobuf:"bytes,11,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
+	// RenderedHtmlDeferred says the fragment was not rendered because the
+	// response ran out of render budget, and that asking again is worth
+	// it. It is the HTML half of `deferred` and carries that field's exact
+	// contract: "ask again" and only that. A response renders a bounded
+	// number of cache misses, so a page of documents nobody has asked for
+	// yet warms over several calls instead of rendering fifty fragments
+	// serially in one.
+	//
+	// False for every other reason a fragment is absent - a type nothing
+	// renders HTML for, a caller who did not ask for it, a renderer that
+	// failed - because those are answers, and a client that retries them
+	// retries for ever. Re-ask through GetDocumentVersions with the exact
+	// (uuid, version), the same way a deferred document is re-asked.
+	RenderedHtmlDeferred bool `protobuf:"varint,12,opt,name=rendered_html_deferred,json=renderedHtmlDeferred,proto3" json:"rendered_html_deferred,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *PublishedVersion) Reset() {
@@ -579,6 +614,13 @@ func (x *PublishedVersion) GetRenderedHtml() string {
 		return x.RenderedHtml
 	}
 	return ""
+}
+
+func (x *PublishedVersion) GetRenderedHtmlDeferred() bool {
+	if x != nil {
+		return x.RenderedHtmlDeferred
+	}
+	return false
 }
 
 // DocumentVersionRef identifies one version to load.
@@ -770,9 +812,23 @@ type LoadedDocumentVersion struct {
 	// RenderedHTML is this version rendered to HTML, when the request asked
 	// for it with include_html. Absent for a deferred version, exactly as
 	// the document is.
-	RenderedHtml  string `protobuf:"bytes,9,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RenderedHtml string `protobuf:"bytes,9,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
+	// RenderedHtmlDeferred says the fragment was not rendered because the
+	// response ran out of render budget, and that asking again is worth
+	// it. It is the HTML half of `deferred` and carries that field's exact
+	// contract: "ask again" and only that. A response renders a bounded
+	// number of cache misses, so a page of documents nobody has asked for
+	// yet warms over several calls instead of rendering fifty fragments
+	// serially in one.
+	//
+	// False for every other reason a fragment is absent - a type nothing
+	// renders HTML for, a caller who did not ask for it, a renderer that
+	// failed - because those are answers, and a client that retries them
+	// retries for ever. Re-ask through GetDocumentVersions with the exact
+	// (uuid, version), the same way a deferred document is re-asked.
+	RenderedHtmlDeferred bool `protobuf:"varint,10,opt,name=rendered_html_deferred,json=renderedHtmlDeferred,proto3" json:"rendered_html_deferred,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *LoadedDocumentVersion) Reset() {
@@ -866,6 +922,13 @@ func (x *LoadedDocumentVersion) GetRenderedHtml() string {
 		return x.RenderedHtml
 	}
 	return ""
+}
+
+func (x *LoadedDocumentVersion) GetRenderedHtmlDeferred() bool {
+	if x != nil {
+		return x.RenderedHtmlDeferred
+	}
+	return false
 }
 
 type GetDocumentVersionsResponse struct {
@@ -2811,9 +2874,23 @@ type DocumentItem struct {
 	// for it with include_html. An <article> fragment, and empty whenever
 	// there is no document to render it from: a deferred item, a tombstone,
 	// or a type the configuration renders no HTML for.
-	RenderedHtml  string `protobuf:"bytes,5,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RenderedHtml string `protobuf:"bytes,5,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
+	// RenderedHtmlDeferred says the fragment was not rendered because the
+	// response ran out of render budget, and that asking again is worth
+	// it. It is the HTML half of `deferred` and carries that field's exact
+	// contract: "ask again" and only that. A response renders a bounded
+	// number of cache misses, so a page of documents nobody has asked for
+	// yet warms over several calls instead of rendering fifty fragments
+	// serially in one.
+	//
+	// False for every other reason a fragment is absent - a type nothing
+	// renders HTML for, a caller who did not ask for it, a renderer that
+	// failed - because those are answers, and a client that retries them
+	// retries for ever. Re-ask through GetDocumentVersions with the exact
+	// (uuid, version), the same way a deferred document is re-asked.
+	RenderedHtmlDeferred bool `protobuf:"varint,6,opt,name=rendered_html_deferred,json=renderedHtmlDeferred,proto3" json:"rendered_html_deferred,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *DocumentItem) Reset() {
@@ -2879,6 +2956,13 @@ func (x *DocumentItem) GetRenderedHtml() string {
 		return x.RenderedHtml
 	}
 	return ""
+}
+
+func (x *DocumentItem) GetRenderedHtmlDeferred() bool {
+	if x != nil {
+		return x.RenderedHtmlDeferred
+	}
+	return false
 }
 
 type ExtractedValues struct {
@@ -7608,13 +7692,14 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\finclude_html\x18\x06 \x01(\bR\vincludeHtml\x1ai\n" +
 	"\x0fRenditionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12@\n" +
-	"\x05value\x18\x02 \x01(\v2*.elephant.distribution.RenditionParametersR\x05value:\x028\x01\"\xcf\x01\n" +
+	"\x05value\x18\x02 \x01(\v2*.elephant.distribution.RenditionParametersR\x05value:\x028\x01\"\x85\x02\n" +
 	"\x13GetDocumentResponse\x12-\n" +
 	"\bdocument\x18\x01 \x01(\v2\x11.newsdoc.DocumentR\bdocument\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\x12!\n" +
 	"\fpublished_at\x18\x03 \x01(\tR\vpublishedAt\x12'\n" +
 	"\x0ffirst_published\x18\x04 \x01(\tR\x0efirstPublished\x12#\n" +
-	"\rrendered_html\x18\x05 \x01(\tR\frenderedHtml\"\x94\x03\n" +
+	"\rrendered_html\x18\x05 \x01(\tR\frenderedHtml\x124\n" +
+	"\x16rendered_html_deferred\x18\x06 \x01(\bR\x14renderedHtmlDeferred\"\xca\x03\n" +
 	"\x10PublishedVersion\x12\x19\n" +
 	"\bdoc_uuid\x18\x01 \x01(\tR\adocUuid\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\x12\x12\n" +
@@ -7627,7 +7712,8 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\x06subset\x18\t \x03(\v2&.elephant.distribution.ExtractedValuesR\x06subset\x12\x1a\n" +
 	"\bdeferred\x18\n" +
 	" \x01(\bR\bdeferred\x12#\n" +
-	"\rrendered_html\x18\v \x01(\tR\frenderedHtml\"B\n" +
+	"\rrendered_html\x18\v \x01(\tR\frenderedHtml\x124\n" +
+	"\x16rendered_html_deferred\x18\f \x01(\bR\x14renderedHtmlDeferred\"B\n" +
 	"\x12DocumentVersionRef\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\"\x98\x05\n" +
@@ -7646,7 +7732,7 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2\x1e.elephant.distribution.SubsetsR\x05value:\x028\x01\x1ai\n" +
 	"\x0fRenditionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12@\n" +
-	"\x05value\x18\x02 \x01(\v2*.elephant.distribution.RenditionParametersR\x05value:\x028\x01\"\xd7\x02\n" +
+	"\x05value\x18\x02 \x01(\v2*.elephant.distribution.RenditionParametersR\x05value:\x028\x01\"\x8d\x03\n" +
 	"\x15LoadedDocumentVersion\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\x12-\n" +
@@ -7656,7 +7742,9 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\x0ffirst_published\x18\x06 \x01(\tR\x0efirstPublished\x12\x1a\n" +
 	"\bdeferred\x18\a \x01(\bR\bdeferred\x12\x14\n" +
 	"\x05found\x18\b \x01(\bR\x05found\x12#\n" +
-	"\rrendered_html\x18\t \x01(\tR\frenderedHtml\"g\n" +
+	"\rrendered_html\x18\t \x01(\tR\frenderedHtml\x124\n" +
+	"\x16rendered_html_deferred\x18\n" +
+	" \x01(\bR\x14renderedHtmlDeferred\"g\n" +
 	"\x1bGetDocumentVersionsResponse\x12H\n" +
 	"\bversions\x18\x01 \x03(\v2,.elephant.distribution.LoadedDocumentVersionR\bversions\"%\n" +
 	"\vFacetValues\x12\x16\n" +
@@ -7806,13 +7894,14 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\aSubsets\x12 \n" +
 	"\vexpressions\x18\x01 \x03(\tR\vexpressions\"T\n" +
 	"\x17GetNewDocumentsResponse\x129\n" +
-	"\x05items\x18\x01 \x03(\v2#.elephant.distribution.DocumentItemR\x05items\"\xfa\x01\n" +
+	"\x05items\x18\x01 \x03(\v2#.elephant.distribution.DocumentItemR\x05items\"\xb0\x02\n" +
 	"\fDocumentItem\x12:\n" +
 	"\x05event\x18\x01 \x01(\v2$.elephant.distribution.DocumentEventR\x05event\x12-\n" +
 	"\bdocument\x18\x02 \x01(\v2\x11.newsdoc.DocumentR\bdocument\x12>\n" +
 	"\x06subset\x18\x03 \x03(\v2&.elephant.distribution.ExtractedValuesR\x06subset\x12\x1a\n" +
 	"\bdeferred\x18\x04 \x01(\bR\bdeferred\x12#\n" +
-	"\rrendered_html\x18\x05 \x01(\tR\frenderedHtml\"\xdd\x01\n" +
+	"\rrendered_html\x18\x05 \x01(\tR\frenderedHtml\x124\n" +
+	"\x16rendered_html_deferred\x18\x06 \x01(\bR\x14renderedHtmlDeferred\"\xdd\x01\n" +
 	"\x0fExtractedValues\x12\x1c\n" +
 	"\textractor\x18\x01 \x01(\x03R\textractor\x12J\n" +
 	"\x06values\x18\x02 \x03(\v22.elephant.distribution.ExtractedValues.ValuesEntryR\x06values\x1a`\n" +
