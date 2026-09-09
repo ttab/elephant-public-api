@@ -3017,9 +3017,12 @@ func (x *ExtractedValue) GetRole() string {
 // object, serialize it as RFC 8785 (JCS) canonical JSON, sha256 it, and
 // check the digest and the ECDSA signature against the key the signature
 // names, fetched from the unauthenticated JWKS at GET /signing-keys.
-// Nothing else on this message is signed - event_type is derived from
-// version, and first_published is a property of the document rather than
-// of the event.
+// Nothing else on this message is signed - event_type and nonce say what
+// kind of event this is and which generation of the document it belongs
+// to, and first_published is a property of the document rather than of the
+// event. The payload is a published verification contract, so a new member
+// would invalidate every consumer's verifier: these are read alongside it,
+// never added to it.
 //
 // The verification fields are only populated when the request asked for
 // them; see GetNewDocumentsRequest.verification.
@@ -3027,11 +3030,32 @@ type DocumentEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ID of the event.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	// EventType is either "published" or "unpublished".
+	// EventType is "published", "unpublished" or "deleted", the same three
+	// kinds a pushed object's envelope carries: a publication, the
+	// repository's unpublish, or the repository's deletion of the document.
+	//
+	// The distinction between the last two is what a consumer acts on. An
+	// "unpublished" event is an ordinary entry of the document's current
+	// generation and a later publication supersedes it, so a mirror stops
+	// serving the content and keeps the document. A "deleted" event
+	// terminates the generation the nonce below names - nothing is ever
+	// announced for that (doc_uuid, nonce) pair again, a restore arrives
+	// under a new nonce - and it is also the event an erasure expresses as,
+	// so a mirror stops serving the content and removes its copies of it.
+	// There is deliberately no fourth kind for an erasure specifically.
+	//
+	// Both carry a negative version, so the sign alone does not tell them
+	// apart. Read this field rather than the sign.
+	//
+	// Not part of the hashed event payload.
 	EventType string `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	// DocUUID is the UUID of the affected document.
 	DocUuid string `protobuf:"bytes,3,opt,name=doc_uuid,json=docUuid,proto3" json:"doc_uuid,omitempty"`
-	// Version that was published (if this was a publish event).
+	// Version that was published, and negative on a marker: an
+	// "unpublished" event carries the negated ordinal of the unpublish
+	// itself and a "deleted" one the negated version the document stood at,
+	// so the magnitude is the entry's position in the generation's sequence
+	// and neither names a version there is content to load.
 	Version int64 `protobuf:"varint,4,opt,name=version,proto3" json:"version,omitempty"`
 	// CreatedAt is when distribution emitted the event, in the canonical
 	// fixed-width RFC 3339 form used by the transparency log
@@ -3092,7 +3116,29 @@ type DocumentEvent struct {
 	// and a consumer following the log checks that the first entry of a
 	// page names the signature of the last entry of the previous one.
 	// Requires verification.
-	Parent        string `protobuf:"bytes,12,opt,name=parent,proto3" json:"parent,omitempty"`
+	Parent string `protobuf:"bytes,12,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Nonce is the generation this event belongs to: the repository's
+	// per-generation document nonce, the sequence of versions between a
+	// create (or recreate) and a delete. It is what makes version 1 of a
+	// recreated document distinguishable from version 1 of the original, and
+	// it is the same value a pushed object's envelope carries as
+	// document_nonce.
+	//
+	// Group by (doc_uuid, nonce): the highest version within a generation is
+	// that generation's state, an "unpublished" event is an entry a later
+	// one supersedes, and a "deleted" event ends the generation for good. A
+	// document that comes back is a new generation with a new nonce and its
+	// versions start over, which is why a consumer keyed on
+	// (doc_uuid, version) alone cannot tell a restored document's first
+	// version from the original's.
+	//
+	// The nil UUID ("00000000-0000-0000-0000-000000000000") is a real value
+	// and means imported history: a continuation of the document, but a
+	// fresh start, in its own generation. Empty means the event carries no
+	// nonce at all.
+	//
+	// Not part of the hashed event payload.
+	Nonce         string `protobuf:"bytes,13,opt,name=nonce,proto3" json:"nonce,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3207,6 +3253,13 @@ func (x *DocumentEvent) GetSignature() string {
 func (x *DocumentEvent) GetParent() string {
 	if x != nil {
 		return x.Parent
+	}
+	return ""
+}
+
+func (x *DocumentEvent) GetNonce() string {
+	if x != nil {
+		return x.Nonce
 	}
 	return ""
 }
@@ -7772,7 +7825,7 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\n" +
 	"annotation\x18\x03 \x01(\tR\n" +
 	"annotation\x12\x12\n" +
-	"\x04role\x18\x04 \x01(\tR\x04role\"\xdb\x02\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\"\xf1\x02\n" +
 	"\rDocumentEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
@@ -7788,7 +7841,8 @@ const file_distribution_service_proto_rawDesc = "" +
 	"\bdoc_hash\x18\n" +
 	" \x01(\tR\adocHash\x12\x1c\n" +
 	"\tsignature\x18\v \x01(\tR\tsignature\x12\x16\n" +
-	"\x06parent\x18\f \x01(\tR\x06parent\"\x17\n" +
+	"\x06parent\x18\f \x01(\tR\x06parent\x12\x14\n" +
+	"\x05nonce\x18\r \x01(\tR\x05nonce\"\x17\n" +
 	"\x15GetSigningKeysRequest\"O\n" +
 	"\x16GetSigningKeysResponse\x125\n" +
 	"\x04keys\x18\x01 \x03(\v2!.elephant.distribution.SigningKeyR\x04keys\"\xc9\x01\n" +

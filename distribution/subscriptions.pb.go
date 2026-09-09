@@ -2442,7 +2442,12 @@ type SubscriptionMatch struct {
 	Version int64 `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
 	// Type of the document.
 	Type string `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
-	// EventType is either "published" or "unpublished".
+	// EventType is the kind of the event that matched, named the way
+	// Content.GetNewDocuments names it. In practice it is always
+	// "published": only a stored version is evaluated against a
+	// subscription, so an unpublish and a deletion produce no match row of
+	// their own. A consumer that has to react to those follows the eventlog
+	// through Content.GetNewDocuments, which reports all three kinds.
 	EventType string `protobuf:"bytes,5,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	// EventTime is when distribution emitted the event, RFC3339. It is
 	// distribution's own clock, not the publication date: an event for

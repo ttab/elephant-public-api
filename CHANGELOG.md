@@ -4,6 +4,31 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
+## [v0.2.0] - Unreleased
+
+**Behaviour change (distribution eventlog):** `DocumentEvent.event_type` has a
+third value, `"deleted"`, for the repository's deletion of a document. It used
+to be reported as `"unpublished"`, which is a different instruction to a
+consumer: an unpublish stops the content being served and leaves the document,
+while a deletion terminates the document's generation and is also what an
+erasure expresses as, so a mirror removes its copies. Both carry a negative
+version, so a consumer that derived the kind from the sign never saw the
+difference and has to read `event_type` now. It is not part of the hashed event
+payload, so a verifier is unaffected.
+
+Changes:
+
+- `DocumentEvent.nonce` is the generation the event belongs to — the
+  repository's per-generation document nonce, the same value a pushed object's
+  envelope carries as `document_nonce`. Group by `(doc_uuid, nonce)`: the
+  highest version within a generation is that generation's state, and a
+  document that comes back after a deletion arrives under a new nonce with its
+  versions starting over. The nil UUID means imported history.
+- `SubscriptionMatch.event_type` documents what it actually reports. Only
+  stored versions are matched, so the value is always `"published"`; a consumer
+  that has to react to unpublishes and deletions follows the eventlog through
+  `Content.GetNewDocuments`.
+
 ## [v0.1.0] - 2026-09-06
 
 **Breaking:** the module is Connect only. The Twirp clients, the Twirp servers

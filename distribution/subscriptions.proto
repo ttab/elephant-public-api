@@ -674,7 +674,12 @@ message SubscriptionMatch {
   int64 version = 3;
   // Type of the document.
   string type = 4;
-  // EventType is either "published" or "unpublished".
+  // EventType is the kind of the event that matched, named the way
+  // Content.GetNewDocuments names it. In practice it is always
+  // "published": only a stored version is evaluated against a
+  // subscription, so an unpublish and a deletion produce no match row of
+  // their own. A consumer that has to react to those follows the eventlog
+  // through Content.GetNewDocuments, which reports all three kinds.
   string event_type = 5;
   // EventTime is when distribution emitted the event, RFC3339. It is
   // distribution's own clock, not the publication date: an event for
