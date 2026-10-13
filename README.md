@@ -11,10 +11,10 @@ Building the generated code needs Go 1.27.1 or later.
 
 | API | Package | Services | Declaration |
 | --- | --- | --- | --- |
-| **Assets** | `elephant.assets` | `Keys` serves the asset CDN signing keys and the rendition variants to URL-minting services; `Management` exposes the take-down operations. | [proto](assets/service.proto) |
-| **Distribution** | `elephant.distribution` | POC/work in progress. `Configuration` and `Content` hold the configuration generations and the document feed, `Archive` the bulk export, `Delivery` the destinations, `Search` the query surface and `Subscriptions` the matching rules. | [service](distribution/service.proto), [delivery](distribution/delivery.proto), [search](distribution/search.proto), [subscriptions](distribution/subscriptions.proto) |
-| **Hub** | `elephant.hub` | `Hub` administers organisations, artifacts and publishing keys in the Elephant Hub registry; `Client` is the machine surface repository instances and the BFF call. | [proto](hub/service.proto) |
-| **Live** | `elephant.live` | Liveblog administration, implemented by [elephant-live](https://github.com/ttab/elephant-live): `Blogs`, `Posts` and `Configuration`. | [proto](live/service.proto) |
+| **Assets** | `elephant.assets.v1` | `KeysService` serves the asset CDN signing keys and the rendition variants to URL-minting services; `ManagementService` exposes the take-down operations. | [proto](elephant/assets/v1/service.proto) |
+| **Distribution** | `elephant.distribution.v1` | POC/work in progress. `ConfigurationService` and `ContentService` hold the configuration generations and the document feed, `ArchiveService` the bulk export, `DeliveryService` the destinations, `SearchService` the query surface and `SubscriptionsService` the matching rules. | [service](elephant/distribution/v1/service.proto), [delivery](elephant/distribution/v1/delivery.proto), [search](elephant/distribution/v1/search.proto), [subscriptions](elephant/distribution/v1/subscriptions.proto) |
+| **Hub** | `elephant.hub.v1` | `HubService` administers organisations, artifacts and publishing keys in the Elephant Hub registry; `ClientService` is the machine surface repository instances and the BFF call. | [proto](elephant/hub/v1/service.proto) |
+| **Live** | `elephant.live.v1` | Liveblog administration, implemented by [elephant-live](https://github.com/ttab/elephant-live): `BlogsService`, `PostsService` and `ConfigurationService`. | [proto](elephant/live/v1/service.proto) |
 
 The `distribution` and `live` declarations carry NewsDoc documents, so they
 import `newsdoc/newsdoc.proto` from
@@ -29,52 +29,50 @@ the NewsDoc messages from that module.
 go get github.com/ttab/elephant-public-api@latest
 ```
 
-Each service package holds the messages and the plain service interface, which
-is the contract the protocol is expressed in:
-
-```go
-GetBlog(ctx context.Context, req *live.GetBlogRequest) (*live.GetBlogResponse, error)
-```
-
-The Connect clients live in a `<package>connect` subpackage and return that
-interface, so a client and an implementation are interchangeable:
+Each API is a Go package named after its protobuf package,
+`elephant/<api>/v1` imported as `<api>v1`, and holds the messages. The Connect
+clients and handlers are connect-go's own generated code, in a
+`<api>v1connect` subpackage:
 
 ```go
 import (
-	"github.com/ttab/elephant-public-api/live"
-	"github.com/ttab/elephant-public-api/live/liveconnect"
+	"connectrpc.com/connect"
+	livev1 "github.com/ttab/elephant-public-api/elephant/live/v1"
+	"github.com/ttab/elephant-public-api/elephant/live/v1/livev1connect"
 )
 
 // client is an *http.Client that carries the bearer token, usually one built
 // by oauth2.NewClient.
-var blogs live.Blogs = liveconnect.NewBlogsServiceClient(
-	client, "https://live.api.tt.se")
+blogs := livev1connect.NewBlogsServiceClient(client, "https://live.api.tt.se")
+
+res, err := blogs.GetBlog(ctx, connect.NewRequest(&livev1.GetBlogRequest{
+	Id: id,
+}))
 ```
 
-`New<Service>ServiceClient` takes the base URL of the server, not a per-service
-path. The constructors, one pair per service:
+`New<Service>Client` takes the base URL of the server, not a per-service path.
+The methods take a `*connect.Request[T]` and return a `*connect.Response[T]`,
+which is where a call's headers and trailers are read and written. The
+services, one client and handler pair each:
 
 | Package | Services |
 | --- | --- |
-| `assets/assetsconnect` | `Keys`, `Management` |
-| `distribution/distributionconnect` | `Archive`, `Configuration`, `Content`, `Delivery`, `Search`, `Subscriptions` |
-| `hub/hubconnect` | `Client`, `Hub` |
-| `live/liveconnect` | `Blogs`, `Posts`, `Configuration` |
+| `elephant/assets/v1/assetsv1connect` | `KeysService`, `ManagementService` |
+| `elephant/distribution/v1/distributionv1connect` | `ArchiveService`, `ConfigurationService`, `ContentService`, `DeliveryService`, `SearchService`, `SubscriptionsService` |
+| `elephant/hub/v1/hubv1connect` | `ClientService`, `HubService` |
+| `elephant/live/v1/livev1connect` | `BlogsService`, `PostsService`, `ConfigurationService` |
 
-`New<Service>ServiceHandler(svc, opts...)` is the server side. It takes an
-implementation of the plain interface and returns the mount path together with
-the handler, which is the pair `elephantine`'s API server registers with
-`RegisterConnect`.
+`New<Service>Handler(svc, opts...)` is the server side. It takes an
+implementation of the `<Service>Handler` interface and returns the mount path
+together with the handler, which is the pair `elephantine`'s API server
+registers with `RegisterConnect`. An implementation embeds
+`Unimplemented<Service>Handler` to answer `unimplemented` for the methods it
+does not have yet.
 
-The same packages also carry connect-go's own generated `New<Service>Client`
-and `New<Service>Handler`, which speak in `*connect.Request[T]` and
-`*connect.Response[T]`. The `Service` infix is what distinguishes the plain
-adapters from them. Use the adapters unless a call needs per-call access to
-headers or trailers.
-
-Per-call request headers are a context value and one client interceptor,
-`rpc.PropagateHeaders()` and `rpc.WithOutgoingHeaders(ctx, header)` from
-[`elephantine/rpc`](https://github.com/ttab/elephantine).
+Request headers that should follow a call from context rather than be set on
+each request are propagated by one client interceptor,
+`rpc.PropagateHeaders()` together with `rpc.WithOutgoingHeaders(ctx, header)`
+from [`elephantine/rpc`](https://github.com/ttab/elephantine).
 
 ### Other languages
 
@@ -82,7 +80,7 @@ Connect speaks JSON and protobuf over HTTP `POST` on the unprefixed
 `/<package>.<Service>/<Method>` paths:
 
 ```
-POST /elephant.live.Blogs/GetBlog
+POST /elephant.live.v1.BlogsService/GetBlog
 Content-Type: application/json
 Authorization: Bearer …
 
@@ -139,7 +137,7 @@ described in
 
 This module declares the messages and nothing else: it does not depend on
 `elephantine`, so the generated code imports only `connectrpc.com/connect`,
-`context`, `net/http` and the message packages. The error helpers, header
+the standard library and the message packages. The error helpers, header
 propagation and interceptors come from `elephantine/rpc`, and a service
 imports both.
 
@@ -162,20 +160,22 @@ version or the module mode that happens to be configured on the machine.
 | Target | Purpose |
 | --- | --- |
 | `mage rpc:generate` | Regenerate the Go and Connect artifacts for every service. |
-| `mage rpc:stub <app> <service> <method>` | Scaffold a new service proto, in the versioned layout `<app>/v1/service.proto`. |
+| `mage rpc:lint` | Check the declarations against buf's `STANDARD` lint rules. |
+| `mage rpc:format` / `mage rpc:formatCheck` | Rewrite the declarations in buf's formatting, or report what it would rewrite. |
+| `mage rpc:breaking` | Check the declarations for breaking changes against `main`. |
+| `mage rpc:stub <app> <service> <method>` | Scaffold a new service in `elephant/<app>/v1/service.proto`. |
 | `mage rpc:vendorProto <module> <file>` | Copy a `.proto` file this repository imports out of another module and into `rpc/vendor`. |
 
-Per service directory, generation writes `service.pb.go` (the messages),
-`service.rpc.go` (the plain service interface) and, under
-`<package>connect/`, `service.connect.go` (connect-go's client and handler)
-plus `service.elephant.go` (the adapters that put them on the plain interface).
-A `.proto` file that declares no service is compiled to messages and nothing
-else, and nothing but Go is generated.
-
-The existing declarations sit one directory per API (`assets/service.proto`);
-`mage rpc:generate` discovers both that layout and the versioned
-`<app>/v1/service.proto` one, so a new API can be scaffolded versioned without
-moving the ones that are already released.
+Every declaration is in the versioned layout, `elephant/<api>/v1/`, with the
+protobuf package `elephant.<api>.v1` that the directory mirrors; buf checks
+one against the other. An API's declaration can be split over several files,
+and every `.proto` in the directory is generated for. Per file, generation
+writes `<file>.pb.go` (the messages) and, for a file that declares a service,
+`<api>v1connect/<file>.connect.go` (connect-go's client, handler interface and
+handler). That is all: there are no adapters onto a plain service interface
+and no Twirp, and a service may declare streaming methods. The declarations
+pass the `STANDARD` lint rules with no exemptions, so a service name ends in
+`Service` and an enum's zero value is its `_UNSPECIFIED` member.
 
 buf compiles what is in its workspace and a workspace cannot reach outside the
 repository, so a `.proto` imported from another module is vendored:
@@ -206,10 +206,9 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-The generators this module is built with are released: `ttab/mage` v0.13.1
-runs buf and the plugins at pinned versions and pins `protoc-gen-elephant-rpc`
-to elephantine v0.29.0, so the generated code in a tag is reproducible from
-released code. Keep it that way: a `ttab/mage` requirement that is a
+The generators this module is built with are released: `ttab/mage` v0.15.0
+runs buf, `protoc-gen-go` and `protoc-gen-connect-go` at pinned versions, so
+the generated code in a tag is reproducible from released code. Keep it that way: a `ttab/mage` requirement that is a
 pseudo-version of a branch is a reason not to tag, since the branch can be
 force-pushed out from under the tag.
 

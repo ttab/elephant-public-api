@@ -6,6 +6,34 @@ the linked pull requests hold the detail.
 
 ## [v0.2.0] - Unreleased
 
+**Breaking:** every declaration moves to the versioned layout, and the
+generated Go is connect-go's own. `assets/service.proto` is now
+`elephant/assets/v1/service.proto`, and the same for `distribution`, `hub` and
+`live`; the protobuf packages gain the version (`elephant.live.v1`) and the Go
+packages move with them, to `github.com/ttab/elephant-public-api/elephant/<api>/v1`
+imported as `<api>v1`, with the Connect code in `<api>v1connect`. The services
+take buf's `Service` suffix (`Blogs` is `BlogsService`), so with the version in
+the package every procedure path changes:
+`/elephant.live.Blogs/GetBlog` is `/elephant.live.v1.BlogsService/GetBlog`,
+and an ingress rule written against the old paths needs rewriting. The plain
+service interface in `service.rpc.go` and the adapters in
+`service.elephant.go` are gone: a client is
+`<api>v1connect.New<Service>Client(httpClient, baseURL)` and speaks in
+`*connect.Request[T]` and `*connect.Response[T]`, and a server implements
+`<Service>Handler` and mounts it with `New<Service>Handler(svc, opts...)`,
+which still returns the mount path together with the handler for
+`elephantine`'s `RegisterConnect`. A service may now declare a streaming
+method.
+
+**Breaking (distribution enums):** `ResumeAction`, `ResumeFrom`,
+`SubscriptionClass`, `MatchRequirement`, `FieldMatch` and `TextMatchMode`
+each gain an `_UNSPECIFIED` zero value, and their other members move up by
+one. The value that used to be the zero value is what an unspecified one is
+read as — `RESUME_ACTION_DRAIN`, `RESUME_FROM_PRIOR_POSITION`,
+`MATCH_REQUIREMENT_ALL`, `FIELD_MATCH_ANY_OF` and `TEXT_MATCH_MODE_CONTAINS` —
+and `SubscriptionClass` is never reported unspecified. A client that sends
+the enums by name in JSON is unaffected; one that sends numbers is not.
+
 **Behaviour change (distribution eventlog):** `DocumentEvent.event_type` has a
 third value, `"deleted"`, for the repository's deletion of a document. It used
 to be reported as `"unpublished"`, which is a different instruction to a
@@ -30,14 +58,14 @@ Changes:
   that asking again is worth it. It is the HTML half of `deferred` and carries
   the same contract — "ask again" and only that — so it is false for every
   other reason a fragment is absent, and the re-ask is
-  `Content.GetDocumentVersions` at the exact `(uuid, version)`. A response now
+  `ContentService.GetDocumentVersions` at the exact `(uuid, version)`. A response now
   renders a bounded number of cache misses rather than every one of them
   serially, so a page of documents nobody has asked for yet warms over several
   calls.
 - `SubscriptionMatch.event_type` documents what it actually reports. Only
   stored versions are matched, so the value is always `"published"`; a consumer
   that has to react to unpublishes and deletions follows the eventlog through
-  `Content.GetNewDocuments`.
+  `ContentService.GetNewDocuments`.
 
 ## [v0.1.0] - 2026-09-06
 

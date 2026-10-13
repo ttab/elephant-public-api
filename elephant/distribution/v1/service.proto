@@ -1,0 +1,2054 @@
+syntax = "proto3";
+
+package elephant.distribution.v1;
+
+import "newsdoc/newsdoc.proto";
+
+option go_package = "github.com/ttab/elephant-public-api/elephant/distribution/v1;distributionv1";
+
+service ConfigurationService {
+  // RegisterConfigGeneration registers a complete configuration set
+  // (schemas + type configurations) as a new generation. Existing schema
+  // versions can be re-used by name and version without re-supplying the
+  // spec; if the spec is supplied for an existing version it must match
+  // the stored one. Returns the new generation ID.
+  rpc RegisterConfigGeneration(RegisterConfigGenerationRequest) returns (RegisterConfigGenerationResponse);
+  // ActivateConfigGeneration switches the active configuration to the
+  // generation with the given ID.
+  rpc ActivateConfigGeneration(ActivateConfigGenerationRequest) returns (ActivateConfigGenerationResponse);
+  // GetActiveConfigGeneration returns the currently active generation,
+  // including its schemas and type configurations. Supports long polling
+  // for changes.
+  rpc GetActiveConfigGeneration(GetActiveConfigGenerationRequest) returns (GetActiveConfigGenerationResponse);
+  // ListConfigGenerations lists historical generations, most recent first.
+  rpc ListConfigGenerations(ListConfigGenerationsRequest) returns (ListConfigGenerationsResponse);
+  // GetSchema retrieves a stored schema spec by name and version.
+  rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
+  // GetAllActiveSchemas returns the schemas in the active generation.
+  // Supports long polling so clients can watch for changes.
+  rpc GetAllActiveSchemas(GetAllActiveSchemasRequest) returns (GetAllActiveSchemasResponse);
+  // GetDocumentTypes lists the document types declared by schemas in the
+  // active generation.
+  rpc GetDocumentTypes(GetDocumentTypesRequest) returns (GetDocumentTypesResponse);
+  // GetTypeConfiguration returns the configuration for a type in the
+  // active generation.
+  rpc GetTypeConfiguration(GetTypeConfigurationRequest) returns (GetTypeConfigurationResponse);
+  // SetRendererSecret stores the shared secret a remote HTML renderer
+  // authenticates with. A renderer names its secret implicitly: the
+  // renderer "factbox-special" uses the secret "factbox-special".
+  //
+  // The secret is write-only. It is stored encrypted under the delivery
+  // keyring and there is no call that returns it; ListRendererSecrets
+  // reports which secrets exist and when they were written, and nothing
+  // else. An environment-provided secret takes precedence over a stored
+  // one, so an emergency override does not need a write here.
+  //
+  // Store the secret before registering a generation that names the
+  // renderer: registration resolves every remote renderer's secret and
+  // refuses a generation whose secrets are not resolvable.
+  rpc SetRendererSecret(SetRendererSecretRequest) returns (SetRendererSecretResponse);
+  // DeleteRendererSecret removes a stored renderer secret. It does not
+  // invalidate a configuration generation that names the renderer: the
+  // renderer is skipped at render time, its blocks fall back to the
+  // built-in renderers, and the missing-secret gauge is raised.
+  rpc DeleteRendererSecret(DeleteRendererSecretRequest) returns (DeleteRendererSecretResponse);
+  // ListRendererSecrets lists the stored renderer secrets by name, with
+  // the keyring entry each one is sealed under and when it was last
+  // written. Never their values.
+  rpc ListRendererSecrets(ListRendererSecretsRequest) returns (ListRendererSecretsResponse);
+  // SetSyncState sets the desired state of the distribution sync worker.
+  // A cold-started service (no configuration, no sync position) starts
+  // out paused so that the repository eventlog isn't consumed - and
+  // discarded - before a configuration generation has been activated.
+  rpc SetSyncState(SetSyncStateRequest) returns (SetSyncStateResponse);
+  // GetSyncStatus returns the desired and current state of the
+  // distribution sync worker together with its position in the
+  // repository eventlog.
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
+  // EraseDocument erases a document's content from every store we control:
+  // the hot version rows, the archived objects, the search index copies,
+  // the extracted delivery fields and the cached fragments. It never
+  // touches the eventlog, whose entries carry identifiers and hashes only,
+  // so the transparency log survives an erasure with its hash chain
+  // intact.
+  //
+  // Erasure is point-in-time. It removes the content that exists when it
+  // is ordered and does not blocklist the UUID: a document re-published
+  // afterwards is a new document and is distributed and indexed normally.
+  //
+  // It also STOPS THE CONTENT GOING OUT and tells everybody who was given
+  // it. Undelivered queue rows for the document are dropped, and every
+  // destination that was ever pushed a copy is sent a deletion marker in
+  // the same feed the content arrived in - the ordinary marker envelope,
+  // at the next entry of that document's chain, saying "deleted". Nothing
+  // is deleted at a destination: push is append-only, we do not control
+  // what a customer retains, and a marker is the only honest instrument we
+  // have.
+  //
+  // THIS CALL IS NOT THE ORDINARY TRIGGER. Deleting a document in the
+  // repository erases it here: the delete event drives the same erasure
+  // this RPC records, and an editorial delete inside becomes an erasure
+  // outside. What the RPC is for is the content that trigger cannot reach
+  // - a document deleted before distribution ingested delete events, and
+  // content that exists here only as imported history with no live
+  // repository document to delete. Calling it for a document that has
+  // already been erased is a no-op and safe.
+  //
+  // The call is idempotent and returns the recorded request. A request is
+  // complete once no archived index snapshot holds a copy any more, which
+  // can require the affected partitions to be re-materialized, and once
+  // every destination that was given a copy has been told - the marker
+  // delivered, or the destination and its credentials gone. Use
+  // GetErasureStatus to prove completion.
+  //
+  // What it has never covered, and cannot: content a customer has already
+  // ingested from a destination into their own systems. We do not delete
+  // files on a customer's machine and do not claim to.
+  rpc EraseDocument(EraseDocumentRequest) returns (EraseDocumentResponse);
+  // GetErasureStatus returns the recorded erasure request for a document
+  // and what it is still waiting for: the archived index partitions
+  // awaiting re-materialization, and the delivery destinations that were
+  // given a copy and have not been told.
+  //
+  // One narrow window sits outside the proof, and it is stated here rather
+  // than left to a design document. An object whose write completed but
+  // whose inventory row was never recorded - a process that died between
+  // the two, or a lost acknowledgement from the recipient - is
+  // indistinguishable from a file the customer put there themselves, so if
+  // it is the only copy a destination ever received, that destination is
+  // not on the list. The queue row survives, so the next pass re-sends and
+  // records it; the exposure is one restart intersected with an erasure.
+  rpc GetErasureStatus(GetErasureStatusRequest) returns (GetErasureStatusResponse);
+  // RematerializePartition orders an archived index partition to be
+  // rebuilt from the archive: overlay corrections are folded in, deleted
+  // and erased documents are left out, and the result is built with the
+  // current mappings and schemas.
+  //
+  // The call records the order and returns; the rebuild itself runs in the
+  // index tiering job, which owns the snapshot repository and the warm
+  // tier. Call it again to see how far it has got - the response is the
+  // recorded state either way, and ordering a rebuild that is already
+  // under way changes nothing.
+  //
+  // A period of the form "yyyy" orders the rollup of a whole year: the
+  // years quarter partitions are rebuilt into a single yearly one and
+  // their mounts are dropped.
+  rpc RematerializePartition(RematerializePartitionRequest) returns (RematerializePartitionResponse);
+  // CreateIndexGeneration registers a new index generation: a complete set
+  // of search indexes with an index name prefix of its own, built on one of
+  // the OpenSearch clusters the deployment declares.
+  //
+  // The generation is populated by the ordinary backfill - the indexer that
+  // picks it up drains the archive and then tails the eventlog - while the
+  // active generation keeps serving. Subscription matching is suppressed
+  // for the whole build, so creating a generation never re-notifies a
+  // subscription, but the percolator indexes are seeded as it goes, so
+  // matching works from the moment it is activated.
+  //
+  // Use it to rebuild the index from scratch after a mapping change that
+  // cannot be applied to live indexes, or to move the index to another
+  // cluster - which is how an OpenSearch major version upgrade is done:
+  // create a generation on the new cluster, watch it catch up with
+  // ListIndexGenerations, compare results through the generation override
+  // on SearchService.Query, activate, and delete the old one.
+  rpc CreateIndexGeneration(CreateIndexGenerationRequest) returns (CreateIndexGenerationResponse);
+  // ListIndexGenerations lists the index generations together with the
+  // position each one's indexer has reached in the distribution eventlog
+  // and the current head of that log. That is the catch-up view a rebuild
+  // is followed through: a candidate is ready to be activated once its lag
+  // has come down to a handful of events.
+  rpc ListIndexGenerations(ListIndexGenerationsRequest) returns (ListIndexGenerationsResponse);
+  // ActivateIndexGeneration makes a generation the one that search,
+  // threshold calibration and subscription matching read. The switch is
+  // atomic and exactly one generation is active at a time.
+  //
+  // Activation is refused when the candidate lags the head of the eventlog
+  // by more than a small gate, ten events by default, because a generation
+  // that is behind would answer with stale content the moment it took
+  // over. It is refused on the same gate when the candidate stands that
+  // far above the position the outgoing generation has matched up to,
+  // since that distance is what the matching handover has to replay and an
+  // outgoing generation that is stalled or disabled can be arbitrarily far
+  // behind a candidate that is on the head. Force activates regardless,
+  // which is the right call when the outgoing generation is unreachable
+  // and the wrong one otherwise.
+  //
+  // Subscription matching is handed over rather than dropped. Activation
+  // records the position the outgoing generation had matched up to and
+  // stops its matching there; the incoming generation replays the events
+  // from that position up to its own cursor for matching only. Match rows
+  // are keyed on subscription and event, so replaying an event is
+  // idempotent - but the two generations read the log in different pages,
+  // and a document that occurs more than once in a page is matched under
+  // the last event of that page, so the same document version can end up
+  // recorded under two events. Delivery across a cutover is at-least-once
+  // with the occasional duplicate: deduplicate on the subscription, the
+  // document UUID and the version if that matters to you.
+  rpc ActivateIndexGeneration(ActivateIndexGenerationRequest) returns (ActivateIndexGenerationResponse);
+  // DeleteIndexGeneration deletes an inactive generation. The active
+  // generation cannot be deleted - activate another one first.
+  //
+  // The call records the deletion and returns; the cleanup runs
+  // asynchronously and is scoped by the generation's index prefix: its
+  // document, percolator and overlay indexes, the bookkeeping rows that
+  // name them, its eventlog cursor, and the snapshots under the
+  // generation's base path in the snapshot repository. Nothing outside the
+  // prefix is touched, so deleting a generation can never take content
+  // away from the one that is serving.
+  rpc DeleteIndexGeneration(DeleteIndexGenerationRequest) returns (DeleteIndexGenerationResponse);
+}
+
+service ContentService {
+  rpc GetNewDocuments(GetNewDocumentsRequest) returns (GetNewDocumentsResponse);
+  // GetSigningKeys returns the public keys the transparency log's
+  // signatures are made with, so that a consumer reading the log with
+  // GetNewDocumentsRequest.verification can verify it without leaving
+  // the API it is already talking to.
+  //
+  // The same keys are served as a JWKS at the unauthenticated
+  // GET /signing-keys and mirrored into the archive bucket. Those remain
+  // the way an independent verifier with no credentials, checking
+  // archived content, gets them. This is the convenience for a consumer
+  // that already holds a client.
+  //
+  // An independent copy is worth keeping either way: keys fetched from
+  // the service that signed the log only prove it is internally
+  // consistent.
+  rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
+  // GetDocument returns a single document, transparently falling back to
+  // the archive if the requested version (or the whole document) has been
+  // evicted from the hot data set. The document is returned in-band.
+  rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
+  // CreateImportUpload starts a bulk import upload: the client declares
+  // the files that make up the import set and gets a presigned PUT URL
+  // back for each of them. The files are uploaded directly to object
+  // storage; the service only brokers the URLs. Files are gzipped NDJSON
+  // with one import envelope per line, and they are loaded in the order
+  // they were declared, so declare them in chronological (quarterly)
+  // order.
+  //
+  // To resume an upload that was cut short, call CreateImportUpload
+  // again with the upload ID and the same file declaration: fresh URLs
+  // are returned for every file, and only the ones that are missing or
+  // were interrupted need to be PUT again. Re-uploading a completed file
+  // is harmless - finalization verifies sizes and hashes, not upload
+  // counts. An upload that is never finalized is eventually cleaned up.
+  //
+  // Requires dist_admin, unlike the service's dist_read baseline, and
+  // fails with FailedPrecondition when the deployment has no archive
+  // bucket configured - there is nowhere to upload to.
+  rpc CreateImportUpload(CreateImportUploadRequest) returns (CreateImportUploadResponse);
+  // FinalizeImportUpload declares an upload complete and turns it into
+  // an import job. The service verifies that every declared file is
+  // present in the bucket with the declared size and sha256 - a missing
+  // or mismatching file is a FailedPrecondition, and the upload stays
+  // open so the file can be re-uploaded and finalization retried -
+  // records the import, and starts loading asynchronously. The returned
+  // import ID is what GetImportStatus takes; the upload ID is consumed
+  // and invalid afterwards.
+  //
+  // Loaded documents go through the same store path as live content:
+  // document versions are upserted and the events enter the transparency
+  // log hashed and signed like any others, carrying the import's source
+  // so that consumers can tell bulk-imported content from the live
+  // repository flow. The load is resumable and idempotent per document
+  // version - a service restart continues where it left off.
+  //
+  // Requires dist_admin and an archive bucket, as CreateImportUpload.
+  rpc FinalizeImportUpload(FinalizeImportUploadRequest) returns (FinalizeImportUploadResponse);
+  // GetImportStatus returns the recorded state of an import job: where
+  // the load has got to, and what went wrong if it failed.
+  //
+  // Requires dist_admin.
+  rpc GetImportStatus(GetImportStatusRequest) returns (GetImportStatusResponse);
+  // ListImports lists import jobs, most recent first.
+  //
+  // Requires dist_admin.
+  rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
+  // CancelImport cancels an import. Cancellation is terminal: the job
+  // stops being claimable by the loader, the imports queued behind it
+  // proceed, and its hold on index maintenance is released. An
+  // un-finalized upload can be cancelled too, which retires its upload
+  // ID.
+  //
+  // Only a job that is not actively loading can be cancelled: a load
+  // that keeps failing backs off between passes with status "failed",
+  // which is when a cancel lands. Documents the job already published
+  // are signed log entries and stay published - remediation of loaded
+  // content is per-document erasure, not cancellation.
+  //
+  // Requires dist_admin.
+  rpc CancelImport(CancelImportRequest) returns (CancelImportResponse);
+  // ListPublishedVersions lists the publication events of an interval,
+  // newest first: what was published, in the order it happened. Every
+  // stored version of every document of the requested types whose
+  // publication time falls in the interval, superseded ones included and
+  // marked as such, so that a correction sits at the minute it was made
+  // rather than under the document's latest version.
+  //
+  // This is the same log GetNewDocuments serves, read by publication time
+  // instead of by event ID. It is a range scan over the stored versions,
+  // not a search: the inputs are document types, an interval and facet
+  // values, the order is chronological, and there is no relevance,
+  // free-text or cross-type ranking to be had.
+  //
+  // Any interval can be listed, however old: retention drops document
+  // bodies and keeps the bookkeeping the listing is made of. Past
+  // inline_horizon the entries come back deferred and their documents are
+  // streamed in with GetDocumentVersions.
+  //
+  // Intended for backward-anchored types - articles, flashes, editorial
+  // information - where the question is what was published when. See
+  // ListPlannedVersions for the calendar view of forward-anchored types.
+  rpc ListPublishedVersions(ListPublishedVersionsRequest) returns (ListPublishedVersionsResponse);
+  // ListPlannedVersions lists what is planned for an interval, earliest
+  // first: the current version of every document of the requested types
+  // whose resolved anchor date falls in it.
+  //
+  // Only current versions, deliberately. A planning item's revisions are
+  // working state rather than publications, and a calendar showing five
+  // revisions of one item is noise - so unlike ListPublishedVersions this
+  // never carries version history. An item rescheduled out of the
+  // interval leaves it entirely rather than staying behind under its old
+  // date.
+  //
+  // Intended for forward-anchored types: planning items and calendar
+  // entries.
+  rpc ListPlannedVersions(ListPlannedVersionsRequest) returns (ListPlannedVersionsResponse);
+  // GetDocumentVersions loads a batch of document versions. It is the
+  // batch form of GetDocument, and it is how a client streams in the
+  // documents a listing left deferred.
+  //
+  // Responses that carry documents bound how many they carry, because a
+  // document whose body has aged out of the hot store is an archive read
+  // each and loading a whole page of them would make the response time a
+  // function of how far back the caller browsed. Entries beyond that
+  // bound come back with deferred set and no document; pass their UUID
+  // and version here to fetch them, in whatever order and at whatever
+  // rate suits the client - typically what is on screen first, and the
+  // rest as the reader scrolls.
+  //
+  // The same bound applies here: ask for more than the server will load
+  // in one response and the surplus comes back deferred again, so a
+  // client that keeps requesting what it did not get makes progress
+  // rather than looping.
+  rpc GetDocumentVersions(GetDocumentVersionsRequest) returns (GetDocumentVersionsResponse);
+}
+
+message GetNewDocumentsRequest {
+  // After returns new documents after the given event ID. A negative value
+  // is an offset from the newest event instead: -N returns the last N
+  // events (so at head 20, -5 yields events 16 through 20). The count is
+  // resolved against the log head at call time and capped at the same page
+  // size as a positive read. An offset reaching past the start of the log
+  // is clamped to the beginning.
+  int64 after = 1;
+  // Subset returns a subset of the documents as specified by a map of newsdoc
+  // value extractors keyed by the types that they should be applied to.
+  map<string, Subsets> subset = 2;
+  // LoadDocuments should be set to true if you want the full documents in the
+  // response. If subset is used it will override load_documents.
+  bool load_documents = 3;
+  // DisableRenditionSigning serves documents with generated but unsigned
+  // rendition URLs instead of signing the rendition links for the
+  // caller's audience. Intended for internal consumers that store
+  // canonical content and re-sign for their own audience at their own
+  // delivery time; external consumers should leave it unset.
+  bool disable_rendition_signing = 4;
+  // Renditions selects the rendition variants to generate per asset kind
+  // (e.g. "image"). An absent kind - or an empty field within a present
+  // entry - falls back to the kind's configured defaults. An entry for a
+  // kind the active configuration doesn't declare is an invalid argument.
+  map<string, RenditionParameters> renditions = 5;
+  // DisableRenditions serves documents without any rendition links: the
+  // stored canonical bytes. This is the only mode whose payload matches
+  // the stored and archived document, so it is what a doc-hash
+  // verification against the transparency log must use. Takes precedence
+  // over disable_rendition_signing, which has no effect when this is set.
+  bool disable_renditions = 6;
+  // Wait is the maximum time in milliseconds to wait for new events when
+  // the read starts at the head of the log, mirroring the repository
+  // eventlog long poll. Defaults to 2000 and is capped at 8000. A
+  // negative value disables waiting so that at-head reads return an
+  // empty response immediately. Reads that can be answered immediately
+  // are always unaffected.
+  int32 wait_ms = 7;
+  // Verification populates the transparency-log fields of every event:
+  // doc_hash, signature and parent. Together with the fields an event
+  // always carries they are the complete signed payload, so a consumer
+  // can recompute each entry's hash, verify the signature against the
+  // public keys at GET /signing-keys, and check that the page chains.
+  // Off by default: the three fields are a few hundred bytes an event
+  // that a consumer which doesn't verify would carry for nothing.
+  bool verification = 8;
+  // IncludeHTML delivers the document rendered to HTML beside it, in
+  // rendered_html. It follows the document: an item whose document was
+  // not loaded - deferred, or not asked for - carries no HTML either, and
+  // a document of a type the active configuration does not render HTML
+  // for comes back without it rather than as an error.
+  //
+  // The HTML is an <article> fragment: block-level markup with no
+  // document frame, with the image links of the delivered document. Only
+  // data-block-id is a stable hook - see HTMLRenderingConfiguration.
+  bool include_html = 9;
+}
+
+// RenditionParameters selects the renditions to generate for one asset
+// kind at delivery time.
+message RenditionParameters {
+  // Variants to generate rendition links for. Empty falls back to the
+  // kind's configured default variants.
+  repeated string variants = 1;
+  // Extension of the generated renditions, e.g. "jpg". Empty falls back
+  // to the kind's configured default extension.
+  string extension = 2;
+}
+
+message GetDocumentRequest {
+  // UUID of the document to get.
+  string uuid = 1;
+  // Version to get, or 0 for the latest version.
+  int64 version = 2;
+  // DisableRenditionSigning serves the document with generated but
+  // unsigned rendition URLs. See
+  // GetNewDocumentsRequest.disable_rendition_signing.
+  bool disable_rendition_signing = 3;
+  // Renditions selects the rendition variants to generate per asset
+  // kind. See GetNewDocumentsRequest.renditions.
+  map<string, RenditionParameters> renditions = 4;
+  // DisableRenditions serves the document without any rendition links.
+  // See GetNewDocumentsRequest.disable_renditions.
+  bool disable_renditions = 5;
+  // IncludeHTML delivers the document rendered to HTML beside it. See
+  // GetNewDocumentsRequest.include_html.
+  bool include_html = 6;
+}
+
+message GetDocumentResponse {
+  // Document is the requested document.
+  newsdoc.Document document = 1;
+  // Version that was returned.
+  int64 version = 2;
+  // PublishedAt is when the returned version became public, in the
+  // canonical fixed-width RFC 3339 form ("2006-01-02T15:04:05.000000Z",
+  // UTC, microsecond precision). For a version served from the archive
+  // rather than the hot store this is empty: the archived object carries
+  // the document, not the timestamps of the row it was pruned from.
+  string published_at = 3;
+  // FirstPublished is when the document first became public, in the same
+  // form. Immutable, and equal to published_at for a document that has
+  // only ever been published once. Empty for a document whose
+  // first-published record has been erased or was never written.
+  string first_published = 4;
+  // RenderedHTML is the document rendered to HTML, when the request asked
+  // for it with include_html. An <article> fragment; empty when the
+  // document's type renders no HTML.
+  string rendered_html = 5;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 6;
+}
+
+// PublishedVersion is one stored document version in a daily view.
+message PublishedVersion {
+  // DocUUID is the UUID of the document.
+  string doc_uuid = 1;
+  // Version of the document this entry is, in the same numbering as
+  // DocumentEvent.version and ContentService.GetDocument.
+  int64 version = 2;
+  // Type of the document.
+  string type = 3;
+  // PublishedAt is when this version became public, in the canonical
+  // fixed-width RFC 3339 form ("2006-01-02T15:04:05.000000Z", UTC,
+  // microsecond precision). This is what ListPublishedVersions orders and
+  // filters on.
+  string published_at = 4;
+  // FirstPublished is when the document first became public, in the same
+  // form. Equal to published_at for a version that is the document's
+  // first.
+  string first_published = 5;
+  // SupersededAt is when a later version of the document was published,
+  // in the same form, and empty while this is the current version. A
+  // published-day view renders superseded entries as history: they are
+  // what was published at that minute, not what stands now.
+  //
+  // Always empty in ListPlannedVersions, which only returns current
+  // versions.
+  string superseded_at = 6;
+  // Anchor is the date the document is planned for, in the same form: the
+  // resolved partition anchor of a forward-anchored type. Empty for types
+  // that carry no dates of their own. This is what ListPlannedVersions
+  // orders and filters on.
+  string anchor = 7;
+  // Document is the full document, when the request asked for it with
+  // load_documents. It is this version of the document, rendered with the
+  // active configuration's renditions.
+  newsdoc.Document document = 8;
+  // Subset is what the document type's extractors collected from the
+  // delivered document, when the request named the type in subset.
+  repeated ExtractedValues subset = 9;
+  // Deferred is set when load_documents or subset was requested and this
+  // entry's document was not loaded because the response had reached its
+  // loading bound. Fetch it with ContentService.GetDocumentVersions, passing
+  // doc_uuid and version.
+  //
+  // An entry with neither a document nor deferred set has no document to
+  // load - it has been erased - so don't ask for it again.
+  bool deferred = 10;
+  // RenderedHTML is this version rendered to HTML, when the request asked
+  // for it with include_html. It follows the document: a deferred entry
+  // carries no HTML either.
+  string rendered_html = 11;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 12;
+}
+
+// DocumentVersionRef identifies one version to load.
+message DocumentVersionRef {
+  // UUID of the document.
+  string uuid = 1;
+  // Version to load. Zero is the document's current version, as in
+  // GetDocument.
+  int64 version = 2;
+}
+
+message GetDocumentVersionsRequest {
+  // Versions to load. At least one, and the surplus beyond what one
+  // response will load comes back deferred.
+  repeated DocumentVersionRef versions = 1;
+  // Subset returns extracted parts of each document instead of the
+  // document, keyed by the document types the expressions apply to.
+  map<string, Subsets> subset = 2;
+  // LoadDocuments is implied - this RPC exists to load documents - and is
+  // only here so that a caller asking for a subset can say it does not
+  // also want the whole document. It defaults to true when no subset
+  // applies.
+  bool load_documents = 3;
+  // Renditions selects the rendition variants to generate per asset kind.
+  map<string, RenditionParameters> renditions = 4;
+  // DisableRenditions serves documents without any rendition links.
+  bool disable_renditions = 5;
+  // DisableRenditionSigning serves generated but unsigned rendition URLs.
+  bool disable_rendition_signing = 6;
+  // IncludeHTML delivers each version rendered to HTML beside it. See
+  // GetNewDocumentsRequest.include_html.
+  bool include_html = 7;
+}
+
+message LoadedDocumentVersion {
+  // UUID of the document.
+  string uuid = 1;
+  // Version that was loaded. For a request that asked for version zero
+  // this is the version the document is currently at.
+  int64 version = 2;
+  // Document is the loaded document, absent when it was deferred or when
+  // there was nothing to load.
+  newsdoc.Document document = 3;
+  // Subset is what the type's extractors collected from it.
+  repeated ExtractedValues subset = 4;
+  // PublishedAt is when this version became public, in the canonical
+  // fixed-width RFC 3339 form. Empty for a version served from the
+  // archive.
+  string published_at = 5;
+  // FirstPublished is when the document first became public, same form.
+  string first_published = 6;
+  // Deferred is set when this version was beyond the response's loading
+  // bound. Ask again - a client that re-requests what it did not get
+  // makes progress.
+  bool deferred = 7;
+  // Found is false when the version is in neither the store nor the
+  // archive: erased, deleted, or never distributed. Don't ask again.
+  bool found = 8;
+  // RenderedHTML is this version rendered to HTML, when the request asked
+  // for it with include_html. Absent for a deferred version, exactly as
+  // the document is.
+  string rendered_html = 9;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 10;
+}
+
+message GetDocumentVersionsResponse {
+  // Versions in the order they were requested.
+  repeated LoadedDocumentVersion versions = 1;
+}
+
+// FacetValues is the values a facet filter requires. A returned version
+// has to carry all of them, and a request with several facets has to
+// satisfy all of them - the filter is one containment test over the
+// stored facet values. Narrowing to either of two sections is therefore
+// two requests rather than one.
+message FacetValues {
+  // Values to match. These are document UUIDs, never labels: a section is
+  // a core/section document and the facet carries its UUID, so matching
+  // is exact and a human-readable name matches nothing at all.
+  repeated string values = 1;
+}
+
+message ListPublishedVersionsRequest {
+  // DocumentTypes to include. At least one; several at a time is the
+  // normal shape, as a newsroom flow lists flashes, articles and
+  // editorial information together.
+  repeated string document_types = 1;
+  // From is the start of the interval, inclusive, as an RFC 3339
+  // timestamp with an offset. Required.
+  //
+  // The server has no notion of a day: what a day is, in which timezone,
+  // and whether the boundary falls at midnight or at the start of a shift
+  // is the client's decision. The interval is normalised to UTC for the
+  // scan, so an offset is how a local day is expressed.
+  string from = 2;
+  // To is the end of the interval, exclusive, as an RFC 3339 timestamp
+  // with an offset. Required. The span is capped by the server; a wider
+  // interval is an invalid argument.
+  string to = 3;
+  // Facets narrows the result to versions carrying the given values,
+  // keyed by facet name. A version has to carry every named facet and
+  // every value within it. The extraction is per type and per version, so
+  // a version that carried a section when it was published matches even
+  // if a later version doesn't - which is right for a publication log: it
+  // was published in that section at that minute.
+  map<string, FacetValues> facets = 4;
+  // After is a cursor from a previous response. Empty starts at the newest
+  // end of the interval. Cursors are opaque and stay valid indefinitely:
+  // the sort key of an entry is its publication time, which never changes.
+  string after = 5;
+  // Limit is the maximum number of entries to return. Defaults to 50 and
+  // is capped at 200.
+  int32 limit = 6;
+  // LoadDocuments delivers the document with each entry. Unlike
+  // SearchService.Query, which loads the current version, this loads the version
+  // the entry is.
+  bool load_documents = 7;
+  // Subset returns a subset of each document as specified by a map of
+  // newsdoc value extractors keyed by the types they apply to. Overrides
+  // load_documents for the types it names.
+  map<string, Subsets> subset = 8;
+  // Renditions selects the rendition variants to generate per asset kind.
+  // See GetNewDocumentsRequest.renditions.
+  map<string, RenditionParameters> renditions = 9;
+  // DisableRenditions serves documents without any rendition links. See
+  // GetNewDocumentsRequest.disable_renditions.
+  bool disable_renditions = 10;
+  // DisableRenditionSigning serves documents with generated but unsigned
+  // rendition URLs. See
+  // GetNewDocumentsRequest.disable_rendition_signing.
+  bool disable_rendition_signing = 11;
+  // IncludeHTML delivers each entry's document rendered to HTML beside
+  // it. See GetNewDocumentsRequest.include_html.
+  bool include_html = 12;
+}
+
+message ListPublishedVersionsResponse {
+  // Items are the publication events of the interval, newest first.
+  repeated PublishedVersion items = 1;
+  // Next is the cursor to pass as after for the next page, and empty at
+  // the end of the interval.
+  string next = 2;
+  // InlineHorizon is the oldest instant whose documents still come back
+  // with the response, in the canonical fixed-width RFC 3339 form.
+  //
+  // It is not a limit on what the view can answer. Retention drops
+  // document bodies and keeps their bookkeeping, so any interval can be
+  // listed; what changes past this point is that every document has to be
+  // streamed in with GetDocumentVersions rather than delivered inline. A
+  // client uses it to decide how hard to prefetch.
+  string inline_horizon = 3;
+}
+
+message ListPlannedVersionsRequest {
+  // DocumentTypes to include. At least one.
+  repeated string document_types = 1;
+  // From is the start of the interval on the planned date, inclusive, as
+  // an RFC 3339 timestamp with an offset. Required. See
+  // ListPublishedVersionsRequest.from for why this is an interval and not
+  // a day.
+  string from = 2;
+  // To is the end of the interval, exclusive, as an RFC 3339 timestamp
+  // with an offset. Required.
+  string to = 3;
+  // Facets narrows the result to documents carrying the given values. See
+  // ListPublishedVersionsRequest.facets.
+  map<string, FacetValues> facets = 4;
+  // After is a cursor from a previous response. Empty starts at the
+  // earliest end of the interval.
+  //
+  // Unlike the published day, this cursor sits on a mutable key: a
+  // rescheduled item moves, so it can cross a page boundary while a
+  // client pages an interval, and appear twice or not at all. Bounded and
+  // deliberate for a calendar - do not read exactness into it.
+  string after = 5;
+  // Limit is the maximum number of entries to return. Defaults to 50 and
+  // is capped at 200.
+  int32 limit = 6;
+  // LoadDocuments delivers the document with each entry.
+  bool load_documents = 7;
+  // Subset returns a subset of each document. Overrides load_documents
+  // for the types it names.
+  map<string, Subsets> subset = 8;
+  // Renditions selects the rendition variants to generate per asset kind.
+  map<string, RenditionParameters> renditions = 9;
+  // DisableRenditions serves documents without any rendition links.
+  bool disable_renditions = 10;
+  // DisableRenditionSigning serves documents with generated but unsigned
+  // rendition URLs.
+  bool disable_rendition_signing = 11;
+  // IncludeHTML delivers each entry's document rendered to HTML beside
+  // it. See GetNewDocumentsRequest.include_html.
+  bool include_html = 12;
+}
+
+message ListPlannedVersionsResponse {
+  // Items are what is planned for the interval, earliest first. Current
+  // versions only, so superseded_at is always empty.
+  repeated PublishedVersion items = 1;
+  // Next is the cursor to pass as after for the next page, and empty at
+  // the end of the interval.
+  string next = 2;
+  // InlineHorizon is the oldest instant whose documents still come back
+  // with the response. See ListPublishedVersionsResponse.inline_horizon.
+  string inline_horizon = 3;
+}
+
+// ImportFile declares one file of an import upload.
+message ImportFile {
+  // Name of the file within the upload, e.g.
+  // "documents-2024-Q2.ndjson.gz". Names must be unique within the
+  // upload. Files are loaded in declaration order.
+  string name = 1;
+  // Size of the file in bytes.
+  int64 size = 2;
+  // Sha256 is the hex-encoded sha256 of the file contents, verified at
+  // finalization.
+  string sha256 = 3;
+}
+
+message CreateImportUploadRequest {
+  // Files that make up the import set, in load order.
+  repeated ImportFile files = 1;
+  // UploadId resumes an existing upload instead of creating a new one.
+  // The declared files must match the recorded declaration exactly;
+  // fresh presigned URLs are returned for all of them. Leave empty to
+  // create a new upload.
+  string upload_id = 2;
+}
+
+// ImportFileUpload is the upload destination for one declared file.
+message ImportFileUpload {
+  // Name of the file, as declared.
+  string name = 1;
+  // UploadUrl is a presigned PUT URL for the file contents. Object keys
+  // and the presigning mechanism are internal - the URL is used as-is
+  // and never parsed.
+  string upload_url = 2;
+  // ExpiresAt is when the URL stops working, RFC3339. Resume the upload
+  // to get fresh URLs.
+  string expires_at = 3;
+}
+
+message CreateImportUploadResponse {
+  // UploadId identifies the upload for resumption and finalization.
+  string upload_id = 1;
+  // Files to upload, one per declared file, in declaration order.
+  repeated ImportFileUpload files = 2;
+}
+
+message FinalizeImportUploadRequest {
+  // UploadId of the upload to finalize.
+  string upload_id = 1;
+  // Source labels the imported events in the eventlog, so that
+  // consumers can tell the import apart from the live repository flow.
+  // Required, e.g. "ttdist". It cannot be a source the live sync worker
+  // writes.
+  string source = 2;
+  // ExpectedDocuments is the total number of documents in the import
+  // set, if the client knows it. Optional; when set it is recorded on
+  // the import and lets the load cross-check that it saw everything.
+  int64 expected_documents = 3;
+}
+
+message FinalizeImportUploadResponse {
+  // ID of the created import job, for GetImportStatus.
+  string id = 1;
+}
+
+message GetImportStatusRequest {
+  // ID of the import job.
+  string id = 1;
+}
+
+message GetImportStatusResponse {
+  // Status of the import job.
+  ImportStatus status = 1;
+}
+
+message ListImportsRequest {}
+
+message CancelImportRequest {
+  // ID of the import job, or the upload ID of an un-finalized upload
+  // (they are the same identifier space).
+  string id = 1;
+}
+
+message CancelImportResponse {}
+
+message ListImportsResponse {
+  // Imports, most recent first.
+  repeated ImportStatus imports = 1;
+}
+
+// ImportStatus is the recorded state of one import job.
+message ImportStatus {
+  // ID of the import job.
+  string id = 1;
+  // Source the imported events carry in the eventlog.
+  string source = 2;
+  // Status is "pending" until the load starts, "loading" while it runs,
+  // and "done", "failed" or "cancelled" when it ends. A failed import
+  // is resumed by the service, not re-created: documents are idempotent
+  // per version, so the load continues from its recorded progress. Only
+  // CancelImport moves a job to "cancelled", and only from there does
+  // the loader move on to the jobs queued behind it.
+  string status = 3;
+  // CurrentFile is the declared file the load is working through, and
+  // the last one once the import is done.
+  string current_file = 4;
+  // DocumentsLoaded is how many documents have been stored so far.
+  int64 documents_loaded = 5;
+  // ExpectedDocuments is the total declared at finalization, or zero if
+  // none was.
+  int64 expected_documents = 6;
+  // QuarterHighWaterMark is the most recent quarter the import has
+  // fully loaded, e.g. "2024q2", empty until the first quarter
+  // completes. Quarters are loaded in order, so overlay-pressure
+  // re-materializations of quarters the mark has not passed are held
+  // until it does - one rebuild per touched quarter, after the import
+  // has moved on. Deadline-driven re-materializations (tombstone,
+  // erasure) are never held.
+  string quarter_high_water_mark = 7;
+  // Error is what a failed import failed with, empty otherwise.
+  string error = 8;
+  // CreatedAt is when the import was finalized, RFC3339.
+  string created_at = 9;
+  // UpdatedAt is when the recorded state last changed, RFC3339.
+  string updated_at = 10;
+}
+
+// ArchiveService exposes the offloaded eventlog history and document versions for
+// bulk export - e.g. building or rebuilding a search index over the full
+// content set. Bodies are delivered as presigned URLs that the consumer
+// fetches directly from object storage; the service only brokers the
+// catalog and mints the URLs. Object keys and the presigning mechanism are
+// internal: consumers address content by identity (uuid, version,
+// chunk_id), never by storage key.
+service ArchiveService {
+  // ListArchivedDocuments enumerates the latest archived version of every
+  // document offloaded to the archive, for a current-state snapshot. Pair
+  // it with a ContentService.GetNewDocuments tail from watermark_event_id to
+  // reconstruct full current state.
+  rpc ListArchivedDocuments(ListArchivedDocumentsRequest) returns (ListArchivedDocumentsResponse);
+  // ListArchiveChunks lists archived eventlog chunks in order, for full
+  // ordered replay of the history that precedes the hot log.
+  rpc ListArchiveChunks(ListArchiveChunksRequest) returns (ListArchiveChunksResponse);
+  // GetArchivedDocument returns a fresh presigned URL for a specific
+  // archived document version. Used to resolve replay bodies and to
+  // re-mint a URL a consumer let expire.
+  rpc GetArchivedDocument(GetArchivedDocumentRequest) returns (GetArchivedDocumentResponse);
+}
+
+message ListArchivedDocumentsRequest {
+  // Cursor from a previous response; empty to start a new drain.
+  string cursor = 1;
+  // PageSize defaults to 1000.
+  int64 page_size = 2;
+}
+
+message ListArchivedDocumentsResponse {
+  // Documents in this page.
+  repeated ArchivedDocument documents = 1;
+  // NextCursor is empty when the catalog has been exhausted.
+  string next_cursor = 2;
+  // WatermarkEventID is the last archived event ID as of the start of the
+  // drain. A consumer that has drained the catalog should tail
+  // ContentService.GetNewDocuments from this ID: everything up to it is covered
+  // by the catalog, everything after it by the tail.
+  int64 watermark_event_id = 3;
+}
+
+message ArchivedDocument {
+  // UUID of the document.
+  string uuid = 1;
+  // Version is the latest archived version, or -1 if the document has been
+  // tombstoned (in which case there is no content URL).
+  int64 version = 2;
+  // ContentURL is a presigned GET URL for the canonical document JSON.
+  string content_url = 3;
+  // Hash is the hex-encoded sha256 of the canonical document body, for a
+  // pre-download integrity check. The document object's own signature (the
+  // authoritative verification anchor) is delivered with the object.
+  string hash = 4;
+}
+
+message ListArchiveChunksRequest {
+  // AfterChunkID lists chunks after the given chunk ID; 0 to start.
+  int64 after_chunk_id = 1;
+  // PageSize defaults to 100.
+  int64 page_size = 2;
+}
+
+message ListArchiveChunksResponse {
+  // Chunks in this page, in ascending chunk-ID order.
+  repeated ArchiveChunk chunks = 1;
+}
+
+message ArchiveChunk {
+  // ChunkID is the sequential chunk identifier.
+  int64 chunk_id = 1;
+  // FirstEventID is the first eventlog ID in the chunk.
+  int64 first_event_id = 2;
+  // LastEventID is the last eventlog ID in the chunk.
+  int64 last_event_id = 3;
+  // FirstEventAt is the timestamp of the first event, RFC3339.
+  string first_event_at = 4;
+  // LastEventAt is the timestamp of the last event, RFC3339.
+  string last_event_at = 5;
+  // ManifestURL is a presigned GET URL for the signed chunk manifest.
+  string manifest_url = 6;
+  // ManifestHash is the hex-encoded sha256 of the canonical manifest.
+  string manifest_hash = 7;
+  // EventsURL is a presigned GET URL for the chunk event zip.
+  string events_url = 8;
+}
+
+message GetArchivedDocumentRequest {
+  // UUID of the document.
+  string uuid = 1;
+  // Version to get a URL for.
+  int64 version = 2;
+}
+
+message GetArchivedDocumentResponse {
+  // ContentURL is a presigned GET URL for the canonical document JSON.
+  string content_url = 1;
+  // Hash is the hex-encoded sha256 of the canonical document body.
+  string hash = 2;
+  // Signature covers the document body, for end-to-end verification.
+  string signature = 3;
+}
+
+message Subsets {
+  // Expressions to use to extract document contents.
+  repeated string expressions = 1;
+}
+
+message GetNewDocumentsResponse {
+  repeated DocumentItem items = 1;
+}
+
+message DocumentItem {
+  // Event information.
+  DocumentEvent event = 1;
+  // Document is the full document (if requested).
+  newsdoc.Document document = 2;
+  // Subset is the extracted subset of the document.
+  repeated ExtractedValues subset = 3;
+  // Deferred is set when load_documents or subset was requested and this
+  // item's document was not loaded because the response had reached its
+  // loading bound. Fetch it with ContentService.GetDocumentVersions.
+  //
+  // An item with neither a document nor deferred set has no document to
+  // load: it is a tombstone, or the document has been deleted or erased.
+  // Don't ask for it again.
+  bool deferred = 4;
+  // RenderedHTML is the document rendered to HTML, when the request asked
+  // for it with include_html. An <article> fragment, and empty whenever
+  // there is no document to render it from: a deferred item, a tombstone,
+  // or a type the configuration renders no HTML for.
+  string rendered_html = 5;
+  // RenderedHtmlDeferred says the fragment was not rendered because the
+  // response ran out of render budget, and that asking again is worth
+  // it. It is the HTML half of `deferred` and carries that field's exact
+  // contract: "ask again" and only that. A response renders a bounded
+  // number of cache misses, so a page of documents nobody has asked for
+  // yet warms over several calls instead of rendering fifty fragments
+  // serially in one.
+  //
+  // False for every other reason a fragment is absent - a type nothing
+  // renders HTML for, a caller who did not ask for it, a renderer that
+  // failed - because those are answers, and a client that retries them
+  // retries for ever. Re-ask through GetDocumentVersions with the exact
+  // (uuid, version), the same way a deferred document is re-asked.
+  bool rendered_html_deferred = 6;
+}
+
+message ExtractedValues {
+  // Extractor index for the the extractor that produced the values.
+  int64 extractor = 1;
+  // Values that were extracted.
+  map<string, ExtractedValue> values = 2;
+}
+
+message ExtractedValue {
+  // Value is used for extracted attributes and data values.
+  string value = 1;
+  // Block is used for block extractors.
+  newsdoc.Block block = 2;
+  // Annotations can be used to differentiate between different extracted values.
+  string annotation = 3;
+  // Role can be used to differentiate between different extracted values.
+  string role = 4;
+}
+
+// DocumentEvent is one entry of the distribution eventlog, which is a
+// transparency log: every entry is hashed over a canonical JSON payload,
+// signed, and chained to its predecessor.
+//
+// The signed payload is exactly these nine fields, under these names:
+// id, source, uuid (doc_uuid here), version, type, created_at,
+// published_at, doc_hash and parent. Verifying an entry is: build that
+// object, serialize it as RFC 8785 (JCS) canonical JSON, sha256 it, and
+// check the digest and the ECDSA signature against the key the signature
+// names, fetched from the unauthenticated JWKS at GET /signing-keys.
+// Nothing else on this message is signed - event_type and nonce say what
+// kind of event this is and which generation of the document it belongs
+// to, and first_published is a property of the document rather than of the
+// event. The payload is a published verification contract, so a new member
+// would invalidate every consumer's verifier: these are read alongside it,
+// never added to it.
+//
+// The verification fields are only populated when the request asked for
+// them; see GetNewDocumentsRequest.verification.
+message DocumentEvent {
+  // ID of the event.
+  int64 id = 1;
+  // EventType is "published", "unpublished" or "deleted", the same three
+  // kinds a pushed object's envelope carries: a publication, the
+  // repository's unpublish, or the repository's deletion of the document.
+  //
+  // The distinction between the last two is what a consumer acts on. An
+  // "unpublished" event is an ordinary entry of the document's current
+  // generation and a later publication supersedes it, so a mirror stops
+  // serving the content and keeps the document. A "deleted" event
+  // terminates the generation the nonce below names - nothing is ever
+  // announced for that (doc_uuid, nonce) pair again, a restore arrives
+  // under a new nonce - and it is also the event an erasure expresses as,
+  // so a mirror stops serving the content and removes its copies of it.
+  // There is deliberately no fourth kind for an erasure specifically.
+  //
+  // Both carry a negative version, so the sign alone does not tell them
+  // apart. Read this field rather than the sign.
+  //
+  // Not part of the hashed event payload.
+  string event_type = 2;
+  // DocUUID is the UUID of the affected document.
+  string doc_uuid = 3;
+  // Version that was published, and negative on a marker: an
+  // "unpublished" event carries the negated ordinal of the unpublish
+  // itself and a "deleted" one the negated version the document stood at,
+  // so the magnitude is the entry's position in the generation's sequence
+  // and neither names a version there is content to load.
+  int64 version = 4;
+  // CreatedAt is when distribution emitted the event, in the canonical
+  // fixed-width RFC 3339 form used by the transparency log
+  // ("2006-01-02T15:04:05.000000Z", UTC, microsecond precision) — the
+  // same representation that the entry hash is computed over and that
+  // archived eventlog chunks carry. It is distribution's own clock, so
+  // an event for historical content carries a created_at long after the
+  // content was published. Use published_at to date the content.
+  string created_at = 5;
+  // PublishedAt is when the version was published in the source system:
+  // the time the "usable" status was created in the repository, or the
+  // publication time the record carried when the content was bulk
+  // imported. Same canonical fixed-width form as created_at, and part of
+  // the hashed event payload. This is the publication date of the
+  // content, and the timestamp the index anchors and ages documents on.
+  string published_at = 6;
+  // FirstPublished is when the document first became public, in the same
+  // canonical fixed-width form. The event is about one version, and this
+  // is the per-document timestamp beside it: what a consumer groups and
+  // dates a document by, as opposed to the version. Equal to published_at
+  // for a document's first event, and unchanged by every event after it.
+  //
+  // Not part of the hashed event payload - it is a property of the
+  // document rather than of the event, read alongside it.
+  string first_published = 7;
+  // Source names the pipeline the event came from: the repository
+  // eventlog for content distributed as it is published, or a bulk
+  // import job for imported history. Part of the hashed payload.
+  string source = 8;
+  // Type of the document, e.g. "core/article", as the source event
+  // reported it - so a tombstone carries one too. Part of the hashed
+  // payload, empty string included: hash what is here, not what a
+  // document of that identity looks like now.
+  string type = 9;
+  // DocHash is the hex-encoded sha256 of the RFC 8785 canonical form of
+  // this version's document data, binding the event to the exact content
+  // it announced. Empty for a tombstone.
+  //
+  // Checking it takes two things. It covers the *version* named here,
+  // while load_documents delivers the document's current version, so a
+  // consumer verifying content fetches the exact version through
+  // ContentService.GetDocumentVersions or ContentService.GetDocument instead - the two
+  // agree only for an event that is still the document's latest. And it
+  // covers the stored bytes: rendition links are generated per response
+  // and signed for the caller's audience, so ask with disable_renditions
+  // or strip the generated rel="rendition" links before hashing.
+  //
+  // Verifying the log itself needs neither - the signature covers this
+  // field as a string, whatever content it names. Requires verification.
+  string doc_hash = 10;
+  // Signature is the compact signature over the canonical payload,
+  // "v2.{key id}.{base64url sha256}.{base64url ECDSA signature}". The
+  // digest it carries must equal the one recomputed from the payload.
+  // Requires verification.
+  string signature = 11;
+  // Parent is the signature of event id-1, chaining the log, and is
+  // empty for event 1. A page therefore verifies as a chain on its own,
+  // and a consumer following the log checks that the first entry of a
+  // page names the signature of the last entry of the previous one.
+  // Requires verification.
+  string parent = 12;
+  // Nonce is the generation this event belongs to: the repository's
+  // per-generation document nonce, the sequence of versions between a
+  // create (or recreate) and a delete. It is what makes version 1 of a
+  // recreated document distinguishable from version 1 of the original, and
+  // it is the same value a pushed object's envelope carries as
+  // document_nonce.
+  //
+  // Group by (doc_uuid, nonce): the highest version within a generation is
+  // that generation's state, an "unpublished" event is an entry a later
+  // one supersedes, and a "deleted" event ends the generation for good. A
+  // document that comes back is a new generation with a new nonce and its
+  // versions start over, which is why a consumer keyed on
+  // (doc_uuid, version) alone cannot tell a restored document's first
+  // version from the original's.
+  //
+  // The nil UUID ("00000000-0000-0000-0000-000000000000") is a real value
+  // and means imported history: a continuation of the document, but a
+  // fresh start, in its own generation. Empty means the event carries no
+  // nonce at all.
+  //
+  // Not part of the hashed event payload.
+  string nonce = 13;
+}
+
+message GetSigningKeysRequest {}
+
+message GetSigningKeysResponse {
+  // Keys is every published key, not just the one signing right now. A
+  // key stops being used for new signatures long before the entries it
+  // signed stop needing to be verifiable, so a verifier reading history
+  // needs the retired ones too, and picks the key a signature names
+  // rather than the newest.
+  repeated SigningKey keys = 1;
+}
+
+// SigningKey is the public half of one transparency-log signing key: the
+// JWK the JWKS endpoint publishes, with its fields broken out.
+message SigningKey {
+  // KeyID is what the second segment of a signature names.
+  string key_id = 1;
+  // KeyType is the JWK "kty", always "EC".
+  string key_type = 2;
+  // Curve is the JWK "crv", always "P-384".
+  string curve = 3;
+  // X is the base64url-encoded (unpadded) big-endian x coordinate of the
+  // public point, 48 bytes decoded. As in a JWK, so a client can hand
+  // {kty, crv, x, y} straight to a JWK importer.
+  string x = 4;
+  // Y is the y coordinate, same encoding.
+  string y = 5;
+  // IssuedAt is when the key was created, in the canonical fixed-width
+  // RFC 3339 form the events use ("2006-01-02T15:04:05.000000Z", UTC).
+  string issued_at = 6;
+  // NotBefore and NotAfter bound the window the key signs in. They are
+  // worth checking against an entry's created_at - a signature made
+  // outside its key's window verifies arithmetically but should not have
+  // existed - and they are why a key is published before it is used: a
+  // verifier needs it in hand before the first entry it signs arrives.
+  string not_before = 7;
+  string not_after = 8;
+}
+
+message Schema {
+  string name = 1;
+  string version = 2;
+  string spec = 3;
+}
+
+// ConfigGenerationSchema references a schema version included in a
+// generation. Spec is optional when the version is already stored; it is
+// required when registering a new (name, version) pair.
+message ConfigGenerationSchema {
+  string name = 1;
+  string version = 2;
+  string spec = 3;
+}
+
+// ConfigGenerationType configures a document type within a generation.
+message ConfigGenerationType {
+  string type = 1;
+  TypeConfiguration configuration = 2;
+}
+
+// RenditionSource matches asset references in documents and maps them to
+// an asset CDN namespace. Sources are evaluated in order; the first match
+// wins.
+message RenditionSource {
+  // Name identifies the source within its kind.
+  string name = 1;
+  // Namespace is the asset CDN namespace to build rendition URLs in.
+  string namespace = 2;
+  // BlockTypes are the document block types to inspect. Optional,
+  // defaults per kind ("core/image" for the "image" kind).
+  repeated string block_types = 3;
+  // LinkRel is the block link rel that carries the asset reference.
+  // Optional, defaults per kind ("image" for the "image" kind).
+  string link_rel = 4;
+  // LinkTypes are the accepted types of the asset reference link.
+  repeated string link_types = 5;
+  // URIPattern is an anchored regular expression with exactly one
+  // capture group that extracts the asset ID from the link URI.
+  string uri_pattern = 6;
+}
+
+// RenditionConfiguration configures delivery-time rendition generation
+// for one asset kind.
+message RenditionConfiguration {
+  // Kind is the asset kind, e.g. "image".
+  string kind = 1;
+  // DefaultVariants are the variants generated when a request doesn't
+  // specify any.
+  repeated string default_variants = 2;
+  // DefaultExtension is the extension used when a request doesn't
+  // specify one.
+  string default_extension = 3;
+  // Sources in evaluation order.
+  repeated RenditionSource sources = 4;
+}
+
+// HTMLRenderingConfiguration configures delivery-time HTML rendering for
+// the generation: which documents render, which image variant the
+// rendered markup embeds, and the operator-registered renderers that
+// extend or replace the built-in block renderers.
+//
+// HTML is rendered when a consumer asks for it - a pull request with
+// include_html, or a push destination configured for it - never on the
+// store path, and the result is cached per document version and
+// configuration. The output is an <article> fragment: block-level HTML
+// with no document frame, so a caller embeds it directly and a format
+// that promises a whole document wraps it.
+//
+// Only data-block-id, which every top-level block element carries so that
+// a consumer can correlate the markup back to the newsdoc blocks, is a
+// versioned part of the markup. Element choices and class names may
+// change between releases; do not write a consumer that depends on them.
+// The top-level block is the addressable unit throughout: nested blocks
+// carry no id, and a renderer that wants to change something inside one
+// renders the block it sits in.
+message HTMLRenderingConfiguration {
+  // ImageVariant is the rendition variant the rendered images link to.
+  // Empty defaults to "preview". It is service-level by design: the HTML
+  // is cached across callers, so the variant embedded in it cannot be a
+  // request parameter.
+  string image_variant = 1;
+  // DocumentTypes are the document types that render HTML. Empty renders
+  // no type - a deployment opts its types in, so that planning documents
+  // and entity registries do not render markup nobody asked for. A
+  // request for HTML on a type outside the list yields no HTML and no
+  // error.
+  repeated string document_types = 2;
+  // Renderers extend the built-in block renderers, in declaration order.
+  // A renderer's triggers decide whether it is invoked for a document,
+  // not which blocks belong to it: every invoked renderer is called once
+  // with the whole document and may answer for any of its top-level
+  // blocks.
+  //
+  // Declaration order is what resolves a disagreement. Where two
+  // renderers return a replacement for the same block the one declared
+  // first wins and the other's entry is dropped; insertions are applied in
+  // the same order. A top-level block no renderer answered for is
+  // rendered by the built-ins.
+  repeated RendererConfiguration renderers = 3;
+}
+
+// RendererConfiguration is one operator-registered HTML renderer: a
+// script that runs in-process, or an HTTP endpoint that is called.
+//
+// A renderer failure of any kind - timeout, open circuit, connection
+// error, non-2xx status, bad response signature, unreadable response,
+// script exception, unresolvable secret - makes the renderer contribute
+// nothing: every block renders exactly as if the renderer had returned no
+// entry for it, by its built-in renderer where there is one, and delivery
+// proceeds. HTML is an additive convenience; the absence of one custom
+// block never stops a response or a push.
+message RendererConfiguration {
+  // Name identifies the renderer. It labels the metrics and the log
+  // lines, and it is the name of the renderer's secret, so it matches
+  // ^[a-z0-9][a-z0-9_-]*$ - the pattern an environment variable name can
+  // be derived from.
+  string name = 1;
+  // Kind is "js" for a script run in-process, or "remote" for an HTTP
+  // endpoint.
+  //
+  // A string rather than an enum, as anchor and TypeDeliveryField.kind
+  // are: the zero value has to be invalid, so that a declaration that
+  // forgot its kind is refused rather than silently accepted as one of
+  // them.
+  string kind = 2;
+  // Revision is the cache-busting counter of the renderer's output, and
+  // it must be at least 1. The rendered HTML is cached on the identity of
+  // the configuration that produced it, and a remote renderer's own
+  // output is not part of that identity - so a deploy of the renderer
+  // that changes what it emits must bump this, or the cache keeps serving
+  // what the previous revision rendered. Output changes are
+  // configuration changes by contract.
+  int64 revision = 3;
+  // Script is the renderer script, for the "js" kind. It is the script
+  // content, not a path: the operator tooling resolves its script_file
+  // before the call, exactly as it does for a type's transform script.
+  // Mutually exclusive with url.
+  string script = 4;
+  // URL is the endpoint to POST the render request to, for the "remote"
+  // kind. Mutually exclusive with script.
+  //
+  // It must be https unless allow_insecure is set. Unlike a push
+  // destination's endpoint it is not checked against a forbidden-address
+  // predicate: a renderer is configured by an operator on a "dist_admin"
+  // surface, and an in-cluster renderer on a private address is the
+  // expected deployment.
+  string url = 5;
+  // Field 6 was full_document, which sent the whole document beside the
+  // blocks a renderer had claimed. Every invoked renderer is now called
+  // with the whole document, so there is nothing left to opt into. The
+  // field shipped in v0.0.12: the number is reserved and is never reused.
+  reserved 6;
+  reserved "full_document";
+  // AllowInsecure permits a plain http endpoint. For an in-cluster
+  // renderer reached over a trusted network; the HMAC authentication is
+  // unaffected either way, but the payload is then in the clear.
+  bool allow_insecure = 7;
+  // Triggers decide when this renderer is invoked: the document is in the
+  // renderer's document_types scope and one of its top-level content
+  // blocks matches one of the triggers. Zero triggers invoke the renderer
+  // for every rendered document of those types.
+  //
+  // A trigger is an invocation condition and nothing more. The request
+  // carries the whole document either way, and the renderer decides for
+  // itself which of its top-level blocks it answers for.
+  repeated RendererTrigger triggers = 8;
+  // DocumentTypes narrows the renderer to the given document types.
+  // Empty is every type the generation renders HTML for.
+  repeated string document_types = 9;
+  // Policy is the sanitizer the renderer's output is filtered through.
+  // Either this or policy_preset is required: nothing a renderer returns
+  // is trusted markup.
+  RendererPolicy policy = 10;
+  // PolicyPreset names a built-in sanitizer policy instead of spelling
+  // one out: "strict" or "rich-text". Mutually exclusive with policy.
+  string policy_preset = 11;
+  // CircuitBreaker bounds the calls to a remote renderer. Omitted takes
+  // the defaults. A "js" renderer reads the timeout from it and ignores
+  // the rest.
+  RendererCircuitBreaker circuit_breaker = 12;
+}
+
+// RendererTrigger is one condition that invokes a renderer. It selects
+// when the renderer is called, never what it is sent: the request carries
+// the whole document, and the renderer is free to answer for any of its
+// top-level blocks.
+message RendererTrigger {
+  // BlockTypes that invoke the renderer, e.g. "core/factbox", matched
+  // against the document's top-level content blocks. Empty is every block
+  // type.
+  repeated string block_types = 1;
+  // Roles narrows the trigger to blocks carrying one of the given roles.
+  // Empty is every role.
+  repeated string roles = 2;
+}
+
+// RendererPolicy is the sanitizer applied to a renderer's output. What it
+// does not allow is removed; an entry whose HTML the policy reduces to
+// nothing is a rendered-empty block, not a failure.
+message RendererPolicy {
+  // Elements are the permitted element names, e.g. "p", "em", "aside".
+  repeated string elements = 1;
+  // Attributes are the permitted attributes per element name, e.g.
+  // "a" -> ["href"]. An element with no entry keeps no attributes.
+  map<string, RendererAttributes> attributes = 2;
+  // URLSchemes are the permitted URL schemes on attributes that carry
+  // one, e.g. "https".
+  repeated string url_schemes = 3;
+}
+
+// RendererAttributes is the attribute names permitted on one element. A
+// message rather than a repeated value because a proto3 map cannot carry
+// a list directly.
+message RendererAttributes {
+  // Attributes permitted on the element.
+  repeated string attributes = 1;
+}
+
+// RendererCircuitBreaker bounds the calls to a renderer and stops calling
+// one that is failing. The breaker counts consecutive failures; every
+// failure that reached the renderer counts against it, and one that never
+// did - an unresolvable secret, or a call refused because the circuit is
+// already open - does not.
+message RendererCircuitBreaker {
+  // Timeout of one renderer call, as a duration string ("1s", "750ms").
+  // Empty defaults to one second. It bounds the whole call, waiting for
+  // an in-flight slot included, and it is the interrupt deadline of a
+  // "js" renderer too.
+  string timeout = 1;
+  // FailureThreshold is the number of consecutive failures that opens the
+  // circuit. Zero defaults to 5.
+  int32 failure_threshold = 2;
+  // OpenDuration is how long the circuit stays open before one half-open
+  // probe is let through, as a duration string. Empty defaults to 30
+  // seconds.
+  string open_duration = 3;
+  // MaxInFlight is the number of concurrent calls to the renderer. Zero
+  // defaults to 4. A call that cannot get a slot within the timeout is a
+  // failure, so the renderer contributes nothing to that document and its
+  // blocks fall back to the built-ins.
+  int32 max_in_flight = 4;
+}
+
+// RendererSecretStatus is what the API says about a stored renderer
+// secret: that it exists, when it was written, and which keyring entry it
+// is sealed under. Never its value.
+message RendererSecretStatus {
+  // Name of the renderer the secret belongs to.
+  string name = 1;
+  // KeyID names the keyring entry it is encrypted under. It is the input
+  // to a key rotation.
+  string key_id = 2;
+  // UpdatedAt is when it was last written, RFC 3339.
+  string updated_at = 3;
+}
+
+message SetRendererSecretRequest {
+  // Name of the renderer the secret belongs to, matching
+  // RendererConfiguration.name. The renderer need not be configured yet.
+  string name = 1;
+  // Secret is the shared secret the HMAC request and response signatures
+  // are computed with. It never crosses the wire to the renderer itself.
+  string secret = 2;
+}
+
+message SetRendererSecretResponse {
+  RendererSecretStatus status = 1;
+}
+
+message DeleteRendererSecretRequest {
+  // Name of the renderer whose secret to delete.
+  string name = 1;
+}
+
+message DeleteRendererSecretResponse {}
+
+message ListRendererSecretsRequest {}
+
+message ListRendererSecretsResponse {
+  // Secrets in name order.
+  repeated RendererSecretStatus secrets = 1;
+}
+
+message ConfigGeneration {
+  // ID is assigned by the server on registration.
+  int64 id = 1;
+  // Description is an optional human-readable tag.
+  string description = 2;
+  // CreatedAt is the time of registration, RFC3339.
+  string created_at = 3;
+  // ActivatedAt is the time the generation was last activated, RFC3339, or
+  // empty if it has never been activated.
+  string activated_at = 4;
+  // Schemas in the generation.
+  repeated ConfigGenerationSchema schemas = 5;
+  // Types configured in the generation.
+  repeated ConfigGenerationType types = 6;
+  // Renditions configured in the generation, one per asset kind.
+  repeated RenditionConfiguration renditions = 7;
+  // Renderers is the generation's HTML rendering configuration: the
+  // document types that render, the image variant the markup embeds, and
+  // the registered renderers. Absent when the generation renders no HTML.
+  HTMLRenderingConfiguration renderers = 8;
+}
+
+message RegisterConfigGenerationRequest {
+  // Description is an optional human-readable tag for the new generation.
+  string description = 1;
+  // Schemas the generation should contain. Order is preserved.
+  repeated ConfigGenerationSchema schemas = 2;
+  // Types the generation should contain. Order is preserved.
+  repeated ConfigGenerationType types = 3;
+  // Activate the new generation immediately. Defaults to false; callers
+  // typically register first and activate as a separate step so they can
+  // inspect the diff first.
+  bool activate = 4;
+  // Renditions the generation should contain, one per asset kind. Order
+  // of the sources within each kind is preserved.
+  repeated RenditionConfiguration renditions = 5;
+  // Renderers is the HTML rendering configuration the generation should
+  // have. Renderer declaration order is preserved: it is what decides
+  // which renderer wins when two of them return a replacement for the
+  // same block, and the order insertions are applied in.
+  //
+  // It is validated here rather than at render time - names, kinds, the
+  // sanitizer policies, the breaker values, and that every remote
+  // renderer's secret resolves - so that a generation which cannot render
+  // is never created. Absent leaves the generation with no HTML
+  // rendering.
+  HTMLRenderingConfiguration renderers = 6;
+}
+
+message RegisterConfigGenerationResponse {
+  // Generation is the persisted generation, with its assigned ID.
+  ConfigGeneration generation = 1;
+}
+
+message ActivateConfigGenerationRequest {
+  // ID of the generation to activate.
+  int64 id = 1;
+}
+
+message ActivateConfigGenerationResponse {
+  ConfigGeneration generation = 1;
+}
+
+message GetActiveConfigGenerationRequest {
+  // WaitSeconds is the maximum number of seconds to wait for the active
+  // generation to differ from KnownId. Defaults to 10. Optional.
+  int64 wait_seconds = 1;
+  // KnownId is the generation ID the client already has; the call returns
+  // immediately when the active generation differs. Optional.
+  int64 known_id = 2;
+  // OnlyChanged returns an empty response (with Unchanged=true) if the
+  // active generation matches KnownId.
+  bool only_changed = 3;
+}
+
+message GetActiveConfigGenerationResponse {
+  // Generation is the active generation, populated with schemas and type
+  // configurations.
+  ConfigGeneration generation = 1;
+  // Unchanged is true if KnownId matched the active generation and
+  // OnlyChanged was set.
+  bool unchanged = 2;
+}
+
+message ListConfigGenerationsRequest {
+  // Before is the highest generation ID to return; defaults to the latest.
+  // Use the smallest returned ID to paginate further into the past.
+  int64 before = 1;
+  // PageSize defaults to 50, max 200.
+  int64 page_size = 2;
+}
+
+message ListConfigGenerationsResponse {
+  // Generations without schemas or type configurations populated.
+  repeated ConfigGeneration generations = 1;
+}
+
+message GetSchemaRequest {
+  // Name of the schema to get.
+  string name = 1;
+  // Version of the schema to get, optional. The currently active version of the
+  // schema will be returned if no version is specified.
+  string version = 2;
+}
+
+message GetSchemaResponse {
+  string version = 1;
+  bytes spec = 2;
+}
+
+message GetAllActiveSchemasRequest {
+  // WaitSeconds is the maximum number of seconds to wait for changes, defaults
+  // to 10 seconds. Optional.
+  int64 wait_seconds = 1;
+  // Known schema versions that the client already has. Optional.
+  map<string, string> known = 2;
+  // OnlyChanged only returns the schemas that have been changed.
+  bool only_changed = 3;
+}
+
+message GetAllActiveSchemasResponse {
+  // Schemas that currently are active.
+  repeated Schema schemas = 1;
+  // Unchanged is set to true if no changes were done compared to known schema
+  // versions.
+  bool unchanged = 2;
+  // Removed schemas.
+  repeated string removed = 3;
+}
+
+message GetDocumentTypesRequest {}
+
+message GetDocumentTypesResponse {
+  // Types that have been defined in the schema.
+  repeated string types = 1;
+}
+
+message TypeConfiguration {
+  // Set to true if this is a collection of documents that are bounded (limited
+  // in size). Bounded collections can be fetched by type and language in one
+  // go.
+  bool bounded_collection = 1;
+  // TimeExpressions are used for extracting time ranges from documents.
+  repeated TypeTimeExpression time_expressions = 2;
+  // LabelExpressions are used to extract labels from documents.
+  repeated LabelExpression label_expressions = 3;
+  // Variants are the allowed variants for the document type.
+  repeated string variants = 4;
+  // TransformScript is the transformation script for this document type.
+  string transform_script = 5;
+  // Anchor selects how documents of the type are partitioned across the
+  // search indexes. An empty value is a non-temporal type: one
+  // unpartitioned index per language that is never archived.
+  // "first_published" partitions by the time of the document's first
+  // distribution event, which is immutable, so a document never moves
+  // between partitions. "time_expressions" partitions by the dates
+  // time_expressions extracts from the document, with everything from
+  // the current quarter onwards sharing one index.
+  string anchor = 6;
+  // Embeddings enables semantic indexing of the document type: its
+  // documents are chunked and embedded, its indexes are created with a
+  // vector field, and it can be searched and subscribed to by vector.
+  // Independent of the anchor: a non-temporal type can be embedded, and a
+  // partitioned one can be left BM25-only.
+  //
+  // The vector field is set at index creation and cannot be added
+  // afterwards, so enabling this for a type that already has indexes
+  // takes a new index generation. Turning it off leaves the field in
+  // place, unwritten. It also needs a deployment with an embedding
+  // sidecar; without one the type is indexed BM25-only whatever this
+  // says.
+  bool embeddings = 7;
+  // FacetExpressions extract the values the daily views of
+  // ContentService.ListPublishedVersions and ContentService.ListPlannedVersions can
+  // narrow on. They are evaluated on the store path, per version, and the
+  // result is stored with the version - so a facet only narrows the
+  // versions that were written after it was configured, and adding one
+  // means backfilling what is already stored.
+  //
+  // Extraction is configuration rather than code because a facet is not
+  // in the same place in every type: a flash, an article and a planning
+  // item all reference their section differently.
+  repeated TypeFacetExpression facet_expressions = 8;
+  // DeliveryFields declare this type's contribution to the deployment's
+  // delivery-field vocabulary: the stable public names a delivery rule
+  // may name, and how each one is read out of a document of this type.
+  //
+  // A name is one field deployment-wide. Several types declare it, each
+  // with its own expression, because a section is not in the same place
+  // in an article and in a planning item - but the kind and the
+  // description must agree, or the name means two things and a rule
+  // written against one of them silently under-delivers against the
+  // other. Disagreement is refused at registration.
+  //
+  // They are extracted on the store path, per version, into a table of
+  // their own. There is no backfill: a field added to the registry today
+  // is present on versions stored from its activation onward and absent
+  // from everything before it, which is exactly right for the matcher at
+  // the head of the log and is a boundary anything replaying history has
+  // to resolve for itself.
+  //
+  // The registry is capped - field count, per-field value count, and a
+  // per-row byte budget the declarations are checked against - because
+  // the extracted values are held in memory for every version in a
+  // matcher page while every candidate rule tree is evaluated.
+  repeated TypeDeliveryField delivery_fields = 9;
+}
+
+// TypeFacetExpression extracts one facet's values from a document.
+message TypeFacetExpression {
+  // Name of the facet the extracted values belong to. Several
+  // expressions can share a name, and their values are unioned.
+  //
+  // The vocabulary is deliberately small; "section" is the one facet the
+  // daily views are built for.
+  string name = 1;
+  // Expression is a newsdoc value extraction expression. It should yield
+  // document UUIDs rather than labels - a facet filter matches exactly,
+  // with no analysis or case folding, and the client resolves display
+  // names itself.
+  string expression = 2;
+}
+
+// TypeDeliveryField declares one delivery field and how to read it out of
+// a document of this type.
+message TypeDeliveryField {
+  // Name of the delivery field. This is the name a delivery rule uses,
+  // so it is a public identifier and outlives the projection: it must not
+  // be an index field name. Several types may declare the same name.
+  string name = 1;
+  // Kind is one of "keyword", "number", "text" or "geo", and it decides
+  // which kind of condition may name the field: keyword for equality
+  // against a value set, number for ranges, text for substring and
+  // phrase matching, geo for a distance from a point.
+  //
+  // A string rather than an enum, as anchor is: the zero value has to be
+  // invalid, so that a declaration that forgot its kind is refused rather
+  // than silently accepted as a keyword.
+  //
+  // "geo" values are read as "latitude,longitude" in decimal degrees;
+  // "number" values are read as decimal numbers. A value that cannot be
+  // read as its kind is dropped from the stored row, not stored as text.
+  string kind = 2;
+  // Expression is a newsdoc value extraction expression, the same
+  // language facet and time expressions are written in.
+  string expression = 3;
+  // Description is the human-readable text an editor shows beside the
+  // field name. Optional, and where several types declare the same name
+  // the non-empty ones must agree.
+  string description = 4;
+}
+
+message TypeTimeExpression {
+  // Expression is a newsdoc value extraction expression.
+  string expression = 1;
+  // Layout is the time/date format to use when parsing. Optional, defaults to
+  // RFC3339 or ISO 8601 for values annotated as dates.
+  string layout = 2;
+  // Timezone is the timezone the time should be parsed in. Optional, most
+  // timestamps should include timezone information, if they don't, parsing will
+  // fall back to the default timezone that the repository has been configured
+  // with.
+  string timezone = 3;
+}
+
+message LabelExpression {
+  // Expression is a newsdoc value extraction expression.
+  string expression = 1;
+  // Template is the template that turns the extracted values into a label.
+  string template = 2;
+}
+
+message SetSyncStateRequest {
+  // Desired state of the sync worker, either "running" or "paused".
+  string desired = 1;
+}
+
+message SetSyncStateResponse {}
+
+message GetSyncStatusRequest {}
+
+message GetSyncStatusResponse {
+  // Desired is the state the sync worker should be in, either "running"
+  // or "paused".
+  string desired = 1;
+  // Current is the state the sync worker most recently reported, either
+  // "running" or "paused". Empty if the worker has never reported a
+  // state.
+  string current = 2;
+  // Position is the repository eventlog ID that the sync worker has
+  // processed up to.
+  int64 position = 3;
+  // CaughtUp is true once the sync worker has replayed the repository
+  // eventlog up to the head it had when the replay started. It does not
+  // go back to false if the worker later falls behind: it reports that
+  // the walk through history is done, not the current lag. Compare
+  // Position against the repository eventlog head for that.
+  bool caught_up = 4;
+}
+
+message EraseDocumentRequest {
+  // UUID of the document to erase.
+  string uuid = 1;
+}
+
+message EraseDocumentResponse {
+  // Status of the recorded erasure request.
+  ErasureStatus status = 1;
+}
+
+message GetErasureStatusRequest {
+  // UUID of the document to get the erasure status for.
+  string uuid = 1;
+}
+
+message GetErasureStatusResponse {
+  // Status of the recorded erasure request. Unset if the document has
+  // never been ordered erased.
+  ErasureStatus status = 1;
+}
+
+// ErasureStatus is the state of one document's erasure.
+message ErasureStatus {
+  // UUID of the erased document.
+  string uuid = 1;
+  // RequestedAt is when the erasure was ordered, RFC3339. A second
+  // request for the same document supersedes the first and resets this.
+  string requested_at = 2;
+  // CompletedAt is when the erasure became provable, RFC3339, and empty
+  // while it is outstanding. It is set once no archived index snapshot
+  // holds a copy of the document any more and every destination that was
+  // given a copy has been told.
+  string completed_at = 3;
+  // PendingPartitions are the archived index partitions that still hold a
+  // copy. A mounted snapshot is read-only, so the copy in it only goes
+  // away when the partition is re-materialized, and the erasure is
+  // outstanding until every one of these has been.
+  repeated string pending_partitions = 4;
+  // Complete is true when the erasure is provably done, i.e. completed_at
+  // is set: nothing we control still holds the content, nothing more will
+  // be sent, and every destination that was given a copy has been sent a
+  // deletion marker. It does not mean the copies are gone from the
+  // destinations - push is append-only and we delete nothing there - and
+  // it has never covered content a customer has already ingested into
+  // their own systems.
+  bool complete = 5;
+  // PendingDeliveries is every destination that was given a copy of this
+  // document, with how each one was accounted for. Entries are kept after
+  // they are discharged, because the record of who was given a copy and
+  // what happened to it is the compliance value: an outstanding entry is
+  // one with an empty cleared_at.
+  repeated DeliveryErasureObligation pending_deliveries = 6;
+}
+
+// DeliveryErasureObligation is one destination that holds, or held, a
+// pushed copy of an erased document.
+message DeliveryErasureObligation {
+  // Destination the copy was pushed to.
+  int64 destination = 1;
+  // Transport of the destination, "s3" or "sftp".
+  string transport = 2;
+  // ObjectsAtRequest is how many objects the destination held when the
+  // erasure was ordered.
+  int64 objects_at_request = 3;
+  // ObjectsOutstanding is how many objects of the erased content the
+  // destination is recorded as holding. It does NOT fall when the
+  // obligation clears: we delete nothing at a destination, so the count
+  // stands as the record of how much content the deletion marker is about.
+  // Above objects_at_request means a copy landed after the erasure was
+  // ordered, which is what re-opens a discharged obligation.
+  int64 objects_outstanding = 4;
+  // ClearedAt is when the obligation was discharged, RFC3339, and empty
+  // while it is outstanding.
+  string cleared_at = 5;
+  // ClearedReason is how it was discharged: "notified" (a deletion marker
+  // was delivered for every generation of the document this destination
+  // holds), "destination_deleted" (the destination and its credentials
+  // are gone, so there is nothing left to tell), or "already_terminated"
+  // (every generation this destination holds already had a deletion
+  // marker at the head of its chain, so nothing needed to be sent - the
+  // ordinary case for an erasure that follows a repository delete).
+  string cleared_reason = 6;
+  // Deliverable is whether a push worker will currently attempt this
+  // obligation. False means the destination is disabled, stalled,
+  // suspended, deleted or has no stored credential, and that the
+  // obligation will not clear until that is fixed. True is not a promise
+  // that it will clear: a destination whose stored credential no longer
+  // authenticates is deliverable and fails on every connect, which
+  // last_success_at is how you tell.
+  bool deliverable = 7;
+  // 8 was sweep_state, when an erasure withdrew objects and a stale
+  // temporary file was a copy the proof had to account for. Erasure
+  // informs rather than withdraws, so there is nothing to sweep and
+  // nothing to report.
+  reserved 8;
+  // LastSuccessAt is when the destination last completed any delivery,
+  // RFC3339, and empty if it never has. Read beside deliverable: an
+  // attempting destination that has not succeeded since the erasure was
+  // ordered is failing rather than progressing.
+  string last_success_at = 9;
+  // ClearedBy is always empty. It named the credentials the per-document
+  // operator write-off was recorded with, and that call was removed:
+  // every remaining reason is the system's own doing. The field is kept
+  // so its number is not re-used.
+  string cleared_by = 10;
+}
+
+message RematerializePartitionRequest {
+  // Type of the partition to rebuild, e.g. "core/article".
+  string type = 1;
+  // Language segment of the partition, e.g. "sv". This is the index
+  // language series, not a document language attribute.
+  string language = 2;
+  // Period of the partition: "yyyyq[1-4]" for a quarter, or "yyyy" to roll
+  // a whole year of quarters into one partition.
+  string period = 3;
+}
+
+message RematerializePartitionResponse {
+  // Status of the recorded rebuild.
+  RematerializationStatus status = 1;
+}
+
+// RematerializationStatus is the state of one partition rebuild.
+message RematerializationStatus {
+  // Type, Language and Period identify the partition.
+  string type = 1;
+  string language = 2;
+  string period = 3;
+  // Revision is which generation of the partition the rebuild produces,
+  // counting the copy the original archival produced as zero.
+  int32 revision = 4;
+  // Phase is the step the rebuild is at, and "done" when it has finished.
+  string phase = 5;
+  // Trigger is what ordered the rebuild: "manual", "overlay", "erasure" or
+  // "rollup".
+  string trigger = 6;
+  // Replaced are the mounted archive indexes the rebuild takes over from.
+  repeated string replaced = 7;
+  // Documents is how many documents have been written to the rebuild so
+  // far, and the size of the finished partition once it is done.
+  int64 documents = 8;
+  // StartedAt and UpdatedAt bound the run, RFC3339.
+  string started_at = 9;
+  string updated_at = 10;
+  // Complete is true once the rebuild has finished and the old mounts have
+  // been dropped.
+  bool complete = 11;
+}
+
+message GetTypeConfigurationRequest {
+  // Type to get configuration for.
+  string type = 1;
+}
+
+message GetTypeConfigurationResponse {
+  // Configuration of the type.
+  TypeConfiguration configuration = 1;
+}
+
+// IndexGeneration is one complete set of search indexes: everything under
+// one index name prefix, on one cluster, with an eventlog cursor of its
+// own.
+message IndexGeneration {
+  // Name of the generation. It identifies the generation in these RPCs, in
+  // the generation override on SearchService.Query, and in metric labels.
+  string name = 1;
+  // Cluster the generation's indexes live on, named as the deployment
+  // declares it. Clusters are configuration, so their URLs and credentials
+  // are never part of a response.
+  string cluster = 2;
+  // Prefix is the first segment of every index and alias name the
+  // generation owns, and what scopes it: no two generations share one.
+  string prefix = 3;
+  // Enabled is whether an indexer is run for the generation. A disabled
+  // generation keeps its indexes but stops consuming the eventlog, and
+  // falls behind for as long as it stays that way.
+  bool enabled = 4;
+  // Active is whether this is the generation that search, calibration and
+  // subscription matching use.
+  bool active = 5;
+  // CreatedAt is when the generation was registered, RFC3339.
+  string created_at = 6;
+  // ActivatedAt is when it was last activated, RFC3339, and empty for a
+  // generation that has never served.
+  string activated_at = 7;
+}
+
+message CreateIndexGenerationRequest {
+  // Name of the generation. A short readable codename is generated when it
+  // is left empty, which is what you want unless the name has to be
+  // predictable.
+  string name = 1;
+  // Cluster to build the generation on, named as the deployment declares
+  // it. Required. A deployment that only has the one cluster declares it
+  // as "default".
+  string cluster = 2;
+  // Prefix is the first segment of every index and alias name the
+  // generation owns, and defaults to the generation name. It has to be
+  // unique across generations - it is what keeps two generations from
+  // writing to each other's indexes - and a lowercase index name segment:
+  // it starts with a letter or a digit and continues with letters, digits,
+  // underscores or dashes.
+  string prefix = 3;
+}
+
+message CreateIndexGenerationResponse {
+  // Generation that was created.
+  IndexGeneration generation = 1;
+}
+
+message ListIndexGenerationsRequest {}
+
+message ListIndexGenerationsResponse {
+  // Generations, oldest first.
+  repeated IndexGenerationStatus generations = 1;
+  // EventlogHead is the ID of the last event in the distribution eventlog,
+  // the position a generation that has caught up converges on.
+  int64 eventlog_head = 2;
+}
+
+// IndexGenerationStatus is a generation together with how far it has got.
+message IndexGenerationStatus {
+  // Generation the status describes.
+  IndexGeneration generation = 1;
+  // Position is the eventlog ID the generation's indexer has processed up
+  // to, and zero for a generation whose indexer has not stored a position
+  // yet - either because it has not started or because it is still
+  // draining the archive.
+  int64 position = 2;
+  // Lag is how far the generation is behind the head of the eventlog,
+  // which is what the activation gate is checked against.
+  int64 lag = 3;
+}
+
+message ActivateIndexGenerationRequest {
+  // Name of the generation to activate.
+  string name = 1;
+  // Force activates a generation that lags the head of the eventlog by
+  // more than the gate allows.
+  bool force = 2;
+}
+
+message ActivateIndexGenerationResponse {
+  // Generation as it is after the switch.
+  IndexGeneration generation = 1;
+  // HandoverPosition is the eventlog position the outgoing generation had
+  // matched subscriptions up to. The incoming generation replays matching
+  // from there, so it is also the lower bound of the overlap the two
+  // generations may both have matched - and therefore of the window a
+  // subscription can see the same document version delivered twice.
+  int64 handover_position = 2;
+}
+
+message DeleteIndexGenerationRequest {
+  // Name of the generation to delete.
+  string name = 1;
+}
+
+message DeleteIndexGenerationResponse {
+  // Generation as it was recorded deleted. The asynchronous cleanup of its
+  // indexes and snapshots may still be running when this is returned.
+  IndexGeneration generation = 1;
+}

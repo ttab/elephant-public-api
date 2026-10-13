@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	connectrpc.com/connect v1.20.0
 	github.com/ttab/elephant-api v0.24.2
-	github.com/ttab/mage v0.13.1
+	github.com/ttab/mage v0.15.0
 	google.golang.org/protobuf v1.36.12
 )
 
