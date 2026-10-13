@@ -11,7 +11,7 @@ Building the generated code needs Go 1.27.1 or later.
 
 | API | Package | Services | Declaration |
 | --- | --- | --- | --- |
-| **Assets** | `elephant.assets.v1` | `KeysService` serves the asset CDN signing keys and the rendition variants to URL-minting services; `ManagementService` exposes the take-down operations. | [proto](elephant/assets/v1/service.proto) |
+| **Assets** | `elephant.assets.v1` | `KeysService` serves the asset CDN signing keys and the rendition variants to URL-minting services; `ManagementService` exposes the take-down operations; `StorageService` stores uploaded originals. | [proto](elephant/assets/v1/service.proto) |
 | **Distribution** | `elephant.distribution.v1` | POC/work in progress. `ConfigurationService` and `ContentService` hold the configuration generations and the document feed, `ArchiveService` the bulk export, `DeliveryService` the destinations, `SearchService` the query surface and `SubscriptionsService` the matching rules. | [service](elephant/distribution/v1/service.proto), [delivery](elephant/distribution/v1/delivery.proto), [search](elephant/distribution/v1/search.proto), [subscriptions](elephant/distribution/v1/subscriptions.proto) |
 | **Hub** | `elephant.hub.v1` | `HubService` administers organisations, artifacts and publishing keys in the Elephant Hub registry; `ClientService` is the machine surface repository instances and the BFF call. | [proto](elephant/hub/v1/service.proto) |
 | **Live** | `elephant.live.v1` | Liveblog administration, implemented by [elephant-live](https://github.com/ttab/elephant-live): `BlogsService`, `PostsService` and `ConfigurationService`. | [proto](elephant/live/v1/service.proto) |
@@ -57,7 +57,7 @@ services, one client and handler pair each:
 
 | Package | Services |
 | --- | --- |
-| `elephant/assets/v1/assetsv1connect` | `KeysService`, `ManagementService` |
+| `elephant/assets/v1/assetsv1connect` | `KeysService`, `ManagementService`, `StorageService` |
 | `elephant/distribution/v1/distributionv1connect` | `ArchiveService`, `ConfigurationService`, `ContentService`, `DeliveryService`, `SearchService`, `SubscriptionsService` |
 | `elephant/hub/v1/hubv1connect` | `ClientService`, `HubService` |
 | `elephant/live/v1/livev1connect` | `BlogsService`, `PostsService`, `ConfigurationService` |

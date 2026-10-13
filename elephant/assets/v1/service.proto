@@ -331,3 +331,266 @@ message WarmIntermediateResponse {
   // fire-and-forget callers stay quiet across config changes).
   string state = 1;
 }
+
+// StorageService stores originals in the "assets" namespace: material that
+// lives in no other archive, such as third-party PDFs and audio, uploaded
+// straight to the service's own bucket and delivered through the CDN with
+// the same signed URLs, take-down flow and caching as every other
+// namespace. An asset is identified by a server-assigned UUID and has
+// monotone versions starting at 1; version "0" in a URL is the current one.
+//
+// An upload is two calls around a direct PUT to object storage:
+// CreateUpload returns a presigned URL, the client PUTs the bytes to it,
+// and CommitUpload checks the bytes and makes them an asset version. Until
+// it is committed an upload is reachable by no URL.
+//
+// The RPCs return paths, never signed URLs. Callers sign a returned path
+// themselves from KeysService.GetSigningKeys, as every other URL-minting
+// service does.
+//
+// All methods require asset_store, except that asset_admin also opens
+// GetAsset and RestoreAsset, and an immediate DeleteAsset requires
+// asset_admin, which asset_store alone does not satisfy. asset_store is deliberately separate from the
+// repository's asset_upload. Authorization over an existing asset is
+// scope-only: any asset_store holder may replace, delete or restore any
+// asset. Nothing is lost by that — old versions are kept forever, a delete
+// is soft and restorable, and created_by is recorded per version.
+service StorageService {
+  // CreateUpload starts an upload of a new asset, or of a new version of
+  // an existing one, and returns a presigned PUT URL for its bytes.
+  //
+  // The extension of the filename picks an entry in the upload allow-list
+  // (GetUploadTypes), and that entry decides the content type the asset is
+  // stored and served as and the largest size accepted; the client never
+  // chooses a content type. An extension that isn't allowed, a size above
+  // the entry's max_size, a filename over 255 bytes or meta over 16 KiB
+  // fail with InvalidArgument.
+  //
+  // What a client must get right:
+  //
+  // - size must be exactly the size of the file that will be PUT (File.size
+  //   in a browser). The Content-Length is part of the signature, so any
+  //   other length is refused by object storage with an opaque signature
+  //   error, not by this service.
+  // - The PUT must send exactly the returned headers, no more and no
+  //   fewer. Content-Type is signed as well; a browser sets Content-Length
+  //   itself from the body.
+  // - When replacing, send if_version, the version the client believes is
+  //   current. Without it a concurrent replacement is silently displaced
+  //   (both versions survive, but neither editor learns of the other).
+  //
+  // Requires asset_store.
+  rpc CreateUpload(CreateUploadRequest) returns (CreateUploadResponse);
+
+  // CommitUpload checks the uploaded bytes against the declared size and
+  // the type the extension claims, stores them as the next version of the
+  // asset, and returns the asset's path. Replacing an asset purges its
+  // current-version ("0") renditions from the CDN; explicit-version paths
+  // are immutable and need nothing.
+  //
+  // Only the caller that created the upload may commit it. The call is
+  // idempotent: a retry, including one made while the first call is still
+  // in progress, returns the same asset and version. It fails with
+  // FailedPrecondition when no bytes have been PUT, when the asset was
+  // deleted meanwhile, or when if_version no longer matches the current
+  // version; with InvalidArgument when the bytes don't match the declared
+  // size or type, in which case the upload is discarded.
+  //
+  // Requires asset_store.
+  rpc CommitUpload(CommitUploadRequest) returns (CommitUploadResponse);
+
+  // GetAsset returns an asset's current version, its version history and
+  // each version's metadata. A soft-deleted asset is returned too, with
+  // deleted_at and the time it will be swept, so that a client can offer to
+  // restore it. An asset whose first upload hasn't been committed is
+  // NotFound.
+  //
+  // Requires asset_store or asset_admin.
+  rpc GetAsset(GetAssetRequest) returns (GetAssetResponse);
+
+  // DeleteAsset soft-deletes an asset: every version stops being served at
+  // once and its renditions are purged from the CDN, and the stored bytes
+  // are removed after a retention period (30 days by default), until which
+  // RestoreAsset undoes the delete.
+  //
+  // With immediate set the delete is irreversible: the bytes are removed
+  // before the call returns, including the copies object storage keeps for
+  // recovery. That is for legal removal and requires asset_admin. It also
+  // works on an asset that is already soft-deleted. CDN edge caches may
+  // still serve the asset until the invalidation completes, typically
+  // within minutes.
+  //
+  // Requires asset_store; asset_admin when immediate is set.
+  rpc DeleteAsset(DeleteAssetRequest) returns (DeleteAssetResponse);
+
+  // RestoreAsset undoes a soft delete. Renditions are regenerated on
+  // demand, so the first requests after a restore may be slower, and may
+  // keep failing for up to a minute while negative cache entries expire.
+  // Fails with NotFound once the deleted asset has been swept.
+  //
+  // Requires asset_store or asset_admin.
+  rpc RestoreAsset(RestoreAssetRequest) returns (RestoreAssetResponse);
+
+  // GetUploadTypes returns the upload allow-list, so that a client can
+  // refuse a file before uploading it rather than after.
+  //
+  // Requires asset_store.
+  rpc GetUploadTypes(GetUploadTypesRequest) returns (GetUploadTypesResponse);
+}
+
+message CreateUploadRequest {
+  // Filename is the name of the file being uploaded, at most 255 bytes. Its
+  // extension selects the upload type; the name is kept per version and
+  // offered as the download filename when the original is served.
+  string filename = 1;
+  // Size is the exact size of the file in bytes, which the PUT must match.
+  int64 size = 2;
+  // Meta is free-form provenance (source, credit, licence, ...), at most 16
+  // KiB in all. It is stored with the version and returned only by
+  // GetAsset; it never reaches the CDN.
+  map<string, string> meta = 3;
+  // AssetId names an existing asset to upload a new version of. Optional;
+  // empty uploads a new asset. A replacement cannot change the asset's kind
+  // (an image stays an image), but may change its extension within the
+  // kind. Fails with FailedPrecondition for a deleted asset.
+  string asset_id = 4;
+  // IfVersion is the version the caller expects to be current when
+  // replacing. It is checked here and again under lock at commit, and a
+  // mismatch fails with FailedPrecondition. Optional, 0 skips the check,
+  // but a client replacing an asset it has open should always send it.
+  int64 if_version = 5;
+}
+
+message CreateUploadResponse {
+  // UploadId identifies the upload in CommitUpload.
+  string upload_id = 1;
+  // Url is the presigned URL to PUT the bytes to.
+  string url = 2;
+  // Headers are the headers the PUT must send, exactly: they are part of
+  // the signature.
+  map<string, string> headers = 3;
+  // Expires is when the URL stops being valid, unix seconds. An upload
+  // left uncommitted is discarded some time after that.
+  int64 expires = 4;
+}
+
+message CommitUploadRequest {
+  // UploadId is the id CreateUpload returned.
+  string upload_id = 1;
+}
+
+message CommitUploadResponse {
+  // AssetId is the id of the new or replaced asset.
+  string asset_id = 1;
+  // Version is the version the upload became. Versions increase but are
+  // not necessarily consecutive.
+  int64 version = 2;
+  // Path is the asset's unsigned current-version path,
+  // "/v1/assets/{asset_id}/0/full/original". The original takes no
+  // extension; it is served with the stored content type.
+  string path = 3;
+}
+
+message GetAssetRequest {
+  // AssetId is the id of the asset.
+  string asset_id = 1;
+}
+
+message GetAssetResponse {
+  Asset asset = 1;
+}
+
+// Asset is a stored asset and its version history.
+message Asset {
+  // Id of the asset, a lower-case hyphenated UUID.
+  string id = 1;
+  // Kind is "image", "audio" or "file", fixed by the first upload.
+  string kind = 2;
+  // CurrentVersion is the version "0" resolves to.
+  int64 current_version = 3;
+  // Path is the unsigned current-version path,
+  // "/v1/assets/{id}/0/full/original".
+  string path = 4;
+  // CreatedBy is the subject that uploaded the first version.
+  string created_by = 5;
+  // CreatedAt is when the asset was created, unix seconds.
+  int64 created_at = 6;
+  // DeletedAt is when the asset was soft-deleted, unix seconds; 0 when it
+  // isn't deleted.
+  int64 deleted_at = 7;
+  // SweepAt is when a soft-deleted asset's bytes will be removed, after
+  // which it can no longer be restored, unix seconds; 0 when it isn't
+  // deleted.
+  int64 sweep_at = 8;
+  // Versions are the asset's versions, oldest first.
+  repeated AssetVersion versions = 9;
+}
+
+// AssetVersion is one stored version of an asset.
+message AssetVersion {
+  // Version number, starting at 1.
+  int64 version = 1;
+  // Path is the unsigned path of this version,
+  // "/v1/assets/{asset_id}/{version}/full/original", which never changes.
+  string path = 2;
+  // Filename is the name the version was uploaded with.
+  string filename = 3;
+  // Ext is the canonical extension of the version's upload type, not
+  // necessarily the one in Filename: an upload named "photo.jpeg" is
+  // stored with ext "jpg". It is the extension the version is stored and
+  // served under.
+  string ext = 4;
+  // ContentType is the content type the version is served as.
+  string content_type = 5;
+  // Size in bytes.
+  int64 size = 6;
+  // Sha256 is the hex-encoded SHA-256 of the bytes, computed by object
+  // storage; empty when the store didn't provide one.
+  string sha256 = 7;
+  // Meta is the free-form metadata given at upload.
+  map<string, string> meta = 8;
+  // CreatedBy is the subject that uploaded the version.
+  string created_by = 9;
+  // CreatedAt is when the version was committed, unix seconds.
+  int64 created_at = 10;
+}
+
+message DeleteAssetRequest {
+  // AssetId is the id of the asset.
+  string asset_id = 1;
+  // Immediate removes the bytes at once and irreversibly instead of
+  // soft-deleting. Requires asset_admin.
+  bool immediate = 2;
+}
+
+message DeleteAssetResponse {}
+
+message RestoreAssetRequest {
+  // AssetId is the id of the asset.
+  string asset_id = 1;
+}
+
+message RestoreAssetResponse {}
+
+message GetUploadTypesRequest {}
+
+message GetUploadTypesResponse {
+  repeated UploadType types = 1;
+}
+
+// UploadType is one entry in the upload allow-list.
+message UploadType {
+  // Ext is the filename extension the entry matches, lower case and
+  // without the dot, e.g. "jpeg".
+  string ext = 1;
+  // ContentType is what an upload with this extension is stored and
+  // served as.
+  string content_type = 2;
+  // Kind is "image", "audio" or "file".
+  string kind = 3;
+  // MaxSize is the largest accepted upload in bytes.
+  int64 max_size = 4;
+  // CanonicalExt is the extension the upload is recorded under, e.g. "jpg"
+  // for "jpeg"; the same as ext for a canonical entry.
+  string canonical_ext = 5;
+}

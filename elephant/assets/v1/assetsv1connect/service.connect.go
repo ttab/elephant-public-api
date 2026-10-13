@@ -25,6 +25,8 @@ const (
 	KeysServiceName = "elephant.assets.v1.KeysService"
 	// ManagementServiceName is the fully-qualified name of the ManagementService service.
 	ManagementServiceName = "elephant.assets.v1.ManagementService"
+	// StorageServiceName is the fully-qualified name of the StorageService service.
+	StorageServiceName = "elephant.assets.v1.StorageService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -66,6 +68,23 @@ const (
 	// ManagementServiceInspectCropMetadataProcedure is the fully-qualified name of the
 	// ManagementService's InspectCropMetadata RPC.
 	ManagementServiceInspectCropMetadataProcedure = "/elephant.assets.v1.ManagementService/InspectCropMetadata"
+	// StorageServiceCreateUploadProcedure is the fully-qualified name of the StorageService's
+	// CreateUpload RPC.
+	StorageServiceCreateUploadProcedure = "/elephant.assets.v1.StorageService/CreateUpload"
+	// StorageServiceCommitUploadProcedure is the fully-qualified name of the StorageService's
+	// CommitUpload RPC.
+	StorageServiceCommitUploadProcedure = "/elephant.assets.v1.StorageService/CommitUpload"
+	// StorageServiceGetAssetProcedure is the fully-qualified name of the StorageService's GetAsset RPC.
+	StorageServiceGetAssetProcedure = "/elephant.assets.v1.StorageService/GetAsset"
+	// StorageServiceDeleteAssetProcedure is the fully-qualified name of the StorageService's
+	// DeleteAsset RPC.
+	StorageServiceDeleteAssetProcedure = "/elephant.assets.v1.StorageService/DeleteAsset"
+	// StorageServiceRestoreAssetProcedure is the fully-qualified name of the StorageService's
+	// RestoreAsset RPC.
+	StorageServiceRestoreAssetProcedure = "/elephant.assets.v1.StorageService/RestoreAsset"
+	// StorageServiceGetUploadTypesProcedure is the fully-qualified name of the StorageService's
+	// GetUploadTypes RPC.
+	StorageServiceGetUploadTypesProcedure = "/elephant.assets.v1.StorageService/GetUploadTypes"
 )
 
 // KeysServiceClient is a client for the elephant.assets.v1.KeysService service.
@@ -525,4 +544,342 @@ func (UnimplementedManagementServiceHandler) RemoveMetadataField(context.Context
 
 func (UnimplementedManagementServiceHandler) InspectCropMetadata(context.Context, *connect.Request[v1.InspectCropMetadataRequest]) (*connect.Response[v1.InspectCropMetadataResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.ManagementService.InspectCropMetadata is not implemented"))
+}
+
+// StorageServiceClient is a client for the elephant.assets.v1.StorageService service.
+type StorageServiceClient interface {
+	// CreateUpload starts an upload of a new asset, or of a new version of
+	// an existing one, and returns a presigned PUT URL for its bytes.
+	//
+	// The extension of the filename picks an entry in the upload allow-list
+	// (GetUploadTypes), and that entry decides the content type the asset is
+	// stored and served as and the largest size accepted; the client never
+	// chooses a content type. An extension that isn't allowed, a size above
+	// the entry's max_size, a filename over 255 bytes or meta over 16 KiB
+	// fail with InvalidArgument.
+	//
+	// What a client must get right:
+	//
+	// - size must be exactly the size of the file that will be PUT (File.size
+	//   in a browser). The Content-Length is part of the signature, so any
+	//   other length is refused by object storage with an opaque signature
+	//   error, not by this service.
+	// - The PUT must send exactly the returned headers, no more and no
+	//   fewer. Content-Type is signed as well; a browser sets Content-Length
+	//   itself from the body.
+	// - When replacing, send if_version, the version the client believes is
+	//   current. Without it a concurrent replacement is silently displaced
+	//   (both versions survive, but neither editor learns of the other).
+	//
+	// Requires asset_store.
+	CreateUpload(context.Context, *connect.Request[v1.CreateUploadRequest]) (*connect.Response[v1.CreateUploadResponse], error)
+	// CommitUpload checks the uploaded bytes against the declared size and
+	// the type the extension claims, stores them as the next version of the
+	// asset, and returns the asset's path. Replacing an asset purges its
+	// current-version ("0") renditions from the CDN; explicit-version paths
+	// are immutable and need nothing.
+	//
+	// Only the caller that created the upload may commit it. The call is
+	// idempotent: a retry, including one made while the first call is still
+	// in progress, returns the same asset and version. It fails with
+	// FailedPrecondition when no bytes have been PUT, when the asset was
+	// deleted meanwhile, or when if_version no longer matches the current
+	// version; with InvalidArgument when the bytes don't match the declared
+	// size or type, in which case the upload is discarded.
+	//
+	// Requires asset_store.
+	CommitUpload(context.Context, *connect.Request[v1.CommitUploadRequest]) (*connect.Response[v1.CommitUploadResponse], error)
+	// GetAsset returns an asset's current version, its version history and
+	// each version's metadata. A soft-deleted asset is returned too, with
+	// deleted_at and the time it will be swept, so that a client can offer to
+	// restore it. An asset whose first upload hasn't been committed is
+	// NotFound.
+	//
+	// Requires asset_store or asset_admin.
+	GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error)
+	// DeleteAsset soft-deletes an asset: every version stops being served at
+	// once and its renditions are purged from the CDN, and the stored bytes
+	// are removed after a retention period (30 days by default), until which
+	// RestoreAsset undoes the delete.
+	//
+	// With immediate set the delete is irreversible: the bytes are removed
+	// before the call returns, including the copies object storage keeps for
+	// recovery. That is for legal removal and requires asset_admin. It also
+	// works on an asset that is already soft-deleted. CDN edge caches may
+	// still serve the asset until the invalidation completes, typically
+	// within minutes.
+	//
+	// Requires asset_store; asset_admin when immediate is set.
+	DeleteAsset(context.Context, *connect.Request[v1.DeleteAssetRequest]) (*connect.Response[v1.DeleteAssetResponse], error)
+	// RestoreAsset undoes a soft delete. Renditions are regenerated on
+	// demand, so the first requests after a restore may be slower, and may
+	// keep failing for up to a minute while negative cache entries expire.
+	// Fails with NotFound once the deleted asset has been swept.
+	//
+	// Requires asset_store or asset_admin.
+	RestoreAsset(context.Context, *connect.Request[v1.RestoreAssetRequest]) (*connect.Response[v1.RestoreAssetResponse], error)
+	// GetUploadTypes returns the upload allow-list, so that a client can
+	// refuse a file before uploading it rather than after.
+	//
+	// Requires asset_store.
+	GetUploadTypes(context.Context, *connect.Request[v1.GetUploadTypesRequest]) (*connect.Response[v1.GetUploadTypesResponse], error)
+}
+
+// NewStorageServiceClient constructs a client for the elephant.assets.v1.StorageService service. By
+// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
+// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewStorageServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) StorageServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	storageServiceMethods := v1.File_elephant_assets_v1_service_proto.Services().ByName("StorageService").Methods()
+	return &storageServiceClient{
+		createUpload: connect.NewClient[v1.CreateUploadRequest, v1.CreateUploadResponse](
+			httpClient,
+			baseURL+StorageServiceCreateUploadProcedure,
+			connect.WithSchema(storageServiceMethods.ByName("CreateUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		commitUpload: connect.NewClient[v1.CommitUploadRequest, v1.CommitUploadResponse](
+			httpClient,
+			baseURL+StorageServiceCommitUploadProcedure,
+			connect.WithSchema(storageServiceMethods.ByName("CommitUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		getAsset: connect.NewClient[v1.GetAssetRequest, v1.GetAssetResponse](
+			httpClient,
+			baseURL+StorageServiceGetAssetProcedure,
+			connect.WithSchema(storageServiceMethods.ByName("GetAsset")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteAsset: connect.NewClient[v1.DeleteAssetRequest, v1.DeleteAssetResponse](
+			httpClient,
+			baseURL+StorageServiceDeleteAssetProcedure,
+			connect.WithSchema(storageServiceMethods.ByName("DeleteAsset")),
+			connect.WithClientOptions(opts...),
+		),
+		restoreAsset: connect.NewClient[v1.RestoreAssetRequest, v1.RestoreAssetResponse](
+			httpClient,
+			baseURL+StorageServiceRestoreAssetProcedure,
+			connect.WithSchema(storageServiceMethods.ByName("RestoreAsset")),
+			connect.WithClientOptions(opts...),
+		),
+		getUploadTypes: connect.NewClient[v1.GetUploadTypesRequest, v1.GetUploadTypesResponse](
+			httpClient,
+			baseURL+StorageServiceGetUploadTypesProcedure,
+			connect.WithSchema(storageServiceMethods.ByName("GetUploadTypes")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// storageServiceClient implements StorageServiceClient.
+type storageServiceClient struct {
+	createUpload   *connect.Client[v1.CreateUploadRequest, v1.CreateUploadResponse]
+	commitUpload   *connect.Client[v1.CommitUploadRequest, v1.CommitUploadResponse]
+	getAsset       *connect.Client[v1.GetAssetRequest, v1.GetAssetResponse]
+	deleteAsset    *connect.Client[v1.DeleteAssetRequest, v1.DeleteAssetResponse]
+	restoreAsset   *connect.Client[v1.RestoreAssetRequest, v1.RestoreAssetResponse]
+	getUploadTypes *connect.Client[v1.GetUploadTypesRequest, v1.GetUploadTypesResponse]
+}
+
+// CreateUpload calls elephant.assets.v1.StorageService.CreateUpload.
+func (c *storageServiceClient) CreateUpload(ctx context.Context, req *connect.Request[v1.CreateUploadRequest]) (*connect.Response[v1.CreateUploadResponse], error) {
+	return c.createUpload.CallUnary(ctx, req)
+}
+
+// CommitUpload calls elephant.assets.v1.StorageService.CommitUpload.
+func (c *storageServiceClient) CommitUpload(ctx context.Context, req *connect.Request[v1.CommitUploadRequest]) (*connect.Response[v1.CommitUploadResponse], error) {
+	return c.commitUpload.CallUnary(ctx, req)
+}
+
+// GetAsset calls elephant.assets.v1.StorageService.GetAsset.
+func (c *storageServiceClient) GetAsset(ctx context.Context, req *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error) {
+	return c.getAsset.CallUnary(ctx, req)
+}
+
+// DeleteAsset calls elephant.assets.v1.StorageService.DeleteAsset.
+func (c *storageServiceClient) DeleteAsset(ctx context.Context, req *connect.Request[v1.DeleteAssetRequest]) (*connect.Response[v1.DeleteAssetResponse], error) {
+	return c.deleteAsset.CallUnary(ctx, req)
+}
+
+// RestoreAsset calls elephant.assets.v1.StorageService.RestoreAsset.
+func (c *storageServiceClient) RestoreAsset(ctx context.Context, req *connect.Request[v1.RestoreAssetRequest]) (*connect.Response[v1.RestoreAssetResponse], error) {
+	return c.restoreAsset.CallUnary(ctx, req)
+}
+
+// GetUploadTypes calls elephant.assets.v1.StorageService.GetUploadTypes.
+func (c *storageServiceClient) GetUploadTypes(ctx context.Context, req *connect.Request[v1.GetUploadTypesRequest]) (*connect.Response[v1.GetUploadTypesResponse], error) {
+	return c.getUploadTypes.CallUnary(ctx, req)
+}
+
+// StorageServiceHandler is an implementation of the elephant.assets.v1.StorageService service.
+type StorageServiceHandler interface {
+	// CreateUpload starts an upload of a new asset, or of a new version of
+	// an existing one, and returns a presigned PUT URL for its bytes.
+	//
+	// The extension of the filename picks an entry in the upload allow-list
+	// (GetUploadTypes), and that entry decides the content type the asset is
+	// stored and served as and the largest size accepted; the client never
+	// chooses a content type. An extension that isn't allowed, a size above
+	// the entry's max_size, a filename over 255 bytes or meta over 16 KiB
+	// fail with InvalidArgument.
+	//
+	// What a client must get right:
+	//
+	// - size must be exactly the size of the file that will be PUT (File.size
+	//   in a browser). The Content-Length is part of the signature, so any
+	//   other length is refused by object storage with an opaque signature
+	//   error, not by this service.
+	// - The PUT must send exactly the returned headers, no more and no
+	//   fewer. Content-Type is signed as well; a browser sets Content-Length
+	//   itself from the body.
+	// - When replacing, send if_version, the version the client believes is
+	//   current. Without it a concurrent replacement is silently displaced
+	//   (both versions survive, but neither editor learns of the other).
+	//
+	// Requires asset_store.
+	CreateUpload(context.Context, *connect.Request[v1.CreateUploadRequest]) (*connect.Response[v1.CreateUploadResponse], error)
+	// CommitUpload checks the uploaded bytes against the declared size and
+	// the type the extension claims, stores them as the next version of the
+	// asset, and returns the asset's path. Replacing an asset purges its
+	// current-version ("0") renditions from the CDN; explicit-version paths
+	// are immutable and need nothing.
+	//
+	// Only the caller that created the upload may commit it. The call is
+	// idempotent: a retry, including one made while the first call is still
+	// in progress, returns the same asset and version. It fails with
+	// FailedPrecondition when no bytes have been PUT, when the asset was
+	// deleted meanwhile, or when if_version no longer matches the current
+	// version; with InvalidArgument when the bytes don't match the declared
+	// size or type, in which case the upload is discarded.
+	//
+	// Requires asset_store.
+	CommitUpload(context.Context, *connect.Request[v1.CommitUploadRequest]) (*connect.Response[v1.CommitUploadResponse], error)
+	// GetAsset returns an asset's current version, its version history and
+	// each version's metadata. A soft-deleted asset is returned too, with
+	// deleted_at and the time it will be swept, so that a client can offer to
+	// restore it. An asset whose first upload hasn't been committed is
+	// NotFound.
+	//
+	// Requires asset_store or asset_admin.
+	GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error)
+	// DeleteAsset soft-deletes an asset: every version stops being served at
+	// once and its renditions are purged from the CDN, and the stored bytes
+	// are removed after a retention period (30 days by default), until which
+	// RestoreAsset undoes the delete.
+	//
+	// With immediate set the delete is irreversible: the bytes are removed
+	// before the call returns, including the copies object storage keeps for
+	// recovery. That is for legal removal and requires asset_admin. It also
+	// works on an asset that is already soft-deleted. CDN edge caches may
+	// still serve the asset until the invalidation completes, typically
+	// within minutes.
+	//
+	// Requires asset_store; asset_admin when immediate is set.
+	DeleteAsset(context.Context, *connect.Request[v1.DeleteAssetRequest]) (*connect.Response[v1.DeleteAssetResponse], error)
+	// RestoreAsset undoes a soft delete. Renditions are regenerated on
+	// demand, so the first requests after a restore may be slower, and may
+	// keep failing for up to a minute while negative cache entries expire.
+	// Fails with NotFound once the deleted asset has been swept.
+	//
+	// Requires asset_store or asset_admin.
+	RestoreAsset(context.Context, *connect.Request[v1.RestoreAssetRequest]) (*connect.Response[v1.RestoreAssetResponse], error)
+	// GetUploadTypes returns the upload allow-list, so that a client can
+	// refuse a file before uploading it rather than after.
+	//
+	// Requires asset_store.
+	GetUploadTypes(context.Context, *connect.Request[v1.GetUploadTypesRequest]) (*connect.Response[v1.GetUploadTypesResponse], error)
+}
+
+// NewStorageServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewStorageServiceHandler(svc StorageServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	storageServiceMethods := v1.File_elephant_assets_v1_service_proto.Services().ByName("StorageService").Methods()
+	storageServiceCreateUploadHandler := connect.NewUnaryHandler(
+		StorageServiceCreateUploadProcedure,
+		svc.CreateUpload,
+		connect.WithSchema(storageServiceMethods.ByName("CreateUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	storageServiceCommitUploadHandler := connect.NewUnaryHandler(
+		StorageServiceCommitUploadProcedure,
+		svc.CommitUpload,
+		connect.WithSchema(storageServiceMethods.ByName("CommitUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	storageServiceGetAssetHandler := connect.NewUnaryHandler(
+		StorageServiceGetAssetProcedure,
+		svc.GetAsset,
+		connect.WithSchema(storageServiceMethods.ByName("GetAsset")),
+		connect.WithHandlerOptions(opts...),
+	)
+	storageServiceDeleteAssetHandler := connect.NewUnaryHandler(
+		StorageServiceDeleteAssetProcedure,
+		svc.DeleteAsset,
+		connect.WithSchema(storageServiceMethods.ByName("DeleteAsset")),
+		connect.WithHandlerOptions(opts...),
+	)
+	storageServiceRestoreAssetHandler := connect.NewUnaryHandler(
+		StorageServiceRestoreAssetProcedure,
+		svc.RestoreAsset,
+		connect.WithSchema(storageServiceMethods.ByName("RestoreAsset")),
+		connect.WithHandlerOptions(opts...),
+	)
+	storageServiceGetUploadTypesHandler := connect.NewUnaryHandler(
+		StorageServiceGetUploadTypesProcedure,
+		svc.GetUploadTypes,
+		connect.WithSchema(storageServiceMethods.ByName("GetUploadTypes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/elephant.assets.v1.StorageService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case StorageServiceCreateUploadProcedure:
+			storageServiceCreateUploadHandler.ServeHTTP(w, r)
+		case StorageServiceCommitUploadProcedure:
+			storageServiceCommitUploadHandler.ServeHTTP(w, r)
+		case StorageServiceGetAssetProcedure:
+			storageServiceGetAssetHandler.ServeHTTP(w, r)
+		case StorageServiceDeleteAssetProcedure:
+			storageServiceDeleteAssetHandler.ServeHTTP(w, r)
+		case StorageServiceRestoreAssetProcedure:
+			storageServiceRestoreAssetHandler.ServeHTTP(w, r)
+		case StorageServiceGetUploadTypesProcedure:
+			storageServiceGetUploadTypesHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedStorageServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedStorageServiceHandler struct{}
+
+func (UnimplementedStorageServiceHandler) CreateUpload(context.Context, *connect.Request[v1.CreateUploadRequest]) (*connect.Response[v1.CreateUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.StorageService.CreateUpload is not implemented"))
+}
+
+func (UnimplementedStorageServiceHandler) CommitUpload(context.Context, *connect.Request[v1.CommitUploadRequest]) (*connect.Response[v1.CommitUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.StorageService.CommitUpload is not implemented"))
+}
+
+func (UnimplementedStorageServiceHandler) GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.StorageService.GetAsset is not implemented"))
+}
+
+func (UnimplementedStorageServiceHandler) DeleteAsset(context.Context, *connect.Request[v1.DeleteAssetRequest]) (*connect.Response[v1.DeleteAssetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.StorageService.DeleteAsset is not implemented"))
+}
+
+func (UnimplementedStorageServiceHandler) RestoreAsset(context.Context, *connect.Request[v1.RestoreAssetRequest]) (*connect.Response[v1.RestoreAssetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.StorageService.RestoreAsset is not implemented"))
+}
+
+func (UnimplementedStorageServiceHandler) GetUploadTypes(context.Context, *connect.Request[v1.GetUploadTypesRequest]) (*connect.Response[v1.GetUploadTypesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.assets.v1.StorageService.GetUploadTypes is not implemented"))
 }

@@ -1643,6 +1643,962 @@ func (x *WarmIntermediateResponse) GetState() string {
 	return ""
 }
 
+type CreateUploadRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Filename is the name of the file being uploaded, at most 255 bytes. Its
+	// extension selects the upload type; the name is kept per version and
+	// offered as the download filename when the original is served.
+	Filename string `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
+	// Size is the exact size of the file in bytes, which the PUT must match.
+	Size int64 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+	// Meta is free-form provenance (source, credit, licence, ...), at most 16
+	// KiB in all. It is stored with the version and returned only by
+	// GetAsset; it never reaches the CDN.
+	Meta map[string]string `protobuf:"bytes,3,rep,name=meta,proto3" json:"meta,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// AssetId names an existing asset to upload a new version of. Optional;
+	// empty uploads a new asset. A replacement cannot change the asset's kind
+	// (an image stays an image), but may change its extension within the
+	// kind. Fails with FailedPrecondition for a deleted asset.
+	AssetId string `protobuf:"bytes,4,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	// IfVersion is the version the caller expects to be current when
+	// replacing. It is checked here and again under lock at commit, and a
+	// mismatch fails with FailedPrecondition. Optional, 0 skips the check,
+	// but a client replacing an asset it has open should always send it.
+	IfVersion     int64 `protobuf:"varint,5,opt,name=if_version,json=ifVersion,proto3" json:"if_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateUploadRequest) Reset() {
+	*x = CreateUploadRequest{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUploadRequest) ProtoMessage() {}
+
+func (x *CreateUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUploadRequest.ProtoReflect.Descriptor instead.
+func (*CreateUploadRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *CreateUploadRequest) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *CreateUploadRequest) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *CreateUploadRequest) GetMeta() map[string]string {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+func (x *CreateUploadRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *CreateUploadRequest) GetIfVersion() int64 {
+	if x != nil {
+		return x.IfVersion
+	}
+	return 0
+}
+
+type CreateUploadResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UploadId identifies the upload in CommitUpload.
+	UploadId string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	// Url is the presigned URL to PUT the bytes to.
+	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	// Headers are the headers the PUT must send, exactly: they are part of
+	// the signature.
+	Headers map[string]string `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Expires is when the URL stops being valid, unix seconds. An upload
+	// left uncommitted is discarded some time after that.
+	Expires       int64 `protobuf:"varint,4,opt,name=expires,proto3" json:"expires,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateUploadResponse) Reset() {
+	*x = CreateUploadResponse{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUploadResponse) ProtoMessage() {}
+
+func (x *CreateUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUploadResponse.ProtoReflect.Descriptor instead.
+func (*CreateUploadResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *CreateUploadResponse) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *CreateUploadResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *CreateUploadResponse) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *CreateUploadResponse) GetExpires() int64 {
+	if x != nil {
+		return x.Expires
+	}
+	return 0
+}
+
+type CommitUploadRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UploadId is the id CreateUpload returned.
+	UploadId      string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitUploadRequest) Reset() {
+	*x = CommitUploadRequest{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitUploadRequest) ProtoMessage() {}
+
+func (x *CommitUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitUploadRequest.ProtoReflect.Descriptor instead.
+func (*CommitUploadRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *CommitUploadRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+type CommitUploadResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AssetId is the id of the new or replaced asset.
+	AssetId string `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	// Version is the version the upload became. Versions increase but are
+	// not necessarily consecutive.
+	Version int64 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	// Path is the asset's unsigned current-version path,
+	// "/v1/assets/{asset_id}/0/full/original". The original takes no
+	// extension; it is served with the stored content type.
+	Path          string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitUploadResponse) Reset() {
+	*x = CommitUploadResponse{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitUploadResponse) ProtoMessage() {}
+
+func (x *CommitUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitUploadResponse.ProtoReflect.Descriptor instead.
+func (*CommitUploadResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *CommitUploadResponse) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *CommitUploadResponse) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *CommitUploadResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type GetAssetRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AssetId is the id of the asset.
+	AssetId       string `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssetRequest) Reset() {
+	*x = GetAssetRequest{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssetRequest) ProtoMessage() {}
+
+func (x *GetAssetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssetRequest.ProtoReflect.Descriptor instead.
+func (*GetAssetRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *GetAssetRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+type GetAssetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Asset         *Asset                 `protobuf:"bytes,1,opt,name=asset,proto3" json:"asset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssetResponse) Reset() {
+	*x = GetAssetResponse{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssetResponse) ProtoMessage() {}
+
+func (x *GetAssetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssetResponse.ProtoReflect.Descriptor instead.
+func (*GetAssetResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *GetAssetResponse) GetAsset() *Asset {
+	if x != nil {
+		return x.Asset
+	}
+	return nil
+}
+
+// Asset is a stored asset and its version history.
+type Asset struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Id of the asset, a lower-case hyphenated UUID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Kind is "image", "audio" or "file", fixed by the first upload.
+	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	// CurrentVersion is the version "0" resolves to.
+	CurrentVersion int64 `protobuf:"varint,3,opt,name=current_version,json=currentVersion,proto3" json:"current_version,omitempty"`
+	// Path is the unsigned current-version path,
+	// "/v1/assets/{id}/0/full/original".
+	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	// CreatedBy is the subject that uploaded the first version.
+	CreatedBy string `protobuf:"bytes,5,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// CreatedAt is when the asset was created, unix seconds.
+	CreatedAt int64 `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// DeletedAt is when the asset was soft-deleted, unix seconds; 0 when it
+	// isn't deleted.
+	DeletedAt int64 `protobuf:"varint,7,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	// SweepAt is when a soft-deleted asset's bytes will be removed, after
+	// which it can no longer be restored, unix seconds; 0 when it isn't
+	// deleted.
+	SweepAt int64 `protobuf:"varint,8,opt,name=sweep_at,json=sweepAt,proto3" json:"sweep_at,omitempty"`
+	// Versions are the asset's versions, oldest first.
+	Versions      []*AssetVersion `protobuf:"bytes,9,rep,name=versions,proto3" json:"versions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Asset) Reset() {
+	*x = Asset{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Asset) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Asset) ProtoMessage() {}
+
+func (x *Asset) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Asset.ProtoReflect.Descriptor instead.
+func (*Asset) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *Asset) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Asset) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *Asset) GetCurrentVersion() int64 {
+	if x != nil {
+		return x.CurrentVersion
+	}
+	return 0
+}
+
+func (x *Asset) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Asset) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *Asset) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *Asset) GetDeletedAt() int64 {
+	if x != nil {
+		return x.DeletedAt
+	}
+	return 0
+}
+
+func (x *Asset) GetSweepAt() int64 {
+	if x != nil {
+		return x.SweepAt
+	}
+	return 0
+}
+
+func (x *Asset) GetVersions() []*AssetVersion {
+	if x != nil {
+		return x.Versions
+	}
+	return nil
+}
+
+// AssetVersion is one stored version of an asset.
+type AssetVersion struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Version number, starting at 1.
+	Version int64 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	// Path is the unsigned path of this version,
+	// "/v1/assets/{asset_id}/{version}/full/original", which never changes.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Filename is the name the version was uploaded with.
+	Filename string `protobuf:"bytes,3,opt,name=filename,proto3" json:"filename,omitempty"`
+	// Ext is the canonical extension of the version's upload type, not
+	// necessarily the one in Filename: an upload named "photo.jpeg" is
+	// stored with ext "jpg". It is the extension the version is stored and
+	// served under.
+	Ext string `protobuf:"bytes,4,opt,name=ext,proto3" json:"ext,omitempty"`
+	// ContentType is the content type the version is served as.
+	ContentType string `protobuf:"bytes,5,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// Size in bytes.
+	Size int64 `protobuf:"varint,6,opt,name=size,proto3" json:"size,omitempty"`
+	// Sha256 is the hex-encoded SHA-256 of the bytes, computed by object
+	// storage; empty when the store didn't provide one.
+	Sha256 string `protobuf:"bytes,7,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	// Meta is the free-form metadata given at upload.
+	Meta map[string]string `protobuf:"bytes,8,rep,name=meta,proto3" json:"meta,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// CreatedBy is the subject that uploaded the version.
+	CreatedBy string `protobuf:"bytes,9,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// CreatedAt is when the version was committed, unix seconds.
+	CreatedAt     int64 `protobuf:"varint,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssetVersion) Reset() {
+	*x = AssetVersion{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssetVersion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssetVersion) ProtoMessage() {}
+
+func (x *AssetVersion) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssetVersion.ProtoReflect.Descriptor instead.
+func (*AssetVersion) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *AssetVersion) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *AssetVersion) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *AssetVersion) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *AssetVersion) GetExt() string {
+	if x != nil {
+		return x.Ext
+	}
+	return ""
+}
+
+func (x *AssetVersion) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *AssetVersion) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *AssetVersion) GetSha256() string {
+	if x != nil {
+		return x.Sha256
+	}
+	return ""
+}
+
+func (x *AssetVersion) GetMeta() map[string]string {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+func (x *AssetVersion) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *AssetVersion) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+type DeleteAssetRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AssetId is the id of the asset.
+	AssetId string `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	// Immediate removes the bytes at once and irreversibly instead of
+	// soft-deleting. Requires asset_admin.
+	Immediate     bool `protobuf:"varint,2,opt,name=immediate,proto3" json:"immediate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAssetRequest) Reset() {
+	*x = DeleteAssetRequest{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAssetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAssetRequest) ProtoMessage() {}
+
+func (x *DeleteAssetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAssetRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAssetRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *DeleteAssetRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *DeleteAssetRequest) GetImmediate() bool {
+	if x != nil {
+		return x.Immediate
+	}
+	return false
+}
+
+type DeleteAssetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAssetResponse) Reset() {
+	*x = DeleteAssetResponse{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAssetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAssetResponse) ProtoMessage() {}
+
+func (x *DeleteAssetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAssetResponse.ProtoReflect.Descriptor instead.
+func (*DeleteAssetResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{36}
+}
+
+type RestoreAssetRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AssetId is the id of the asset.
+	AssetId       string `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreAssetRequest) Reset() {
+	*x = RestoreAssetRequest{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreAssetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreAssetRequest) ProtoMessage() {}
+
+func (x *RestoreAssetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreAssetRequest.ProtoReflect.Descriptor instead.
+func (*RestoreAssetRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *RestoreAssetRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+type RestoreAssetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreAssetResponse) Reset() {
+	*x = RestoreAssetResponse{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreAssetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreAssetResponse) ProtoMessage() {}
+
+func (x *RestoreAssetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreAssetResponse.ProtoReflect.Descriptor instead.
+func (*RestoreAssetResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{38}
+}
+
+type GetUploadTypesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUploadTypesRequest) Reset() {
+	*x = GetUploadTypesRequest{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUploadTypesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUploadTypesRequest) ProtoMessage() {}
+
+func (x *GetUploadTypesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUploadTypesRequest.ProtoReflect.Descriptor instead.
+func (*GetUploadTypesRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{39}
+}
+
+type GetUploadTypesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Types         []*UploadType          `protobuf:"bytes,1,rep,name=types,proto3" json:"types,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUploadTypesResponse) Reset() {
+	*x = GetUploadTypesResponse{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUploadTypesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUploadTypesResponse) ProtoMessage() {}
+
+func (x *GetUploadTypesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUploadTypesResponse.ProtoReflect.Descriptor instead.
+func (*GetUploadTypesResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *GetUploadTypesResponse) GetTypes() []*UploadType {
+	if x != nil {
+		return x.Types
+	}
+	return nil
+}
+
+// UploadType is one entry in the upload allow-list.
+type UploadType struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Ext is the filename extension the entry matches, lower case and
+	// without the dot, e.g. "jpeg".
+	Ext string `protobuf:"bytes,1,opt,name=ext,proto3" json:"ext,omitempty"`
+	// ContentType is what an upload with this extension is stored and
+	// served as.
+	ContentType string `protobuf:"bytes,2,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// Kind is "image", "audio" or "file".
+	Kind string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	// MaxSize is the largest accepted upload in bytes.
+	MaxSize int64 `protobuf:"varint,4,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`
+	// CanonicalExt is the extension the upload is recorded under, e.g. "jpg"
+	// for "jpeg"; the same as ext for a canonical entry.
+	CanonicalExt  string `protobuf:"bytes,5,opt,name=canonical_ext,json=canonicalExt,proto3" json:"canonical_ext,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadType) Reset() {
+	*x = UploadType{}
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadType) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadType) ProtoMessage() {}
+
+func (x *UploadType) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_assets_v1_service_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadType.ProtoReflect.Descriptor instead.
+func (*UploadType) Descriptor() ([]byte, []int) {
+	return file_elephant_assets_v1_service_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *UploadType) GetExt() string {
+	if x != nil {
+		return x.Ext
+	}
+	return ""
+}
+
+func (x *UploadType) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *UploadType) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *UploadType) GetMaxSize() int64 {
+	if x != nil {
+		return x.MaxSize
+	}
+	return 0
+}
+
+func (x *UploadType) GetCanonicalExt() string {
+	if x != nil {
+		return x.CanonicalExt
+	}
+	return ""
+}
+
 var File_elephant_assets_v1_service_proto protoreflect.FileDescriptor
 
 const file_elephant_assets_v1_service_proto_rawDesc = "" +
@@ -1743,7 +2699,82 @@ const file_elephant_assets_v1_service_proto_rawDesc = "" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\"0\n" +
 	"\x18WarmIntermediateResponse\x12\x14\n" +
-	"\x05state\x18\x01 \x01(\tR\x05state2\xaa\x02\n" +
+	"\x05state\x18\x01 \x01(\tR\x05state\"\xff\x01\n" +
+	"\x13CreateUploadRequest\x12\x1a\n" +
+	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x12\n" +
+	"\x04size\x18\x02 \x01(\x03R\x04size\x12E\n" +
+	"\x04meta\x18\x03 \x03(\v21.elephant.assets.v1.CreateUploadRequest.MetaEntryR\x04meta\x12\x19\n" +
+	"\basset_id\x18\x04 \x01(\tR\aassetId\x12\x1d\n" +
+	"\n" +
+	"if_version\x18\x05 \x01(\x03R\tifVersion\x1a7\n" +
+	"\tMetaEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xec\x01\n" +
+	"\x14CreateUploadResponse\x12\x1b\n" +
+	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12O\n" +
+	"\aheaders\x18\x03 \x03(\v25.elephant.assets.v1.CreateUploadResponse.HeadersEntryR\aheaders\x12\x18\n" +
+	"\aexpires\x18\x04 \x01(\x03R\aexpires\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"2\n" +
+	"\x13CommitUploadRequest\x12\x1b\n" +
+	"\tupload_id\x18\x01 \x01(\tR\buploadId\"_\n" +
+	"\x14CommitUploadResponse\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\x03R\aversion\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\",\n" +
+	"\x0fGetAssetRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\"C\n" +
+	"\x10GetAssetResponse\x12/\n" +
+	"\x05asset\x18\x01 \x01(\v2\x19.elephant.assets.v1.AssetR\x05asset\"\x9e\x02\n" +
+	"\x05Asset\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12'\n" +
+	"\x0fcurrent_version\x18\x03 \x01(\x03R\x0ecurrentVersion\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\x05 \x01(\tR\tcreatedBy\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"deleted_at\x18\a \x01(\x03R\tdeletedAt\x12\x19\n" +
+	"\bsweep_at\x18\b \x01(\x03R\asweepAt\x12<\n" +
+	"\bversions\x18\t \x03(\v2 .elephant.assets.v1.AssetVersionR\bversions\"\xf0\x02\n" +
+	"\fAssetVersion\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1a\n" +
+	"\bfilename\x18\x03 \x01(\tR\bfilename\x12\x10\n" +
+	"\x03ext\x18\x04 \x01(\tR\x03ext\x12!\n" +
+	"\fcontent_type\x18\x05 \x01(\tR\vcontentType\x12\x12\n" +
+	"\x04size\x18\x06 \x01(\x03R\x04size\x12\x16\n" +
+	"\x06sha256\x18\a \x01(\tR\x06sha256\x12>\n" +
+	"\x04meta\x18\b \x03(\v2*.elephant.assets.v1.AssetVersion.MetaEntryR\x04meta\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\t \x01(\tR\tcreatedBy\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\n" +
+	" \x01(\x03R\tcreatedAt\x1a7\n" +
+	"\tMetaEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"M\n" +
+	"\x12DeleteAssetRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1c\n" +
+	"\timmediate\x18\x02 \x01(\bR\timmediate\"\x15\n" +
+	"\x13DeleteAssetResponse\"0\n" +
+	"\x13RestoreAssetRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\"\x16\n" +
+	"\x14RestoreAssetResponse\"\x17\n" +
+	"\x15GetUploadTypesRequest\"N\n" +
+	"\x16GetUploadTypesResponse\x124\n" +
+	"\x05types\x18\x01 \x03(\v2\x1e.elephant.assets.v1.UploadTypeR\x05types\"\x95\x01\n" +
+	"\n" +
+	"UploadType\x12\x10\n" +
+	"\x03ext\x18\x01 \x01(\tR\x03ext\x12!\n" +
+	"\fcontent_type\x18\x02 \x01(\tR\vcontentType\x12\x12\n" +
+	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x19\n" +
+	"\bmax_size\x18\x04 \x01(\x03R\amaxSize\x12#\n" +
+	"\rcanonical_ext\x18\x05 \x01(\tR\fcanonicalExt2\xaa\x02\n" +
 	"\vKeysService\x12g\n" +
 	"\x0eGetSigningKeys\x12).elephant.assets.v1.GetSigningKeysRequest\x1a*.elephant.assets.v1.GetSigningKeysResponse\x12^\n" +
 	"\vGetVariants\x12&.elephant.assets.v1.GetVariantsRequest\x1a'.elephant.assets.v1.GetVariantsResponse\x12R\n" +
@@ -1756,7 +2787,14 @@ const file_elephant_assets_v1_service_proto_rawDesc = "" +
 	"\x12ListMetadataFields\x12-.elephant.assets.v1.ListMetadataFieldsRequest\x1a..elephant.assets.v1.ListMetadataFieldsResponse\x12m\n" +
 	"\x10AddMetadataField\x12+.elephant.assets.v1.AddMetadataFieldRequest\x1a,.elephant.assets.v1.AddMetadataFieldResponse\x12v\n" +
 	"\x13RemoveMetadataField\x12..elephant.assets.v1.RemoveMetadataFieldRequest\x1a/.elephant.assets.v1.RemoveMetadataFieldResponse\x12v\n" +
-	"\x13InspectCropMetadata\x12..elephant.assets.v1.InspectCropMetadataRequest\x1a/.elephant.assets.v1.InspectCropMetadataResponseBAZ?github.com/ttab/elephant-public-api/elephant/assets/v1;assetsv1b\x06proto3"
+	"\x13InspectCropMetadata\x12..elephant.assets.v1.InspectCropMetadataRequest\x1a/.elephant.assets.v1.InspectCropMetadataResponse2\xd9\x04\n" +
+	"\x0eStorageService\x12a\n" +
+	"\fCreateUpload\x12'.elephant.assets.v1.CreateUploadRequest\x1a(.elephant.assets.v1.CreateUploadResponse\x12a\n" +
+	"\fCommitUpload\x12'.elephant.assets.v1.CommitUploadRequest\x1a(.elephant.assets.v1.CommitUploadResponse\x12U\n" +
+	"\bGetAsset\x12#.elephant.assets.v1.GetAssetRequest\x1a$.elephant.assets.v1.GetAssetResponse\x12^\n" +
+	"\vDeleteAsset\x12&.elephant.assets.v1.DeleteAssetRequest\x1a'.elephant.assets.v1.DeleteAssetResponse\x12a\n" +
+	"\fRestoreAsset\x12'.elephant.assets.v1.RestoreAssetRequest\x1a(.elephant.assets.v1.RestoreAssetResponse\x12g\n" +
+	"\x0eGetUploadTypes\x12).elephant.assets.v1.GetUploadTypesRequest\x1a*.elephant.assets.v1.GetUploadTypesResponseBAZ?github.com/ttab/elephant-public-api/elephant/assets/v1;assetsv1b\x06proto3"
 
 var (
 	file_elephant_assets_v1_service_proto_rawDescOnce sync.Once
@@ -1770,7 +2808,7 @@ func file_elephant_assets_v1_service_proto_rawDescGZIP() []byte {
 	return file_elephant_assets_v1_service_proto_rawDescData
 }
 
-var file_elephant_assets_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_elephant_assets_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_elephant_assets_v1_service_proto_goTypes = []any{
 	(*SignURLRequest)(nil),              // 0: elephant.assets.v1.SignURLRequest
 	(*SignURLResponse)(nil),             // 1: elephant.assets.v1.SignURLResponse
@@ -1799,6 +2837,24 @@ var file_elephant_assets_v1_service_proto_goTypes = []any{
 	(*SetAudienceDenyResponse)(nil),     // 24: elephant.assets.v1.SetAudienceDenyResponse
 	(*WarmIntermediateRequest)(nil),     // 25: elephant.assets.v1.WarmIntermediateRequest
 	(*WarmIntermediateResponse)(nil),    // 26: elephant.assets.v1.WarmIntermediateResponse
+	(*CreateUploadRequest)(nil),         // 27: elephant.assets.v1.CreateUploadRequest
+	(*CreateUploadResponse)(nil),        // 28: elephant.assets.v1.CreateUploadResponse
+	(*CommitUploadRequest)(nil),         // 29: elephant.assets.v1.CommitUploadRequest
+	(*CommitUploadResponse)(nil),        // 30: elephant.assets.v1.CommitUploadResponse
+	(*GetAssetRequest)(nil),             // 31: elephant.assets.v1.GetAssetRequest
+	(*GetAssetResponse)(nil),            // 32: elephant.assets.v1.GetAssetResponse
+	(*Asset)(nil),                       // 33: elephant.assets.v1.Asset
+	(*AssetVersion)(nil),                // 34: elephant.assets.v1.AssetVersion
+	(*DeleteAssetRequest)(nil),          // 35: elephant.assets.v1.DeleteAssetRequest
+	(*DeleteAssetResponse)(nil),         // 36: elephant.assets.v1.DeleteAssetResponse
+	(*RestoreAssetRequest)(nil),         // 37: elephant.assets.v1.RestoreAssetRequest
+	(*RestoreAssetResponse)(nil),        // 38: elephant.assets.v1.RestoreAssetResponse
+	(*GetUploadTypesRequest)(nil),       // 39: elephant.assets.v1.GetUploadTypesRequest
+	(*GetUploadTypesResponse)(nil),      // 40: elephant.assets.v1.GetUploadTypesResponse
+	(*UploadType)(nil),                  // 41: elephant.assets.v1.UploadType
+	nil,                                 // 42: elephant.assets.v1.CreateUploadRequest.MetaEntry
+	nil,                                 // 43: elephant.assets.v1.CreateUploadResponse.HeadersEntry
+	nil,                                 // 44: elephant.assets.v1.AssetVersion.MetaEntry
 }
 var file_elephant_assets_v1_service_proto_depIdxs = []int32{
 	8,  // 0: elephant.assets.v1.GetSigningKeysResponse.keys:type_name -> elephant.assets.v1.SigningKey
@@ -1809,33 +2865,51 @@ var file_elephant_assets_v1_service_proto_depIdxs = []int32{
 	9,  // 5: elephant.assets.v1.ListMetadataFieldsResponse.fields:type_name -> elephant.assets.v1.MetadataField
 	9,  // 6: elephant.assets.v1.AddMetadataFieldRequest.field:type_name -> elephant.assets.v1.MetadataField
 	9,  // 7: elephant.assets.v1.RemoveMetadataFieldRequest.field:type_name -> elephant.assets.v1.MetadataField
-	2,  // 8: elephant.assets.v1.KeysService.GetSigningKeys:input_type -> elephant.assets.v1.GetSigningKeysRequest
-	4,  // 9: elephant.assets.v1.KeysService.GetVariants:input_type -> elephant.assets.v1.GetVariantsRequest
-	0,  // 10: elephant.assets.v1.KeysService.SignURL:input_type -> elephant.assets.v1.SignURLRequest
-	19, // 11: elephant.assets.v1.ManagementService.Takedown:input_type -> elephant.assets.v1.TakedownRequest
-	21, // 12: elephant.assets.v1.ManagementService.RemoveSelectorPin:input_type -> elephant.assets.v1.RemoveSelectorPinRequest
-	23, // 13: elephant.assets.v1.ManagementService.SetAudienceDeny:input_type -> elephant.assets.v1.SetAudienceDenyRequest
-	25, // 14: elephant.assets.v1.ManagementService.WarmIntermediate:input_type -> elephant.assets.v1.WarmIntermediateRequest
-	13, // 15: elephant.assets.v1.ManagementService.ListMetadataFields:input_type -> elephant.assets.v1.ListMetadataFieldsRequest
-	15, // 16: elephant.assets.v1.ManagementService.AddMetadataField:input_type -> elephant.assets.v1.AddMetadataFieldRequest
-	17, // 17: elephant.assets.v1.ManagementService.RemoveMetadataField:input_type -> elephant.assets.v1.RemoveMetadataFieldRequest
-	11, // 18: elephant.assets.v1.ManagementService.InspectCropMetadata:input_type -> elephant.assets.v1.InspectCropMetadataRequest
-	3,  // 19: elephant.assets.v1.KeysService.GetSigningKeys:output_type -> elephant.assets.v1.GetSigningKeysResponse
-	5,  // 20: elephant.assets.v1.KeysService.GetVariants:output_type -> elephant.assets.v1.GetVariantsResponse
-	1,  // 21: elephant.assets.v1.KeysService.SignURL:output_type -> elephant.assets.v1.SignURLResponse
-	20, // 22: elephant.assets.v1.ManagementService.Takedown:output_type -> elephant.assets.v1.TakedownResponse
-	22, // 23: elephant.assets.v1.ManagementService.RemoveSelectorPin:output_type -> elephant.assets.v1.RemoveSelectorPinResponse
-	24, // 24: elephant.assets.v1.ManagementService.SetAudienceDeny:output_type -> elephant.assets.v1.SetAudienceDenyResponse
-	26, // 25: elephant.assets.v1.ManagementService.WarmIntermediate:output_type -> elephant.assets.v1.WarmIntermediateResponse
-	14, // 26: elephant.assets.v1.ManagementService.ListMetadataFields:output_type -> elephant.assets.v1.ListMetadataFieldsResponse
-	16, // 27: elephant.assets.v1.ManagementService.AddMetadataField:output_type -> elephant.assets.v1.AddMetadataFieldResponse
-	18, // 28: elephant.assets.v1.ManagementService.RemoveMetadataField:output_type -> elephant.assets.v1.RemoveMetadataFieldResponse
-	12, // 29: elephant.assets.v1.ManagementService.InspectCropMetadata:output_type -> elephant.assets.v1.InspectCropMetadataResponse
-	19, // [19:30] is the sub-list for method output_type
-	8,  // [8:19] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	42, // 8: elephant.assets.v1.CreateUploadRequest.meta:type_name -> elephant.assets.v1.CreateUploadRequest.MetaEntry
+	43, // 9: elephant.assets.v1.CreateUploadResponse.headers:type_name -> elephant.assets.v1.CreateUploadResponse.HeadersEntry
+	33, // 10: elephant.assets.v1.GetAssetResponse.asset:type_name -> elephant.assets.v1.Asset
+	34, // 11: elephant.assets.v1.Asset.versions:type_name -> elephant.assets.v1.AssetVersion
+	44, // 12: elephant.assets.v1.AssetVersion.meta:type_name -> elephant.assets.v1.AssetVersion.MetaEntry
+	41, // 13: elephant.assets.v1.GetUploadTypesResponse.types:type_name -> elephant.assets.v1.UploadType
+	2,  // 14: elephant.assets.v1.KeysService.GetSigningKeys:input_type -> elephant.assets.v1.GetSigningKeysRequest
+	4,  // 15: elephant.assets.v1.KeysService.GetVariants:input_type -> elephant.assets.v1.GetVariantsRequest
+	0,  // 16: elephant.assets.v1.KeysService.SignURL:input_type -> elephant.assets.v1.SignURLRequest
+	19, // 17: elephant.assets.v1.ManagementService.Takedown:input_type -> elephant.assets.v1.TakedownRequest
+	21, // 18: elephant.assets.v1.ManagementService.RemoveSelectorPin:input_type -> elephant.assets.v1.RemoveSelectorPinRequest
+	23, // 19: elephant.assets.v1.ManagementService.SetAudienceDeny:input_type -> elephant.assets.v1.SetAudienceDenyRequest
+	25, // 20: elephant.assets.v1.ManagementService.WarmIntermediate:input_type -> elephant.assets.v1.WarmIntermediateRequest
+	13, // 21: elephant.assets.v1.ManagementService.ListMetadataFields:input_type -> elephant.assets.v1.ListMetadataFieldsRequest
+	15, // 22: elephant.assets.v1.ManagementService.AddMetadataField:input_type -> elephant.assets.v1.AddMetadataFieldRequest
+	17, // 23: elephant.assets.v1.ManagementService.RemoveMetadataField:input_type -> elephant.assets.v1.RemoveMetadataFieldRequest
+	11, // 24: elephant.assets.v1.ManagementService.InspectCropMetadata:input_type -> elephant.assets.v1.InspectCropMetadataRequest
+	27, // 25: elephant.assets.v1.StorageService.CreateUpload:input_type -> elephant.assets.v1.CreateUploadRequest
+	29, // 26: elephant.assets.v1.StorageService.CommitUpload:input_type -> elephant.assets.v1.CommitUploadRequest
+	31, // 27: elephant.assets.v1.StorageService.GetAsset:input_type -> elephant.assets.v1.GetAssetRequest
+	35, // 28: elephant.assets.v1.StorageService.DeleteAsset:input_type -> elephant.assets.v1.DeleteAssetRequest
+	37, // 29: elephant.assets.v1.StorageService.RestoreAsset:input_type -> elephant.assets.v1.RestoreAssetRequest
+	39, // 30: elephant.assets.v1.StorageService.GetUploadTypes:input_type -> elephant.assets.v1.GetUploadTypesRequest
+	3,  // 31: elephant.assets.v1.KeysService.GetSigningKeys:output_type -> elephant.assets.v1.GetSigningKeysResponse
+	5,  // 32: elephant.assets.v1.KeysService.GetVariants:output_type -> elephant.assets.v1.GetVariantsResponse
+	1,  // 33: elephant.assets.v1.KeysService.SignURL:output_type -> elephant.assets.v1.SignURLResponse
+	20, // 34: elephant.assets.v1.ManagementService.Takedown:output_type -> elephant.assets.v1.TakedownResponse
+	22, // 35: elephant.assets.v1.ManagementService.RemoveSelectorPin:output_type -> elephant.assets.v1.RemoveSelectorPinResponse
+	24, // 36: elephant.assets.v1.ManagementService.SetAudienceDeny:output_type -> elephant.assets.v1.SetAudienceDenyResponse
+	26, // 37: elephant.assets.v1.ManagementService.WarmIntermediate:output_type -> elephant.assets.v1.WarmIntermediateResponse
+	14, // 38: elephant.assets.v1.ManagementService.ListMetadataFields:output_type -> elephant.assets.v1.ListMetadataFieldsResponse
+	16, // 39: elephant.assets.v1.ManagementService.AddMetadataField:output_type -> elephant.assets.v1.AddMetadataFieldResponse
+	18, // 40: elephant.assets.v1.ManagementService.RemoveMetadataField:output_type -> elephant.assets.v1.RemoveMetadataFieldResponse
+	12, // 41: elephant.assets.v1.ManagementService.InspectCropMetadata:output_type -> elephant.assets.v1.InspectCropMetadataResponse
+	28, // 42: elephant.assets.v1.StorageService.CreateUpload:output_type -> elephant.assets.v1.CreateUploadResponse
+	30, // 43: elephant.assets.v1.StorageService.CommitUpload:output_type -> elephant.assets.v1.CommitUploadResponse
+	32, // 44: elephant.assets.v1.StorageService.GetAsset:output_type -> elephant.assets.v1.GetAssetResponse
+	36, // 45: elephant.assets.v1.StorageService.DeleteAsset:output_type -> elephant.assets.v1.DeleteAssetResponse
+	38, // 46: elephant.assets.v1.StorageService.RestoreAsset:output_type -> elephant.assets.v1.RestoreAssetResponse
+	40, // 47: elephant.assets.v1.StorageService.GetUploadTypes:output_type -> elephant.assets.v1.GetUploadTypesResponse
+	31, // [31:48] is the sub-list for method output_type
+	14, // [14:31] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_elephant_assets_v1_service_proto_init() }
@@ -1849,9 +2923,9 @@ func file_elephant_assets_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_elephant_assets_v1_service_proto_rawDesc), len(file_elephant_assets_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   45,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   3,
 		},
 		GoTypes:           file_elephant_assets_v1_service_proto_goTypes,
 		DependencyIndexes: file_elephant_assets_v1_service_proto_depIdxs,

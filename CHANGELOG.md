@@ -46,6 +46,12 @@ payload, so a verifier is unaffected.
 
 Changes:
 
+- Assets has a `StorageService` for originals that live in no other archive,
+  such as third-party PDFs and audio: `CreateUpload` returns a presigned PUT
+  URL, `CommitUpload` makes the uploaded bytes an asset version, and
+  `GetAsset`, `DeleteAsset`, `RestoreAsset` and `GetUploadTypes` manage the
+  result. It requires the new `asset_store` scope, with `asset_admin` for an
+  immediate delete.
 - `DocumentEvent.nonce` is the generation the event belongs to — the
   repository's per-generation document nonce, the same value a pushed object's
   envelope carries as `document_nonce`. Group by `(doc_uuid, nonce)`: the
