@@ -1224,6 +1224,12 @@ type ContentServiceClient interface {
 	// than from the last item: a page that was entirely gated comes back
 	// with no items and a last_event_id beyond them, and a consumer that
 	// follows it does not stall on a run of gated events.
+	//
+	// A left-out event is a gap in the event IDs, and the hash chain cannot
+	// be checked across it: the entry after the gap names the signature of
+	// an event the caller never received. A verifying consumer checks the
+	// chain between consecutive IDs only and every entry's signature on its
+	// own - see DocumentEvent.parent.
 	GetNewDocuments(context.Context, *connect.Request[v1.GetNewDocumentsRequest]) (*connect.Response[v1.GetNewDocumentsResponse], error)
 	// GetSigningKeys returns the public keys the transparency log's
 	// signatures are made with, so that a consumer reading the log with
@@ -1534,6 +1540,12 @@ type ContentServiceHandler interface {
 	// than from the last item: a page that was entirely gated comes back
 	// with no items and a last_event_id beyond them, and a consumer that
 	// follows it does not stall on a run of gated events.
+	//
+	// A left-out event is a gap in the event IDs, and the hash chain cannot
+	// be checked across it: the entry after the gap names the signature of
+	// an event the caller never received. A verifying consumer checks the
+	// chain between consecutive IDs only and every entry's signature on its
+	// own - see DocumentEvent.parent.
 	GetNewDocuments(context.Context, *connect.Request[v1.GetNewDocumentsRequest]) (*connect.Response[v1.GetNewDocumentsResponse], error)
 	// GetSigningKeys returns the public keys the transparency log's
 	// signatures are made with, so that a consumer reading the log with

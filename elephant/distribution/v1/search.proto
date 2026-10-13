@@ -16,10 +16,16 @@ option go_package = "github.com/ttab/elephant-public-api/elephant/distribution/v
 // "dist_admin".
 //
 // Search sees what the caller's organisation is entitled to, as Content
-// does; see Entitlement. Documents a gate hides are filtered out inside
-// the query, so the hit count, the paging and the k of a semantic query
-// are all counted over what the caller may see, and a result never
-// reveals that gated documents exist.
+// does, and fails closed the same way: a token without an "org" claim
+// holds no grants, and "dist_admin" lifts no gate; see Entitlement.
+// Documents a gate hides are filtered out inside the query, so the hit
+// count, the paging and the k of a semantic query are all counted over
+// what the caller may see, and a result never reveals that gated
+// documents exist.
+//
+// A gate the index cannot evaluate is enforced on the hits instead: see
+// the dropped hits under Query. Nothing of a gated document is returned
+// either way, but a dropped hit is still counted in the total.
 service SearchService {
   // Query searches one language series of one tier. Language is required
   // and a query never fans out across languages: searching several
@@ -34,6 +40,19 @@ service SearchService {
   // like an answer. Left out of an empty document_types, the type is
   // skipped silently. Documents hidden by a field gate are excluded from
   // the hits, semantic queries included, with no error.
+  //
+  // Every hit is also checked against the document's current stored
+  // version, the one load_documents would deliver, whether or not
+  // documents were asked for. A hit whose current version the caller is
+  // not entitled to is dropped from the response altogether - no id,
+  // fields, subset or HTML - rather than returned without its document.
+  // That catches what the filter inside the query cannot: a document that
+  // moved into a gate after the version the index matched on (the index
+  // collapses on the document and would otherwise return the older,
+  // ungated version), and content indexed before its gate's field was -
+  // see RegisterConfigGenerationResponse.reindex_needed. Those are
+  // counted in total, so a page can hold fewer hits than size while more
+  // pages follow.
   rpc Query(QueryRequest) returns (QueryResponse);
   // GetMappings returns the searchable fields of a document type and the
   // type of each field, as the union across the language indexes. Use it
@@ -486,9 +505,12 @@ message Sort {
 
 message QueryResponse {
   // Total number of documents that matched the query, which can be more
-  // than the number of returned hits.
+  // than the number of returned hits. It is counted by the index, so it
+  // includes the hits dropped after the query because the caller is not
+  // entitled to them - see SearchService.Query.
   HitsTotal total = 1;
-  // Hits in the requested order, at most size of them.
+  // Hits in the requested order, at most size of them, and fewer than
+  // size on a page that had hits dropped for entitlement.
   repeated Hit hits = 2;
 }
 
@@ -519,7 +541,9 @@ message Hit {
   // query and meaningless between queries.
   float score = 2;
   // Fields are the values of the requested fields, keyed by field name.
-  // Fields without a value for the document are absent.
+  // Fields without a value for the document are absent. They are never
+  // returned for a document the caller is not entitled to: such a hit is
+  // dropped, see SearchService.Query.
   map<string, StringValues> fields = 3;
   // Document is the loaded document, when the query asked for it with
   // load_documents and the document is still stored. It is the current
@@ -555,8 +579,9 @@ message Hit {
   // ContentService.GetDocumentVersions.
   //
   // A hit with neither a document nor deferred set has no document to
-  // load: it was deleted or erased since it was indexed, or the version
-  // that would be loaded is one the caller is not entitled to.
+  // load: it was deleted or erased since it was indexed. A hit whose
+  // document the caller is not entitled to is never returned at all, see
+  // SearchService.Query.
   bool deferred = 9;
   // RenderedHTML is the loaded document rendered to HTML, when the query
   // asked for it with include_html. It is rendered from the version that

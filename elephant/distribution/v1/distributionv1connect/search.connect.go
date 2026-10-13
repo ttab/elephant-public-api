@@ -55,6 +55,19 @@ type SearchServiceClient interface {
 	// like an answer. Left out of an empty document_types, the type is
 	// skipped silently. Documents hidden by a field gate are excluded from
 	// the hits, semantic queries included, with no error.
+	//
+	// Every hit is also checked against the document's current stored
+	// version, the one load_documents would deliver, whether or not
+	// documents were asked for. A hit whose current version the caller is
+	// not entitled to is dropped from the response altogether - no id,
+	// fields, subset or HTML - rather than returned without its document.
+	// That catches what the filter inside the query cannot: a document that
+	// moved into a gate after the version the index matched on (the index
+	// collapses on the document and would otherwise return the older,
+	// ungated version), and content indexed before its gate's field was -
+	// see RegisterConfigGenerationResponse.reindex_needed. Those are
+	// counted in total, so a page can hold fewer hits than size while more
+	// pages follow.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it
@@ -127,6 +140,19 @@ type SearchServiceHandler interface {
 	// like an answer. Left out of an empty document_types, the type is
 	// skipped silently. Documents hidden by a field gate are excluded from
 	// the hits, semantic queries included, with no error.
+	//
+	// Every hit is also checked against the document's current stored
+	// version, the one load_documents would deliver, whether or not
+	// documents were asked for. A hit whose current version the caller is
+	// not entitled to is dropped from the response altogether - no id,
+	// fields, subset or HTML - rather than returned without its document.
+	// That catches what the filter inside the query cannot: a document that
+	// moved into a gate after the version the index matched on (the index
+	// collapses on the document and would otherwise return the older,
+	// ungated version), and content indexed before its gate's field was -
+	// see RegisterConfigGenerationResponse.reindex_needed. Those are
+	// counted in total, so a page can hold fewer hits than size while more
+	// pages follow.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it

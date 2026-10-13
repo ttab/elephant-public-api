@@ -1567,9 +1567,12 @@ func (x *Sort) GetDesc() bool {
 type QueryResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Total number of documents that matched the query, which can be more
-	// than the number of returned hits.
+	// than the number of returned hits. It is counted by the index, so it
+	// includes the hits dropped after the query because the caller is not
+	// entitled to them - see SearchService.Query.
 	Total *HitsTotal `protobuf:"bytes,1,opt,name=total,proto3" json:"total,omitempty"`
-	// Hits in the requested order, at most size of them.
+	// Hits in the requested order, at most size of them, and fewer than
+	// size on a page that had hits dropped for entitlement.
 	Hits          []*Hit `protobuf:"bytes,2,rep,name=hits,proto3" json:"hits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1694,7 +1697,9 @@ type Hit struct {
 	// query and meaningless between queries.
 	Score float32 `protobuf:"fixed32,2,opt,name=score,proto3" json:"score,omitempty"`
 	// Fields are the values of the requested fields, keyed by field name.
-	// Fields without a value for the document are absent.
+	// Fields without a value for the document are absent. They are never
+	// returned for a document the caller is not entitled to: such a hit is
+	// dropped, see SearchService.Query.
 	Fields map[string]*StringValues `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Document is the loaded document, when the query asked for it with
 	// load_documents and the document is still stored. It is the current
@@ -1730,8 +1735,9 @@ type Hit struct {
 	// ContentService.GetDocumentVersions.
 	//
 	// A hit with neither a document nor deferred set has no document to
-	// load: it was deleted or erased since it was indexed, or the version
-	// that would be loaded is one the caller is not entitled to.
+	// load: it was deleted or erased since it was indexed. A hit whose
+	// document the caller is not entitled to is never returned at all, see
+	// SearchService.Query.
 	Deferred bool `protobuf:"varint,9,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is the loaded document rendered to HTML, when the query
 	// asked for it with include_html. It is rendered from the version that

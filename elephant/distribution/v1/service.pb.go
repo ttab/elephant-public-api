@@ -65,7 +65,10 @@ type GetNewDocumentsRequest struct {
 	// doc_hash, signature and parent. Together with the fields an event
 	// always carries they are the complete signed payload, so a consumer
 	// can recompute each entry's hash, verify the signature against the
-	// public keys at GET /signing-keys, and check that the page chains.
+	// public keys at GET /signing-keys, and check that the page chains
+	// wherever its event IDs are consecutive - a caller that is not
+	// entitled to every document gets a log with gaps, see
+	// DocumentEvent.parent.
 	// Off by default: the three fields are a few hundred bytes an event
 	// that a consumer which doesn't verify would carry for nothing.
 	Verification bool `protobuf:"varint,8,opt,name=verification,proto3" json:"verification,omitempty"`
@@ -486,7 +489,9 @@ type PublishedVersion struct {
 	//
 	// An entry with neither a document nor deferred set has no document to
 	// load - it has been erased, or the caller is not entitled to it - so
-	// don't ask for it again.
+	// don't ask for it again. An entry the caller is not entitled to carries
+	// no subset and no rendered_html either: everything taken from the body
+	// is withheld with it.
 	Deferred bool `protobuf:"varint,10,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is this version rendered to HTML, when the request asked
 	// for it with include_html. It follows the document: a deferred entry
@@ -810,7 +815,9 @@ type LoadedDocumentVersion struct {
 	// Found is false when the version is in neither the store nor the
 	// archive - erased, deleted, or never distributed - and when the caller
 	// is not entitled to it, which is deliberately not told apart. Don't ask
-	// again.
+	// again. A version that is not found carries nothing but its uuid and
+	// the version asked for: no document, subset or rendered_html, and no
+	// published_at or first_published.
 	Found bool `protobuf:"varint,8,opt,name=found,proto3" json:"found,omitempty"`
 	// RenderedHTML is this version rendered to HTML, when the request asked
 	// for it with include_html. Absent for a deferred version, exactly as
@@ -2886,7 +2893,9 @@ type DocumentItem struct {
 	//
 	// An item with neither a document nor deferred set has no document to
 	// load: it is a tombstone, the document has been deleted or erased, or
-	// the caller is not entitled to it. Don't ask for it again.
+	// the caller is not entitled to it. Don't ask for it again. An item the
+	// caller is not entitled to carries no subset and no rendered_html
+	// either: everything taken from the body is withheld with it.
 	Deferred bool `protobuf:"varint,4,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is the document rendered to HTML, when the request asked
 	// for it with include_html. An <article> fragment, and empty whenever
@@ -3214,9 +3223,19 @@ type DocumentEvent struct {
 	// Requires verification.
 	Signature string `protobuf:"bytes,11,opt,name=signature,proto3" json:"signature,omitempty"`
 	// Parent is the signature of event id-1, chaining the log, and is
-	// empty for event 1. A page therefore verifies as a chain on its own,
-	// and a consumer following the log checks that the first entry of a
-	// page names the signature of the last entry of the previous one.
+	// empty for event 1. A consumer checks it wherever it holds event id-1:
+	// between neighbouring entries of a page, and from the last entry of
+	// one page to the first entry of the next.
+	//
+	// That is every entry only for a caller entitled to all of the content.
+	// For any other caller the events it is not entitled to are left out of
+	// the log (see ContentService.GetNewDocuments), and an entry whose id is
+	// not its predecessor's plus one - within a page, or after a page whose
+	// last_event_id is beyond its last item - names a signature the caller
+	// never received. The chain is checked between consecutive IDs only;
+	// across a gap the entry's own signature is all that can be verified.
+	// The unbroken chain is in the archived eventlog chunks, which
+	// ArchiveService serves unfiltered under "dist_archive_read".
 	// Requires verification.
 	Parent string `protobuf:"bytes,12,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Nonce is the generation this event belongs to: the repository's
@@ -5428,10 +5447,13 @@ type RegisterConfigGenerationResponse struct {
 	Generation *ConfigGeneration `protobuf:"bytes,1,opt,name=generation,proto3" json:"generation,omitempty"`
 	// ReindexNeeded lists the field gates whose delivery field the active
 	// index generation was not built with. Search can only exclude a
-	// document by a field the index holds for it, so until the index is
-	// rebuilt a gated document indexed before the field was declared is
-	// still found by search - its body is refused on every surface all the
-	// same, and the eventlog and the daily views go on listing it.
+	// document inside the query by a field the index holds for it, so until
+	// the index is rebuilt a gated document indexed before the field was
+	// declared still matches. It is dropped from the hits after the query -
+	// see SearchService.Query - so nothing of it is returned, but it is
+	// counted in the total and a page can come back short. Its body is
+	// refused on every surface all the same, and the eventlog and the daily
+	// views go on listing it.
 	//
 	// It is a report, not a refusal: the generation is registered either
 	// way, and a gate on a field the active index generation was built with
@@ -5498,6 +5520,12 @@ func (x *RegisterConfigGenerationResponse) GetReindexNeeded() []*GateCoverage {
 // stamped on what is stored, so changing a gate is an activation and not
 // a rewrite. A document that matches the gates of several entitlements
 // requires all of them, which fails closed.
+//
+// The organisation is the "org" claim of the caller's token, or the owner
+// of a subscription or destination. Entitlements fail closed: a token
+// without an "org" claim, or with an empty one, holds no grants and every
+// gate applies to it, and no scope other than "dist_archive_read" lifts a
+// gate - "dist_admin" does not.
 //
 // The one place an entitlement does not reach is the archive export:
 // ArchiveService hands out presigned URLs to whole objects and chunks,
@@ -5712,8 +5740,9 @@ type GateCoverage struct {
 	DeliveryField string `protobuf:"bytes,3,opt,name=delivery_field,json=deliveryField,proto3" json:"delivery_field,omitempty"`
 	// IndexGeneration is the name of the active index generation, which was
 	// not built with the field for the type: the field is absent from its
-	// IndexGeneration.delivery_fields, or recorded there with a different
-	// expression.
+	// IndexGeneration.delivery_fields - never recorded, or removed since
+	// because a configuration that did not declare it was activated - or
+	// recorded there with a different expression.
 	IndexGeneration string `protobuf:"bytes,4,opt,name=index_generation,json=indexGeneration,proto3" json:"index_generation,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -7846,6 +7875,13 @@ type IndexGeneration struct {
 	// a field declared after the generation was created is written for the
 	// documents indexed from then on, but not for those already in it, and
 	// is not recorded here.
+	//
+	// The record only ever shrinks. When a configuration generation is
+	// activated that does not declare a recorded field on its type, or
+	// declares it with a different kind or expression, the entry is removed:
+	// documents indexed in the meantime lack the field or carry other
+	// values, so declaring it again later does not make the generation
+	// cover it again. Only a new index generation does.
 	//
 	// It is the record RegisterConfigGeneration's reindex_needed is derived
 	// from. A generation created before delivery fields were indexed has
