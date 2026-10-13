@@ -70,6 +70,15 @@ const (
 	// ConfigurationServiceListRendererSecretsProcedure is the fully-qualified name of the
 	// ConfigurationService's ListRendererSecrets RPC.
 	ConfigurationServiceListRendererSecretsProcedure = "/elephant.distribution.v1.ConfigurationService/ListRendererSecrets"
+	// ConfigurationServiceGrantEntitlementProcedure is the fully-qualified name of the
+	// ConfigurationService's GrantEntitlement RPC.
+	ConfigurationServiceGrantEntitlementProcedure = "/elephant.distribution.v1.ConfigurationService/GrantEntitlement"
+	// ConfigurationServiceRevokeEntitlementProcedure is the fully-qualified name of the
+	// ConfigurationService's RevokeEntitlement RPC.
+	ConfigurationServiceRevokeEntitlementProcedure = "/elephant.distribution.v1.ConfigurationService/RevokeEntitlement"
+	// ConfigurationServiceListEntitlementGrantsProcedure is the fully-qualified name of the
+	// ConfigurationService's ListEntitlementGrants RPC.
+	ConfigurationServiceListEntitlementGrantsProcedure = "/elephant.distribution.v1.ConfigurationService/ListEntitlementGrants"
 	// ConfigurationServiceSetSyncStateProcedure is the fully-qualified name of the
 	// ConfigurationService's SetSyncState RPC.
 	ConfigurationServiceSetSyncStateProcedure = "/elephant.distribution.v1.ConfigurationService/SetSyncState"
@@ -149,6 +158,11 @@ type ConfigurationServiceClient interface {
 	// versions can be re-used by name and version without re-supplying the
 	// spec; if the spec is supplied for an existing version it must match
 	// the stored one. Returns the new generation ID.
+	//
+	// The entitlements are validated here, and a field gate whose field
+	// search cannot see on all of the indexed content is reported in the
+	// response rather than refused: see
+	// RegisterConfigGenerationResponse.reindex_needed.
 	RegisterConfigGeneration(context.Context, *connect.Request[v1.RegisterConfigGenerationRequest]) (*connect.Response[v1.RegisterConfigGenerationResponse], error)
 	// ActivateConfigGeneration switches the active configuration to the
 	// generation with the given ID.
@@ -193,6 +207,35 @@ type ConfigurationServiceClient interface {
 	// the keyring entry each one is sealed under and when it was last
 	// written. Never their values.
 	ListRendererSecrets(context.Context, *connect.Request[v1.ListRendererSecretsRequest]) (*connect.Response[v1.ListRendererSecretsResponse], error)
+	// GrantEntitlement grants an organisation an entitlement: from then on
+	// the content the entitlement's gates hide is visible to callers whose
+	// "org" claim names the organisation, and is delivered to the
+	// subscriptions and destinations it owns. See Entitlement for what a
+	// gate hides.
+	//
+	// Grants are a table in the service rather than a claim in the token,
+	// because the delivery matcher and push run without a caller and need
+	// the owner's grants, and a grant takes effect on every surface and in
+	// every process at once. Granting is idempotent: granting what is
+	// already granted returns the existing grant unchanged.
+	//
+	// The entitlement is not checked against the configuration. A grant
+	// naming an entitlement the active generation does not define is kept
+	// and does nothing until a generation that defines it is activated, so
+	// grants can be put in place before the gate that needs them.
+	GrantEntitlement(context.Context, *connect.Request[v1.GrantEntitlementRequest]) (*connect.Response[v1.GrantEntitlementResponse], error)
+	// RevokeEntitlement removes a grant. It takes effect immediately on
+	// every surface: the next read is refused, nothing more is queued for
+	// the organisation's destinations, and queued pushes that are not sent
+	// yet are dropped when their turn comes. Erasure deletion markers are
+	// the exception and are still sent: the obligation to tell a destination
+	// outlives the grant that put the content there.
+	//
+	// Revoking a grant that does not exist is not an error.
+	RevokeEntitlement(context.Context, *connect.Request[v1.RevokeEntitlementRequest]) (*connect.Response[v1.RevokeEntitlementResponse], error)
+	// ListEntitlementGrants lists the grants, optionally narrowed to one
+	// organisation or one entitlement.
+	ListEntitlementGrants(context.Context, *connect.Request[v1.ListEntitlementGrantsRequest]) (*connect.Response[v1.ListEntitlementGrantsResponse], error)
 	// SetSyncState sets the desired state of the distribution sync worker.
 	// A cold-started service (no configuration, no sync position) starts
 	// out paused so that the repository eventlog isn't consumed - and
@@ -288,6 +331,13 @@ type ConfigurationServiceClient interface {
 	// create a generation on the new cluster, watch it catch up with
 	// ListIndexGenerations, compare results through the generation override
 	// on SearchService.Query, activate, and delete the old one.
+	//
+	// It is also how a delivery field gets onto content indexed before the
+	// field was declared, which is what a field gate introduced on existing
+	// content needs before search follows it. The generation records the
+	// delivery fields of the active configuration it is created under - see
+	// IndexGeneration.delivery_fields - and RegisterConfigGeneration reports
+	// a gate on a field the active index generation was not built with.
 	CreateIndexGeneration(context.Context, *connect.Request[v1.CreateIndexGenerationRequest]) (*connect.Response[v1.CreateIndexGenerationResponse], error)
 	// ListIndexGenerations lists the index generations together with the
 	// position each one's indexer has reached in the distribution eventlog
@@ -413,6 +463,24 @@ func NewConfigurationServiceClient(httpClient connect.HTTPClient, baseURL string
 			connect.WithSchema(configurationServiceMethods.ByName("ListRendererSecrets")),
 			connect.WithClientOptions(opts...),
 		),
+		grantEntitlement: connect.NewClient[v1.GrantEntitlementRequest, v1.GrantEntitlementResponse](
+			httpClient,
+			baseURL+ConfigurationServiceGrantEntitlementProcedure,
+			connect.WithSchema(configurationServiceMethods.ByName("GrantEntitlement")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeEntitlement: connect.NewClient[v1.RevokeEntitlementRequest, v1.RevokeEntitlementResponse](
+			httpClient,
+			baseURL+ConfigurationServiceRevokeEntitlementProcedure,
+			connect.WithSchema(configurationServiceMethods.ByName("RevokeEntitlement")),
+			connect.WithClientOptions(opts...),
+		),
+		listEntitlementGrants: connect.NewClient[v1.ListEntitlementGrantsRequest, v1.ListEntitlementGrantsResponse](
+			httpClient,
+			baseURL+ConfigurationServiceListEntitlementGrantsProcedure,
+			connect.WithSchema(configurationServiceMethods.ByName("ListEntitlementGrants")),
+			connect.WithClientOptions(opts...),
+		),
 		setSyncState: connect.NewClient[v1.SetSyncStateRequest, v1.SetSyncStateResponse](
 			httpClient,
 			baseURL+ConfigurationServiceSetSyncStateProcedure,
@@ -483,6 +551,9 @@ type configurationServiceClient struct {
 	setRendererSecret         *connect.Client[v1.SetRendererSecretRequest, v1.SetRendererSecretResponse]
 	deleteRendererSecret      *connect.Client[v1.DeleteRendererSecretRequest, v1.DeleteRendererSecretResponse]
 	listRendererSecrets       *connect.Client[v1.ListRendererSecretsRequest, v1.ListRendererSecretsResponse]
+	grantEntitlement          *connect.Client[v1.GrantEntitlementRequest, v1.GrantEntitlementResponse]
+	revokeEntitlement         *connect.Client[v1.RevokeEntitlementRequest, v1.RevokeEntitlementResponse]
+	listEntitlementGrants     *connect.Client[v1.ListEntitlementGrantsRequest, v1.ListEntitlementGrantsResponse]
 	setSyncState              *connect.Client[v1.SetSyncStateRequest, v1.SetSyncStateResponse]
 	getSyncStatus             *connect.Client[v1.GetSyncStatusRequest, v1.GetSyncStatusResponse]
 	eraseDocument             *connect.Client[v1.EraseDocumentRequest, v1.EraseDocumentResponse]
@@ -552,6 +623,21 @@ func (c *configurationServiceClient) ListRendererSecrets(ctx context.Context, re
 	return c.listRendererSecrets.CallUnary(ctx, req)
 }
 
+// GrantEntitlement calls elephant.distribution.v1.ConfigurationService.GrantEntitlement.
+func (c *configurationServiceClient) GrantEntitlement(ctx context.Context, req *connect.Request[v1.GrantEntitlementRequest]) (*connect.Response[v1.GrantEntitlementResponse], error) {
+	return c.grantEntitlement.CallUnary(ctx, req)
+}
+
+// RevokeEntitlement calls elephant.distribution.v1.ConfigurationService.RevokeEntitlement.
+func (c *configurationServiceClient) RevokeEntitlement(ctx context.Context, req *connect.Request[v1.RevokeEntitlementRequest]) (*connect.Response[v1.RevokeEntitlementResponse], error) {
+	return c.revokeEntitlement.CallUnary(ctx, req)
+}
+
+// ListEntitlementGrants calls elephant.distribution.v1.ConfigurationService.ListEntitlementGrants.
+func (c *configurationServiceClient) ListEntitlementGrants(ctx context.Context, req *connect.Request[v1.ListEntitlementGrantsRequest]) (*connect.Response[v1.ListEntitlementGrantsResponse], error) {
+	return c.listEntitlementGrants.CallUnary(ctx, req)
+}
+
 // SetSyncState calls elephant.distribution.v1.ConfigurationService.SetSyncState.
 func (c *configurationServiceClient) SetSyncState(ctx context.Context, req *connect.Request[v1.SetSyncStateRequest]) (*connect.Response[v1.SetSyncStateResponse], error) {
 	return c.setSyncState.CallUnary(ctx, req)
@@ -607,6 +693,11 @@ type ConfigurationServiceHandler interface {
 	// versions can be re-used by name and version without re-supplying the
 	// spec; if the spec is supplied for an existing version it must match
 	// the stored one. Returns the new generation ID.
+	//
+	// The entitlements are validated here, and a field gate whose field
+	// search cannot see on all of the indexed content is reported in the
+	// response rather than refused: see
+	// RegisterConfigGenerationResponse.reindex_needed.
 	RegisterConfigGeneration(context.Context, *connect.Request[v1.RegisterConfigGenerationRequest]) (*connect.Response[v1.RegisterConfigGenerationResponse], error)
 	// ActivateConfigGeneration switches the active configuration to the
 	// generation with the given ID.
@@ -651,6 +742,35 @@ type ConfigurationServiceHandler interface {
 	// the keyring entry each one is sealed under and when it was last
 	// written. Never their values.
 	ListRendererSecrets(context.Context, *connect.Request[v1.ListRendererSecretsRequest]) (*connect.Response[v1.ListRendererSecretsResponse], error)
+	// GrantEntitlement grants an organisation an entitlement: from then on
+	// the content the entitlement's gates hide is visible to callers whose
+	// "org" claim names the organisation, and is delivered to the
+	// subscriptions and destinations it owns. See Entitlement for what a
+	// gate hides.
+	//
+	// Grants are a table in the service rather than a claim in the token,
+	// because the delivery matcher and push run without a caller and need
+	// the owner's grants, and a grant takes effect on every surface and in
+	// every process at once. Granting is idempotent: granting what is
+	// already granted returns the existing grant unchanged.
+	//
+	// The entitlement is not checked against the configuration. A grant
+	// naming an entitlement the active generation does not define is kept
+	// and does nothing until a generation that defines it is activated, so
+	// grants can be put in place before the gate that needs them.
+	GrantEntitlement(context.Context, *connect.Request[v1.GrantEntitlementRequest]) (*connect.Response[v1.GrantEntitlementResponse], error)
+	// RevokeEntitlement removes a grant. It takes effect immediately on
+	// every surface: the next read is refused, nothing more is queued for
+	// the organisation's destinations, and queued pushes that are not sent
+	// yet are dropped when their turn comes. Erasure deletion markers are
+	// the exception and are still sent: the obligation to tell a destination
+	// outlives the grant that put the content there.
+	//
+	// Revoking a grant that does not exist is not an error.
+	RevokeEntitlement(context.Context, *connect.Request[v1.RevokeEntitlementRequest]) (*connect.Response[v1.RevokeEntitlementResponse], error)
+	// ListEntitlementGrants lists the grants, optionally narrowed to one
+	// organisation or one entitlement.
+	ListEntitlementGrants(context.Context, *connect.Request[v1.ListEntitlementGrantsRequest]) (*connect.Response[v1.ListEntitlementGrantsResponse], error)
 	// SetSyncState sets the desired state of the distribution sync worker.
 	// A cold-started service (no configuration, no sync position) starts
 	// out paused so that the repository eventlog isn't consumed - and
@@ -746,6 +866,13 @@ type ConfigurationServiceHandler interface {
 	// create a generation on the new cluster, watch it catch up with
 	// ListIndexGenerations, compare results through the generation override
 	// on SearchService.Query, activate, and delete the old one.
+	//
+	// It is also how a delivery field gets onto content indexed before the
+	// field was declared, which is what a field gate introduced on existing
+	// content needs before search follows it. The generation records the
+	// delivery fields of the active configuration it is created under - see
+	// IndexGeneration.delivery_fields - and RegisterConfigGeneration reports
+	// a gate on a field the active index generation was not built with.
 	CreateIndexGeneration(context.Context, *connect.Request[v1.CreateIndexGenerationRequest]) (*connect.Response[v1.CreateIndexGenerationResponse], error)
 	// ListIndexGenerations lists the index generations together with the
 	// position each one's indexer has reached in the distribution eventlog
@@ -866,6 +993,24 @@ func NewConfigurationServiceHandler(svc ConfigurationServiceHandler, opts ...con
 		connect.WithSchema(configurationServiceMethods.ByName("ListRendererSecrets")),
 		connect.WithHandlerOptions(opts...),
 	)
+	configurationServiceGrantEntitlementHandler := connect.NewUnaryHandler(
+		ConfigurationServiceGrantEntitlementProcedure,
+		svc.GrantEntitlement,
+		connect.WithSchema(configurationServiceMethods.ByName("GrantEntitlement")),
+		connect.WithHandlerOptions(opts...),
+	)
+	configurationServiceRevokeEntitlementHandler := connect.NewUnaryHandler(
+		ConfigurationServiceRevokeEntitlementProcedure,
+		svc.RevokeEntitlement,
+		connect.WithSchema(configurationServiceMethods.ByName("RevokeEntitlement")),
+		connect.WithHandlerOptions(opts...),
+	)
+	configurationServiceListEntitlementGrantsHandler := connect.NewUnaryHandler(
+		ConfigurationServiceListEntitlementGrantsProcedure,
+		svc.ListEntitlementGrants,
+		connect.WithSchema(configurationServiceMethods.ByName("ListEntitlementGrants")),
+		connect.WithHandlerOptions(opts...),
+	)
 	configurationServiceSetSyncStateHandler := connect.NewUnaryHandler(
 		ConfigurationServiceSetSyncStateProcedure,
 		svc.SetSyncState,
@@ -944,6 +1089,12 @@ func NewConfigurationServiceHandler(svc ConfigurationServiceHandler, opts ...con
 			configurationServiceDeleteRendererSecretHandler.ServeHTTP(w, r)
 		case ConfigurationServiceListRendererSecretsProcedure:
 			configurationServiceListRendererSecretsHandler.ServeHTTP(w, r)
+		case ConfigurationServiceGrantEntitlementProcedure:
+			configurationServiceGrantEntitlementHandler.ServeHTTP(w, r)
+		case ConfigurationServiceRevokeEntitlementProcedure:
+			configurationServiceRevokeEntitlementHandler.ServeHTTP(w, r)
+		case ConfigurationServiceListEntitlementGrantsProcedure:
+			configurationServiceListEntitlementGrantsHandler.ServeHTTP(w, r)
 		case ConfigurationServiceSetSyncStateProcedure:
 			configurationServiceSetSyncStateHandler.ServeHTTP(w, r)
 		case ConfigurationServiceGetSyncStatusProcedure:
@@ -1015,6 +1166,18 @@ func (UnimplementedConfigurationServiceHandler) ListRendererSecrets(context.Cont
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.ConfigurationService.ListRendererSecrets is not implemented"))
 }
 
+func (UnimplementedConfigurationServiceHandler) GrantEntitlement(context.Context, *connect.Request[v1.GrantEntitlementRequest]) (*connect.Response[v1.GrantEntitlementResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.ConfigurationService.GrantEntitlement is not implemented"))
+}
+
+func (UnimplementedConfigurationServiceHandler) RevokeEntitlement(context.Context, *connect.Request[v1.RevokeEntitlementRequest]) (*connect.Response[v1.RevokeEntitlementResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.ConfigurationService.RevokeEntitlement is not implemented"))
+}
+
+func (UnimplementedConfigurationServiceHandler) ListEntitlementGrants(context.Context, *connect.Request[v1.ListEntitlementGrantsRequest]) (*connect.Response[v1.ListEntitlementGrantsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.ConfigurationService.ListEntitlementGrants is not implemented"))
+}
+
 func (UnimplementedConfigurationServiceHandler) SetSyncState(context.Context, *connect.Request[v1.SetSyncStateRequest]) (*connect.Response[v1.SetSyncStateResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.ConfigurationService.SetSyncState is not implemented"))
 }
@@ -1053,6 +1216,14 @@ func (UnimplementedConfigurationServiceHandler) DeleteIndexGeneration(context.Co
 
 // ContentServiceClient is a client for the elephant.distribution.v1.ContentService service.
 type ContentServiceClient interface {
+	// GetNewDocuments reads the distribution eventlog.
+	//
+	// An event for a document the caller is not entitled to is left out of
+	// the page, so the last item is not necessarily the last event the page
+	// covered. Continue from GetNewDocumentsResponse.last_event_id rather
+	// than from the last item: a page that was entirely gated comes back
+	// with no items and a last_event_id beyond them, and a consumer that
+	// follows it does not stall on a run of gated events.
 	GetNewDocuments(context.Context, *connect.Request[v1.GetNewDocumentsRequest]) (*connect.Response[v1.GetNewDocumentsResponse], error)
 	// GetSigningKeys returns the public keys the transparency log's
 	// signatures are made with, so that a consumer reading the log with
@@ -1072,6 +1243,10 @@ type ContentServiceClient interface {
 	// GetDocument returns a single document, transparently falling back to
 	// the archive if the requested version (or the whole document) has been
 	// evicted from the hot data set. The document is returned in-band.
+	//
+	// A document the caller is not entitled to is NotFound, exactly as one
+	// that does not exist. The check is made on the version actually served,
+	// so the same document can be found at one version and not at another.
 	GetDocument(context.Context, *connect.Request[v1.GetDocumentRequest]) (*connect.Response[v1.GetDocumentResponse], error)
 	// CreateImportUpload starts a bulk import upload: the client declares
 	// the files that make up the import set and gets a presigned PUT URL
@@ -1151,6 +1326,10 @@ type ContentServiceClient interface {
 	// inline_horizon the entries come back deferred and their documents are
 	// streamed in with GetDocumentVersions.
 	//
+	// A version the caller is not entitled to is left out, by its type or by
+	// the facet values it was stored with; see ContentService for the
+	// content that is listed without a body instead.
+	//
 	// Intended for backward-anchored types - articles, flashes, editorial
 	// information - where the question is what was published when. See
 	// ListPlannedVersions for the calendar view of forward-anchored types.
@@ -1165,6 +1344,8 @@ type ContentServiceClient interface {
 	// never carries version history. An item rescheduled out of the
 	// interval leaves it entirely rather than staying behind under its old
 	// date.
+	//
+	// Entitlements apply as they do to ListPublishedVersions.
 	//
 	// Intended for forward-anchored types: planning items and calendar
 	// entries.
@@ -1181,6 +1362,9 @@ type ContentServiceClient interface {
 	// and version here to fetch them, in whatever order and at whatever
 	// rate suits the client - typically what is on screen first, and the
 	// rest as the reader scrolls.
+	//
+	// A version the caller is not entitled to comes back with found false,
+	// as GetDocument answers NotFound for it.
 	//
 	// The same bound applies here: ask for more than the server will load
 	// in one response and the surplus comes back deferred again, so a
@@ -1342,6 +1526,14 @@ func (c *contentServiceClient) GetDocumentVersions(ctx context.Context, req *con
 // ContentServiceHandler is an implementation of the elephant.distribution.v1.ContentService
 // service.
 type ContentServiceHandler interface {
+	// GetNewDocuments reads the distribution eventlog.
+	//
+	// An event for a document the caller is not entitled to is left out of
+	// the page, so the last item is not necessarily the last event the page
+	// covered. Continue from GetNewDocumentsResponse.last_event_id rather
+	// than from the last item: a page that was entirely gated comes back
+	// with no items and a last_event_id beyond them, and a consumer that
+	// follows it does not stall on a run of gated events.
 	GetNewDocuments(context.Context, *connect.Request[v1.GetNewDocumentsRequest]) (*connect.Response[v1.GetNewDocumentsResponse], error)
 	// GetSigningKeys returns the public keys the transparency log's
 	// signatures are made with, so that a consumer reading the log with
@@ -1361,6 +1553,10 @@ type ContentServiceHandler interface {
 	// GetDocument returns a single document, transparently falling back to
 	// the archive if the requested version (or the whole document) has been
 	// evicted from the hot data set. The document is returned in-band.
+	//
+	// A document the caller is not entitled to is NotFound, exactly as one
+	// that does not exist. The check is made on the version actually served,
+	// so the same document can be found at one version and not at another.
 	GetDocument(context.Context, *connect.Request[v1.GetDocumentRequest]) (*connect.Response[v1.GetDocumentResponse], error)
 	// CreateImportUpload starts a bulk import upload: the client declares
 	// the files that make up the import set and gets a presigned PUT URL
@@ -1440,6 +1636,10 @@ type ContentServiceHandler interface {
 	// inline_horizon the entries come back deferred and their documents are
 	// streamed in with GetDocumentVersions.
 	//
+	// A version the caller is not entitled to is left out, by its type or by
+	// the facet values it was stored with; see ContentService for the
+	// content that is listed without a body instead.
+	//
 	// Intended for backward-anchored types - articles, flashes, editorial
 	// information - where the question is what was published when. See
 	// ListPlannedVersions for the calendar view of forward-anchored types.
@@ -1454,6 +1654,8 @@ type ContentServiceHandler interface {
 	// never carries version history. An item rescheduled out of the
 	// interval leaves it entirely rather than staying behind under its old
 	// date.
+	//
+	// Entitlements apply as they do to ListPublishedVersions.
 	//
 	// Intended for forward-anchored types: planning items and calendar
 	// entries.
@@ -1470,6 +1672,9 @@ type ContentServiceHandler interface {
 	// and version here to fetch them, in whatever order and at whatever
 	// rate suits the client - typically what is on screen first, and the
 	// rest as the reader scrolls.
+	//
+	// A version the caller is not entitled to comes back with found false,
+	// as GetDocument answers NotFound for it.
 	//
 	// The same bound applies here: ask for more than the server will load
 	// in one response and the surplus comes back deferred again, so a

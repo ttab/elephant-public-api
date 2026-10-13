@@ -45,10 +45,28 @@ type SearchServiceClient interface {
 	// Query searches one language series of one tier. Language is required
 	// and a query never fans out across languages: searching several
 	// languages is several calls.
+	//
+	// A document type that an entitlement the caller's organisation does
+	// not hold gates as a whole is refused when it is named in
+	// document_types: PermissionDenied with the error meta
+	// reason=not_entitled. Type names are not secret - the configuration
+	// and the delivery-field vocabulary list them - so a refusal tells the
+	// caller nothing it could not find out, and an empty result would look
+	// like an answer. Left out of an empty document_types, the type is
+	// skipped silently. Documents hidden by a field gate are excluded from
+	// the hits, semantic queries included, with no error.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it
 	// to find out what can be queried, and how, before building a query.
+	//
+	// The deployment's delivery fields are among them, under
+	// "delivery.<name>", so a query can filter on the same vocabulary a
+	// delivery rule is written in.
+	//
+	// A document type an entitlement the caller's organisation does not
+	// hold gates as a whole is refused as Query refuses it: PermissionDenied
+	// with reason=not_entitled.
 	GetMappings(context.Context, *connect.Request[v1.GetMappingsRequest]) (*connect.Response[v1.GetMappingsResponse], error)
 }
 
@@ -99,10 +117,28 @@ type SearchServiceHandler interface {
 	// Query searches one language series of one tier. Language is required
 	// and a query never fans out across languages: searching several
 	// languages is several calls.
+	//
+	// A document type that an entitlement the caller's organisation does
+	// not hold gates as a whole is refused when it is named in
+	// document_types: PermissionDenied with the error meta
+	// reason=not_entitled. Type names are not secret - the configuration
+	// and the delivery-field vocabulary list them - so a refusal tells the
+	// caller nothing it could not find out, and an empty result would look
+	// like an answer. Left out of an empty document_types, the type is
+	// skipped silently. Documents hidden by a field gate are excluded from
+	// the hits, semantic queries included, with no error.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it
 	// to find out what can be queried, and how, before building a query.
+	//
+	// The deployment's delivery fields are among them, under
+	// "delivery.<name>", so a query can filter on the same vocabulary a
+	// delivery rule is written in.
+	//
+	// A document type an entitlement the caller's organisation does not
+	// hold gates as a whole is refused as Query refuses it: PermissionDenied
+	// with reason=not_entitled.
 	GetMappings(context.Context, *connect.Request[v1.GetMappingsRequest]) (*connect.Response[v1.GetMappingsResponse], error)
 }
 

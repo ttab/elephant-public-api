@@ -485,7 +485,8 @@ type PublishedVersion struct {
 	// doc_uuid and version.
 	//
 	// An entry with neither a document nor deferred set has no document to
-	// load - it has been erased - so don't ask for it again.
+	// load - it has been erased, or the caller is not entitled to it - so
+	// don't ask for it again.
 	Deferred bool `protobuf:"varint,10,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is this version rendered to HTML, when the request asked
 	// for it with include_html. It follows the document: a deferred entry
@@ -807,7 +808,9 @@ type LoadedDocumentVersion struct {
 	// makes progress.
 	Deferred bool `protobuf:"varint,7,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// Found is false when the version is in neither the store nor the
-	// archive: erased, deleted, or never distributed. Don't ask again.
+	// archive - erased, deleted, or never distributed - and when the caller
+	// is not entitled to it, which is deliberately not told apart. Don't ask
+	// again.
 	Found bool `protobuf:"varint,8,opt,name=found,proto3" json:"found,omitempty"`
 	// RenderedHTML is this version rendered to HTML, when the request asked
 	// for it with include_html. Absent for a deferred version, exactly as
@@ -2811,8 +2814,16 @@ func (x *Subsets) GetExpressions() []string {
 }
 
 type GetNewDocumentsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*DocumentItem        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Items are the events of the page, in event ID order, less those the
+	// caller is not entitled to.
+	Items []*DocumentItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	// LastEventID is the ID of the last event the page covered, the events
+	// left out for entitlement included. Pass it as after to read on. It is
+	// the ID of the last item whenever nothing was left out, and zero when
+	// the page covered no events at all - a read at the head of the log
+	// that timed out - in which case read on from the same after.
+	LastEventId   int64 `protobuf:"varint,2,opt,name=last_event_id,json=lastEventId,proto3" json:"last_event_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2854,6 +2865,13 @@ func (x *GetNewDocumentsResponse) GetItems() []*DocumentItem {
 	return nil
 }
 
+func (x *GetNewDocumentsResponse) GetLastEventId() int64 {
+	if x != nil {
+		return x.LastEventId
+	}
+	return 0
+}
+
 type DocumentItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Event information.
@@ -2867,8 +2885,8 @@ type DocumentItem struct {
 	// loading bound. Fetch it with ContentService.GetDocumentVersions.
 	//
 	// An item with neither a document nor deferred set has no document to
-	// load: it is a tombstone, or the document has been deleted or erased.
-	// Don't ask for it again.
+	// load: it is a tombstone, the document has been deleted or erased, or
+	// the caller is not entitled to it. Don't ask for it again.
 	Deferred bool `protobuf:"varint,4,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is the document rendered to HTML, when the request asked
 	// for it with include_html. An <article> fragment, and empty whenever
@@ -4773,6 +4791,394 @@ func (x *ListRendererSecretsResponse) GetSecrets() []*RendererSecretStatus {
 	return nil
 }
 
+// EntitlementGrant is one organisation's grant of one entitlement.
+type EntitlementGrant struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Org is the organisation, as the "org" claim of its callers' tokens
+	// names it.
+	Org string `protobuf:"bytes,1,opt,name=org,proto3" json:"org,omitempty"`
+	// Entitlement is the name of the granted entitlement, Entitlement.name.
+	Entitlement string `protobuf:"bytes,2,opt,name=entitlement,proto3" json:"entitlement,omitempty"`
+	// GrantedAt is when the grant was made, RFC 3339.
+	GrantedAt string `protobuf:"bytes,3,opt,name=granted_at,json=grantedAt,proto3" json:"granted_at,omitempty"`
+	// GrantedBy is the subject of the credentials the grant was made with.
+	GrantedBy string `protobuf:"bytes,4,opt,name=granted_by,json=grantedBy,proto3" json:"granted_by,omitempty"`
+	// Defined is whether the active configuration generation defines the
+	// entitlement. A grant of an undefined entitlement is kept and does
+	// nothing until a generation that defines it is activated.
+	Defined       bool `protobuf:"varint,5,opt,name=defined,proto3" json:"defined,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EntitlementGrant) Reset() {
+	*x = EntitlementGrant{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EntitlementGrant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntitlementGrant) ProtoMessage() {}
+
+func (x *EntitlementGrant) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntitlementGrant.ProtoReflect.Descriptor instead.
+func (*EntitlementGrant) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *EntitlementGrant) GetOrg() string {
+	if x != nil {
+		return x.Org
+	}
+	return ""
+}
+
+func (x *EntitlementGrant) GetEntitlement() string {
+	if x != nil {
+		return x.Entitlement
+	}
+	return ""
+}
+
+func (x *EntitlementGrant) GetGrantedAt() string {
+	if x != nil {
+		return x.GrantedAt
+	}
+	return ""
+}
+
+func (x *EntitlementGrant) GetGrantedBy() string {
+	if x != nil {
+		return x.GrantedBy
+	}
+	return ""
+}
+
+func (x *EntitlementGrant) GetDefined() bool {
+	if x != nil {
+		return x.Defined
+	}
+	return false
+}
+
+type GrantEntitlementRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Org to grant the entitlement to, as its "org" claim names it.
+	// Required.
+	Org string `protobuf:"bytes,1,opt,name=org,proto3" json:"org,omitempty"`
+	// Entitlement to grant, by name. Required, and it has to match
+	// ^[a-z0-9][a-z0-9_-]*$, but it need not be defined by the active
+	// generation.
+	Entitlement   string `protobuf:"bytes,2,opt,name=entitlement,proto3" json:"entitlement,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrantEntitlementRequest) Reset() {
+	*x = GrantEntitlementRequest{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantEntitlementRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantEntitlementRequest) ProtoMessage() {}
+
+func (x *GrantEntitlementRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantEntitlementRequest.ProtoReflect.Descriptor instead.
+func (*GrantEntitlementRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *GrantEntitlementRequest) GetOrg() string {
+	if x != nil {
+		return x.Org
+	}
+	return ""
+}
+
+func (x *GrantEntitlementRequest) GetEntitlement() string {
+	if x != nil {
+		return x.Entitlement
+	}
+	return ""
+}
+
+type GrantEntitlementResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Grant as it is stored: the existing one, unchanged, when the
+	// organisation already held the entitlement.
+	Grant         *EntitlementGrant `protobuf:"bytes,1,opt,name=grant,proto3" json:"grant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrantEntitlementResponse) Reset() {
+	*x = GrantEntitlementResponse{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantEntitlementResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantEntitlementResponse) ProtoMessage() {}
+
+func (x *GrantEntitlementResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantEntitlementResponse.ProtoReflect.Descriptor instead.
+func (*GrantEntitlementResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *GrantEntitlementResponse) GetGrant() *EntitlementGrant {
+	if x != nil {
+		return x.Grant
+	}
+	return nil
+}
+
+type RevokeEntitlementRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Org to revoke the entitlement from. Required.
+	Org string `protobuf:"bytes,1,opt,name=org,proto3" json:"org,omitempty"`
+	// Entitlement to revoke, by name. Required.
+	Entitlement   string `protobuf:"bytes,2,opt,name=entitlement,proto3" json:"entitlement,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeEntitlementRequest) Reset() {
+	*x = RevokeEntitlementRequest{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeEntitlementRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeEntitlementRequest) ProtoMessage() {}
+
+func (x *RevokeEntitlementRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeEntitlementRequest.ProtoReflect.Descriptor instead.
+func (*RevokeEntitlementRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *RevokeEntitlementRequest) GetOrg() string {
+	if x != nil {
+		return x.Org
+	}
+	return ""
+}
+
+func (x *RevokeEntitlementRequest) GetEntitlement() string {
+	if x != nil {
+		return x.Entitlement
+	}
+	return ""
+}
+
+type RevokeEntitlementResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Grant that was revoked, as it was before the revocation. Unset when
+	// there was no such grant.
+	Grant         *EntitlementGrant `protobuf:"bytes,1,opt,name=grant,proto3" json:"grant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeEntitlementResponse) Reset() {
+	*x = RevokeEntitlementResponse{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeEntitlementResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeEntitlementResponse) ProtoMessage() {}
+
+func (x *RevokeEntitlementResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeEntitlementResponse.ProtoReflect.Descriptor instead.
+func (*RevokeEntitlementResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *RevokeEntitlementResponse) GetGrant() *EntitlementGrant {
+	if x != nil {
+		return x.Grant
+	}
+	return nil
+}
+
+type ListEntitlementGrantsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Org narrows the list to one organisation's grants. Optional.
+	Org string `protobuf:"bytes,1,opt,name=org,proto3" json:"org,omitempty"`
+	// Entitlement narrows the list to the grants of one entitlement.
+	// Optional.
+	Entitlement   string `protobuf:"bytes,2,opt,name=entitlement,proto3" json:"entitlement,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEntitlementGrantsRequest) Reset() {
+	*x = ListEntitlementGrantsRequest{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEntitlementGrantsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEntitlementGrantsRequest) ProtoMessage() {}
+
+func (x *ListEntitlementGrantsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEntitlementGrantsRequest.ProtoReflect.Descriptor instead.
+func (*ListEntitlementGrantsRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *ListEntitlementGrantsRequest) GetOrg() string {
+	if x != nil {
+		return x.Org
+	}
+	return ""
+}
+
+func (x *ListEntitlementGrantsRequest) GetEntitlement() string {
+	if x != nil {
+		return x.Entitlement
+	}
+	return ""
+}
+
+type ListEntitlementGrantsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Grants ordered by organisation and then by entitlement.
+	Grants        []*EntitlementGrant `protobuf:"bytes,1,rep,name=grants,proto3" json:"grants,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEntitlementGrantsResponse) Reset() {
+	*x = ListEntitlementGrantsResponse{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEntitlementGrantsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEntitlementGrantsResponse) ProtoMessage() {}
+
+func (x *ListEntitlementGrantsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEntitlementGrantsResponse.ProtoReflect.Descriptor instead.
+func (*ListEntitlementGrantsResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *ListEntitlementGrantsResponse) GetGrants() []*EntitlementGrant {
+	if x != nil {
+		return x.Grants
+	}
+	return nil
+}
+
 type ConfigGeneration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ID is assigned by the server on registration.
@@ -4793,14 +5199,20 @@ type ConfigGeneration struct {
 	// Renderers is the generation's HTML rendering configuration: the
 	// document types that render, the image variant the markup embeds, and
 	// the registered renderers. Absent when the generation renders no HTML.
-	Renderers     *HTMLRenderingConfiguration `protobuf:"bytes,8,opt,name=renderers,proto3" json:"renderers,omitempty"`
+	Renderers *HTMLRenderingConfiguration `protobuf:"bytes,8,opt,name=renderers,proto3" json:"renderers,omitempty"`
+	// Entitlements are the product tiers the generation defines, each with
+	// the gates that hide its content from an organisation without a grant
+	// for it. They take effect when the generation is activated. Empty
+	// gates nothing: every caller with the scope for a surface sees all of
+	// its content.
+	Entitlements  []*Entitlement `protobuf:"bytes,9,rep,name=entitlements,proto3" json:"entitlements,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConfigGeneration) Reset() {
 	*x = ConfigGeneration{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[62]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4812,7 +5224,7 @@ func (x *ConfigGeneration) String() string {
 func (*ConfigGeneration) ProtoMessage() {}
 
 func (x *ConfigGeneration) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[62]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4825,7 +5237,7 @@ func (x *ConfigGeneration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigGeneration.ProtoReflect.Descriptor instead.
 func (*ConfigGeneration) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{62}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ConfigGeneration) GetId() int64 {
@@ -4884,6 +5296,13 @@ func (x *ConfigGeneration) GetRenderers() *HTMLRenderingConfiguration {
 	return nil
 }
 
+func (x *ConfigGeneration) GetEntitlements() []*Entitlement {
+	if x != nil {
+		return x.Entitlements
+	}
+	return nil
+}
+
 type RegisterConfigGenerationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Description is an optional human-readable tag for the new generation.
@@ -4909,14 +5328,24 @@ type RegisterConfigGenerationRequest struct {
 	// renderer's secret resolves - so that a generation which cannot render
 	// is never created. Absent leaves the generation with no HTML
 	// rendering.
-	Renderers     *HTMLRenderingConfiguration `protobuf:"bytes,6,opt,name=renderers,proto3" json:"renderers,omitempty"`
+	Renderers *HTMLRenderingConfiguration `protobuf:"bytes,6,opt,name=renderers,proto3" json:"renderers,omitempty"`
+	// Entitlements the generation should define. Order is preserved, and
+	// carries no meaning: a document several gates match requires every one
+	// of their entitlements, whatever order they are declared in.
+	//
+	// They are validated here - names, that every gated type is a type of
+	// the generation, and that a gate's condition names a keyword delivery
+	// field the type declares together with a facet of the same name and
+	// expression - so that a gate that cannot be enforced on every surface
+	// is never created. See EntitlementGate.
+	Entitlements  []*Entitlement `protobuf:"bytes,7,rep,name=entitlements,proto3" json:"entitlements,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RegisterConfigGenerationRequest) Reset() {
 	*x = RegisterConfigGenerationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[63]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4928,7 +5357,7 @@ func (x *RegisterConfigGenerationRequest) String() string {
 func (*RegisterConfigGenerationRequest) ProtoMessage() {}
 
 func (x *RegisterConfigGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[63]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4941,7 +5370,7 @@ func (x *RegisterConfigGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterConfigGenerationRequest.ProtoReflect.Descriptor instead.
 func (*RegisterConfigGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{63}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *RegisterConfigGenerationRequest) GetDescription() string {
@@ -4986,17 +5415,39 @@ func (x *RegisterConfigGenerationRequest) GetRenderers() *HTMLRenderingConfigura
 	return nil
 }
 
+func (x *RegisterConfigGenerationRequest) GetEntitlements() []*Entitlement {
+	if x != nil {
+		return x.Entitlements
+	}
+	return nil
+}
+
 type RegisterConfigGenerationResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Generation is the persisted generation, with its assigned ID.
-	Generation    *ConfigGeneration `protobuf:"bytes,1,opt,name=generation,proto3" json:"generation,omitempty"`
+	Generation *ConfigGeneration `protobuf:"bytes,1,opt,name=generation,proto3" json:"generation,omitempty"`
+	// ReindexNeeded lists the field gates whose delivery field the active
+	// index generation was not built with. Search can only exclude a
+	// document by a field the index holds for it, so until the index is
+	// rebuilt a gated document indexed before the field was declared is
+	// still found by search - its body is refused on every surface all the
+	// same, and the eventlog and the daily views go on listing it.
+	//
+	// It is a report, not a refusal: the generation is registered either
+	// way, and a gate on a field the active index generation was built with
+	// yields nothing here. The remedy is a new index generation
+	// created under a configuration that declares the field -
+	// ConfigurationService.CreateIndexGeneration - built, activated, and
+	// with the archived partitions re-materialized. Empty when there is no
+	// active index generation to compare with.
+	ReindexNeeded []*GateCoverage `protobuf:"bytes,2,rep,name=reindex_needed,json=reindexNeeded,proto3" json:"reindex_needed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RegisterConfigGenerationResponse) Reset() {
 	*x = RegisterConfigGenerationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[64]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5008,7 +5459,7 @@ func (x *RegisterConfigGenerationResponse) String() string {
 func (*RegisterConfigGenerationResponse) ProtoMessage() {}
 
 func (x *RegisterConfigGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[64]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5021,7 +5472,7 @@ func (x *RegisterConfigGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterConfigGenerationResponse.ProtoReflect.Descriptor instead.
 func (*RegisterConfigGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{64}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *RegisterConfigGenerationResponse) GetGeneration() *ConfigGeneration {
@@ -5029,6 +5480,301 @@ func (x *RegisterConfigGenerationResponse) GetGeneration() *ConfigGeneration {
 		return x.Generation
 	}
 	return nil
+}
+
+func (x *RegisterConfigGenerationResponse) GetReindexNeeded() []*GateCoverage {
+	if x != nil {
+		return x.ReindexNeeded
+	}
+	return nil
+}
+
+// Entitlement is a product tier: content that an organisation only sees
+// when it has been granted the entitlement by name. The entitlement
+// itself says what it hides, through its gates; who holds it is the
+// grants, ConfigurationService.GrantEntitlement.
+//
+// Entitlements are evaluated when content is read or delivered, never
+// stamped on what is stored, so changing a gate is an activation and not
+// a rewrite. A document that matches the gates of several entitlements
+// requires all of them, which fails closed.
+//
+// The one place an entitlement does not reach is the archive export:
+// ArchiveService hands out presigned URLs to whole objects and chunks,
+// which cannot be filtered, so "dist_archive_read" grants every
+// entitlement. Grant that scope only to an organisation that is entitled
+// to everything.
+type Entitlement struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the entitlement, which is what a grant names. It matches
+	// ^[a-z0-9][a-z0-9_-]*$, e.g. "preem" or "print-content", and is
+	// unique within the generation.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Description is the human-readable text an operator reads beside the
+	// name. Optional.
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// Gates are what the entitlement hides from an organisation that does
+	// not hold it, at most one per document type. At least one: an
+	// entitlement with no gates would hide nothing.
+	Gates         []*EntitlementGate `protobuf:"bytes,3,rep,name=gates,proto3" json:"gates,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Entitlement) Reset() {
+	*x = Entitlement{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Entitlement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Entitlement) ProtoMessage() {}
+
+func (x *Entitlement) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Entitlement.ProtoReflect.Descriptor instead.
+func (*Entitlement) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *Entitlement) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Entitlement) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *Entitlement) GetGates() []*EntitlementGate {
+	if x != nil {
+		return x.Gates
+	}
+	return nil
+}
+
+// EntitlementGate hides documents of one type: all of them, or, with a
+// condition, those whose delivery field carries one of the condition's
+// values.
+type EntitlementGate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DocumentType the gate applies to, e.g. "core/article". It has to be a
+	// type configured in the generation.
+	DocumentType string `protobuf:"bytes,1,opt,name=document_type,json=documentType,proto3" json:"document_type,omitempty"`
+	// Condition narrows the gate to the documents whose delivery field
+	// carries any of the given values. Absent hides every document of the
+	// type, and a caller that names the type explicitly in a search is
+	// refused rather than answered with nothing.
+	Condition     *GateCondition `protobuf:"bytes,2,opt,name=condition,proto3" json:"condition,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EntitlementGate) Reset() {
+	*x = EntitlementGate{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EntitlementGate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntitlementGate) ProtoMessage() {}
+
+func (x *EntitlementGate) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntitlementGate.ProtoReflect.Descriptor instead.
+func (*EntitlementGate) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *EntitlementGate) GetDocumentType() string {
+	if x != nil {
+		return x.DocumentType
+	}
+	return ""
+}
+
+func (x *EntitlementGate) GetCondition() *GateCondition {
+	if x != nil {
+		return x.Condition
+	}
+	return nil
+}
+
+// GateCondition selects the gated documents of a type by a delivery field.
+//
+// The field is read wherever the document is: from the delivery-field row
+// on the hot paths, from the facet the type stores with every version in
+// the daily views, from the index in search, and from the document itself
+// when its body is served. That is why the field has to be declared twice
+// on the gated type - as a delivery field of kind "keyword" and as a facet
+// of the same name with the same expression - and why registration refuses
+// a condition where it is not.
+type GateCondition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DeliveryField is the name of the delivery field, from the
+	// deployment's delivery-field vocabulary, e.g. "section".
+	DeliveryField string `protobuf:"bytes,1,opt,name=delivery_field,json=deliveryField,proto3" json:"delivery_field,omitempty"`
+	// Values that gate the document. A document is gated when the field
+	// carries any one of them. At least one. These are the values as they
+	// are extracted, matched exactly: a section is the UUID of its
+	// core/section document, never its name.
+	Values        []string `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GateCondition) Reset() {
+	*x = GateCondition{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GateCondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GateCondition) ProtoMessage() {}
+
+func (x *GateCondition) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GateCondition.ProtoReflect.Descriptor instead.
+func (*GateCondition) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *GateCondition) GetDeliveryField() string {
+	if x != nil {
+		return x.DeliveryField
+	}
+	return ""
+}
+
+func (x *GateCondition) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+// GateCoverage is one field gate that search cannot fully enforce, because
+// the index was not built with its delivery field.
+type GateCoverage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Entitlement the gate belongs to.
+	Entitlement string `protobuf:"bytes,1,opt,name=entitlement,proto3" json:"entitlement,omitempty"`
+	// DocumentType the gate applies to.
+	DocumentType string `protobuf:"bytes,2,opt,name=document_type,json=documentType,proto3" json:"document_type,omitempty"`
+	// DeliveryField the gate's condition names.
+	DeliveryField string `protobuf:"bytes,3,opt,name=delivery_field,json=deliveryField,proto3" json:"delivery_field,omitempty"`
+	// IndexGeneration is the name of the active index generation, which was
+	// not built with the field for the type: the field is absent from its
+	// IndexGeneration.delivery_fields, or recorded there with a different
+	// expression.
+	IndexGeneration string `protobuf:"bytes,4,opt,name=index_generation,json=indexGeneration,proto3" json:"index_generation,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GateCoverage) Reset() {
+	*x = GateCoverage{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GateCoverage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GateCoverage) ProtoMessage() {}
+
+func (x *GateCoverage) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GateCoverage.ProtoReflect.Descriptor instead.
+func (*GateCoverage) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *GateCoverage) GetEntitlement() string {
+	if x != nil {
+		return x.Entitlement
+	}
+	return ""
+}
+
+func (x *GateCoverage) GetDocumentType() string {
+	if x != nil {
+		return x.DocumentType
+	}
+	return ""
+}
+
+func (x *GateCoverage) GetDeliveryField() string {
+	if x != nil {
+		return x.DeliveryField
+	}
+	return ""
+}
+
+func (x *GateCoverage) GetIndexGeneration() string {
+	if x != nil {
+		return x.IndexGeneration
+	}
+	return ""
 }
 
 type ActivateConfigGenerationRequest struct {
@@ -5041,7 +5787,7 @@ type ActivateConfigGenerationRequest struct {
 
 func (x *ActivateConfigGenerationRequest) Reset() {
 	*x = ActivateConfigGenerationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[65]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5053,7 +5799,7 @@ func (x *ActivateConfigGenerationRequest) String() string {
 func (*ActivateConfigGenerationRequest) ProtoMessage() {}
 
 func (x *ActivateConfigGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[65]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5066,7 +5812,7 @@ func (x *ActivateConfigGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateConfigGenerationRequest.ProtoReflect.Descriptor instead.
 func (*ActivateConfigGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{65}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *ActivateConfigGenerationRequest) GetId() int64 {
@@ -5085,7 +5831,7 @@ type ActivateConfigGenerationResponse struct {
 
 func (x *ActivateConfigGenerationResponse) Reset() {
 	*x = ActivateConfigGenerationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[66]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5097,7 +5843,7 @@ func (x *ActivateConfigGenerationResponse) String() string {
 func (*ActivateConfigGenerationResponse) ProtoMessage() {}
 
 func (x *ActivateConfigGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[66]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5110,7 +5856,7 @@ func (x *ActivateConfigGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateConfigGenerationResponse.ProtoReflect.Descriptor instead.
 func (*ActivateConfigGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{66}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ActivateConfigGenerationResponse) GetGeneration() *ConfigGeneration {
@@ -5137,7 +5883,7 @@ type GetActiveConfigGenerationRequest struct {
 
 func (x *GetActiveConfigGenerationRequest) Reset() {
 	*x = GetActiveConfigGenerationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[67]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5149,7 +5895,7 @@ func (x *GetActiveConfigGenerationRequest) String() string {
 func (*GetActiveConfigGenerationRequest) ProtoMessage() {}
 
 func (x *GetActiveConfigGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[67]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5162,7 +5908,7 @@ func (x *GetActiveConfigGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveConfigGenerationRequest.ProtoReflect.Descriptor instead.
 func (*GetActiveConfigGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{67}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *GetActiveConfigGenerationRequest) GetWaitSeconds() int64 {
@@ -5200,7 +5946,7 @@ type GetActiveConfigGenerationResponse struct {
 
 func (x *GetActiveConfigGenerationResponse) Reset() {
 	*x = GetActiveConfigGenerationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[68]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5212,7 +5958,7 @@ func (x *GetActiveConfigGenerationResponse) String() string {
 func (*GetActiveConfigGenerationResponse) ProtoMessage() {}
 
 func (x *GetActiveConfigGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[68]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5225,7 +5971,7 @@ func (x *GetActiveConfigGenerationResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use GetActiveConfigGenerationResponse.ProtoReflect.Descriptor instead.
 func (*GetActiveConfigGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{68}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *GetActiveConfigGenerationResponse) GetGeneration() *ConfigGeneration {
@@ -5255,7 +6001,7 @@ type ListConfigGenerationsRequest struct {
 
 func (x *ListConfigGenerationsRequest) Reset() {
 	*x = ListConfigGenerationsRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[69]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5267,7 +6013,7 @@ func (x *ListConfigGenerationsRequest) String() string {
 func (*ListConfigGenerationsRequest) ProtoMessage() {}
 
 func (x *ListConfigGenerationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[69]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5280,7 +6026,7 @@ func (x *ListConfigGenerationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConfigGenerationsRequest.ProtoReflect.Descriptor instead.
 func (*ListConfigGenerationsRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{69}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *ListConfigGenerationsRequest) GetBefore() int64 {
@@ -5307,7 +6053,7 @@ type ListConfigGenerationsResponse struct {
 
 func (x *ListConfigGenerationsResponse) Reset() {
 	*x = ListConfigGenerationsResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[70]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5319,7 +6065,7 @@ func (x *ListConfigGenerationsResponse) String() string {
 func (*ListConfigGenerationsResponse) ProtoMessage() {}
 
 func (x *ListConfigGenerationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[70]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5332,7 +6078,7 @@ func (x *ListConfigGenerationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConfigGenerationsResponse.ProtoReflect.Descriptor instead.
 func (*ListConfigGenerationsResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{70}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ListConfigGenerationsResponse) GetGenerations() []*ConfigGeneration {
@@ -5355,7 +6101,7 @@ type GetSchemaRequest struct {
 
 func (x *GetSchemaRequest) Reset() {
 	*x = GetSchemaRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[71]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5367,7 +6113,7 @@ func (x *GetSchemaRequest) String() string {
 func (*GetSchemaRequest) ProtoMessage() {}
 
 func (x *GetSchemaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[71]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5380,7 +6126,7 @@ func (x *GetSchemaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSchemaRequest.ProtoReflect.Descriptor instead.
 func (*GetSchemaRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{71}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *GetSchemaRequest) GetName() string {
@@ -5407,7 +6153,7 @@ type GetSchemaResponse struct {
 
 func (x *GetSchemaResponse) Reset() {
 	*x = GetSchemaResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[72]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5419,7 +6165,7 @@ func (x *GetSchemaResponse) String() string {
 func (*GetSchemaResponse) ProtoMessage() {}
 
 func (x *GetSchemaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[72]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5432,7 +6178,7 @@ func (x *GetSchemaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSchemaResponse.ProtoReflect.Descriptor instead.
 func (*GetSchemaResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{72}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *GetSchemaResponse) GetVersion() string {
@@ -5464,7 +6210,7 @@ type GetAllActiveSchemasRequest struct {
 
 func (x *GetAllActiveSchemasRequest) Reset() {
 	*x = GetAllActiveSchemasRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[73]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5476,7 +6222,7 @@ func (x *GetAllActiveSchemasRequest) String() string {
 func (*GetAllActiveSchemasRequest) ProtoMessage() {}
 
 func (x *GetAllActiveSchemasRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[73]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5489,7 +6235,7 @@ func (x *GetAllActiveSchemasRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllActiveSchemasRequest.ProtoReflect.Descriptor instead.
 func (*GetAllActiveSchemasRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{73}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *GetAllActiveSchemasRequest) GetWaitSeconds() int64 {
@@ -5528,7 +6274,7 @@ type GetAllActiveSchemasResponse struct {
 
 func (x *GetAllActiveSchemasResponse) Reset() {
 	*x = GetAllActiveSchemasResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[74]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5540,7 +6286,7 @@ func (x *GetAllActiveSchemasResponse) String() string {
 func (*GetAllActiveSchemasResponse) ProtoMessage() {}
 
 func (x *GetAllActiveSchemasResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[74]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5553,7 +6299,7 @@ func (x *GetAllActiveSchemasResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllActiveSchemasResponse.ProtoReflect.Descriptor instead.
 func (*GetAllActiveSchemasResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{74}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *GetAllActiveSchemasResponse) GetSchemas() []*Schema {
@@ -5585,7 +6331,7 @@ type GetDocumentTypesRequest struct {
 
 func (x *GetDocumentTypesRequest) Reset() {
 	*x = GetDocumentTypesRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[75]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5597,7 +6343,7 @@ func (x *GetDocumentTypesRequest) String() string {
 func (*GetDocumentTypesRequest) ProtoMessage() {}
 
 func (x *GetDocumentTypesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[75]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5610,7 +6356,7 @@ func (x *GetDocumentTypesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDocumentTypesRequest.ProtoReflect.Descriptor instead.
 func (*GetDocumentTypesRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{75}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{86}
 }
 
 type GetDocumentTypesResponse struct {
@@ -5623,7 +6369,7 @@ type GetDocumentTypesResponse struct {
 
 func (x *GetDocumentTypesResponse) Reset() {
 	*x = GetDocumentTypesResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[76]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5635,7 +6381,7 @@ func (x *GetDocumentTypesResponse) String() string {
 func (*GetDocumentTypesResponse) ProtoMessage() {}
 
 func (x *GetDocumentTypesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[76]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5648,7 +6394,7 @@ func (x *GetDocumentTypesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDocumentTypesResponse.ProtoReflect.Descriptor instead.
 func (*GetDocumentTypesResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{76}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *GetDocumentTypesResponse) GetTypes() []string {
@@ -5734,7 +6480,7 @@ type TypeConfiguration struct {
 
 func (x *TypeConfiguration) Reset() {
 	*x = TypeConfiguration{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[77]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5746,7 +6492,7 @@ func (x *TypeConfiguration) String() string {
 func (*TypeConfiguration) ProtoMessage() {}
 
 func (x *TypeConfiguration) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[77]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5759,7 +6505,7 @@ func (x *TypeConfiguration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeConfiguration.ProtoReflect.Descriptor instead.
 func (*TypeConfiguration) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{77}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *TypeConfiguration) GetBoundedCollection() bool {
@@ -5845,7 +6591,7 @@ type TypeFacetExpression struct {
 
 func (x *TypeFacetExpression) Reset() {
 	*x = TypeFacetExpression{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[78]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5857,7 +6603,7 @@ func (x *TypeFacetExpression) String() string {
 func (*TypeFacetExpression) ProtoMessage() {}
 
 func (x *TypeFacetExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[78]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5870,7 +6616,7 @@ func (x *TypeFacetExpression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeFacetExpression.ProtoReflect.Descriptor instead.
 func (*TypeFacetExpression) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{78}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *TypeFacetExpression) GetName() string {
@@ -5921,7 +6667,7 @@ type TypeDeliveryField struct {
 
 func (x *TypeDeliveryField) Reset() {
 	*x = TypeDeliveryField{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[79]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5933,7 +6679,7 @@ func (x *TypeDeliveryField) String() string {
 func (*TypeDeliveryField) ProtoMessage() {}
 
 func (x *TypeDeliveryField) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[79]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5946,7 +6692,7 @@ func (x *TypeDeliveryField) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeDeliveryField.ProtoReflect.Descriptor instead.
 func (*TypeDeliveryField) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{79}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *TypeDeliveryField) GetName() string {
@@ -5995,7 +6741,7 @@ type TypeTimeExpression struct {
 
 func (x *TypeTimeExpression) Reset() {
 	*x = TypeTimeExpression{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[80]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6007,7 +6753,7 @@ func (x *TypeTimeExpression) String() string {
 func (*TypeTimeExpression) ProtoMessage() {}
 
 func (x *TypeTimeExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[80]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6020,7 +6766,7 @@ func (x *TypeTimeExpression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeTimeExpression.ProtoReflect.Descriptor instead.
 func (*TypeTimeExpression) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{80}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *TypeTimeExpression) GetExpression() string {
@@ -6056,7 +6802,7 @@ type LabelExpression struct {
 
 func (x *LabelExpression) Reset() {
 	*x = LabelExpression{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[81]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6068,7 +6814,7 @@ func (x *LabelExpression) String() string {
 func (*LabelExpression) ProtoMessage() {}
 
 func (x *LabelExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[81]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6081,7 +6827,7 @@ func (x *LabelExpression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LabelExpression.ProtoReflect.Descriptor instead.
 func (*LabelExpression) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{81}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *LabelExpression) GetExpression() string {
@@ -6108,7 +6854,7 @@ type SetSyncStateRequest struct {
 
 func (x *SetSyncStateRequest) Reset() {
 	*x = SetSyncStateRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[82]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6120,7 +6866,7 @@ func (x *SetSyncStateRequest) String() string {
 func (*SetSyncStateRequest) ProtoMessage() {}
 
 func (x *SetSyncStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[82]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6133,7 +6879,7 @@ func (x *SetSyncStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSyncStateRequest.ProtoReflect.Descriptor instead.
 func (*SetSyncStateRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{82}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *SetSyncStateRequest) GetDesired() string {
@@ -6151,7 +6897,7 @@ type SetSyncStateResponse struct {
 
 func (x *SetSyncStateResponse) Reset() {
 	*x = SetSyncStateResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[83]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6163,7 +6909,7 @@ func (x *SetSyncStateResponse) String() string {
 func (*SetSyncStateResponse) ProtoMessage() {}
 
 func (x *SetSyncStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[83]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6176,7 +6922,7 @@ func (x *SetSyncStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSyncStateResponse.ProtoReflect.Descriptor instead.
 func (*SetSyncStateResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{83}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{94}
 }
 
 type GetSyncStatusRequest struct {
@@ -6187,7 +6933,7 @@ type GetSyncStatusRequest struct {
 
 func (x *GetSyncStatusRequest) Reset() {
 	*x = GetSyncStatusRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[84]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6199,7 +6945,7 @@ func (x *GetSyncStatusRequest) String() string {
 func (*GetSyncStatusRequest) ProtoMessage() {}
 
 func (x *GetSyncStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[84]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6212,7 +6958,7 @@ func (x *GetSyncStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSyncStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetSyncStatusRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{84}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{95}
 }
 
 type GetSyncStatusResponse struct {
@@ -6239,7 +6985,7 @@ type GetSyncStatusResponse struct {
 
 func (x *GetSyncStatusResponse) Reset() {
 	*x = GetSyncStatusResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[85]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6251,7 +6997,7 @@ func (x *GetSyncStatusResponse) String() string {
 func (*GetSyncStatusResponse) ProtoMessage() {}
 
 func (x *GetSyncStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[85]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6264,7 +7010,7 @@ func (x *GetSyncStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSyncStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetSyncStatusResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{85}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *GetSyncStatusResponse) GetDesired() string {
@@ -6305,7 +7051,7 @@ type EraseDocumentRequest struct {
 
 func (x *EraseDocumentRequest) Reset() {
 	*x = EraseDocumentRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[86]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6317,7 +7063,7 @@ func (x *EraseDocumentRequest) String() string {
 func (*EraseDocumentRequest) ProtoMessage() {}
 
 func (x *EraseDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[86]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6330,7 +7076,7 @@ func (x *EraseDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EraseDocumentRequest.ProtoReflect.Descriptor instead.
 func (*EraseDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{86}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *EraseDocumentRequest) GetUuid() string {
@@ -6350,7 +7096,7 @@ type EraseDocumentResponse struct {
 
 func (x *EraseDocumentResponse) Reset() {
 	*x = EraseDocumentResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[87]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6362,7 +7108,7 @@ func (x *EraseDocumentResponse) String() string {
 func (*EraseDocumentResponse) ProtoMessage() {}
 
 func (x *EraseDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[87]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6375,7 +7121,7 @@ func (x *EraseDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EraseDocumentResponse.ProtoReflect.Descriptor instead.
 func (*EraseDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{87}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *EraseDocumentResponse) GetStatus() *ErasureStatus {
@@ -6395,7 +7141,7 @@ type GetErasureStatusRequest struct {
 
 func (x *GetErasureStatusRequest) Reset() {
 	*x = GetErasureStatusRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[88]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6407,7 +7153,7 @@ func (x *GetErasureStatusRequest) String() string {
 func (*GetErasureStatusRequest) ProtoMessage() {}
 
 func (x *GetErasureStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[88]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6420,7 +7166,7 @@ func (x *GetErasureStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetErasureStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetErasureStatusRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{88}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *GetErasureStatusRequest) GetUuid() string {
@@ -6441,7 +7187,7 @@ type GetErasureStatusResponse struct {
 
 func (x *GetErasureStatusResponse) Reset() {
 	*x = GetErasureStatusResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[89]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6453,7 +7199,7 @@ func (x *GetErasureStatusResponse) String() string {
 func (*GetErasureStatusResponse) ProtoMessage() {}
 
 func (x *GetErasureStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[89]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6466,7 +7212,7 @@ func (x *GetErasureStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetErasureStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetErasureStatusResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{89}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *GetErasureStatusResponse) GetStatus() *ErasureStatus {
@@ -6514,7 +7260,7 @@ type ErasureStatus struct {
 
 func (x *ErasureStatus) Reset() {
 	*x = ErasureStatus{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[90]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6526,7 +7272,7 @@ func (x *ErasureStatus) String() string {
 func (*ErasureStatus) ProtoMessage() {}
 
 func (x *ErasureStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[90]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6539,7 +7285,7 @@ func (x *ErasureStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErasureStatus.ProtoReflect.Descriptor instead.
 func (*ErasureStatus) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{90}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *ErasureStatus) GetUuid() string {
@@ -6637,7 +7383,7 @@ type DeliveryErasureObligation struct {
 
 func (x *DeliveryErasureObligation) Reset() {
 	*x = DeliveryErasureObligation{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[91]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6649,7 +7395,7 @@ func (x *DeliveryErasureObligation) String() string {
 func (*DeliveryErasureObligation) ProtoMessage() {}
 
 func (x *DeliveryErasureObligation) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[91]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6662,7 +7408,7 @@ func (x *DeliveryErasureObligation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryErasureObligation.ProtoReflect.Descriptor instead.
 func (*DeliveryErasureObligation) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{91}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *DeliveryErasureObligation) GetDestination() int64 {
@@ -6744,7 +7490,7 @@ type RematerializePartitionRequest struct {
 
 func (x *RematerializePartitionRequest) Reset() {
 	*x = RematerializePartitionRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[92]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6756,7 +7502,7 @@ func (x *RematerializePartitionRequest) String() string {
 func (*RematerializePartitionRequest) ProtoMessage() {}
 
 func (x *RematerializePartitionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[92]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6769,7 +7515,7 @@ func (x *RematerializePartitionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RematerializePartitionRequest.ProtoReflect.Descriptor instead.
 func (*RematerializePartitionRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{92}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *RematerializePartitionRequest) GetType() string {
@@ -6803,7 +7549,7 @@ type RematerializePartitionResponse struct {
 
 func (x *RematerializePartitionResponse) Reset() {
 	*x = RematerializePartitionResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[93]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6815,7 +7561,7 @@ func (x *RematerializePartitionResponse) String() string {
 func (*RematerializePartitionResponse) ProtoMessage() {}
 
 func (x *RematerializePartitionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[93]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6828,7 +7574,7 @@ func (x *RematerializePartitionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RematerializePartitionResponse.ProtoReflect.Descriptor instead.
 func (*RematerializePartitionResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{93}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *RematerializePartitionResponse) GetStatus() *RematerializationStatus {
@@ -6870,7 +7616,7 @@ type RematerializationStatus struct {
 
 func (x *RematerializationStatus) Reset() {
 	*x = RematerializationStatus{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[94]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6882,7 +7628,7 @@ func (x *RematerializationStatus) String() string {
 func (*RematerializationStatus) ProtoMessage() {}
 
 func (x *RematerializationStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[94]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6895,7 +7641,7 @@ func (x *RematerializationStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RematerializationStatus.ProtoReflect.Descriptor instead.
 func (*RematerializationStatus) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{94}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *RematerializationStatus) GetType() string {
@@ -6985,7 +7731,7 @@ type GetTypeConfigurationRequest struct {
 
 func (x *GetTypeConfigurationRequest) Reset() {
 	*x = GetTypeConfigurationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[95]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6997,7 +7743,7 @@ func (x *GetTypeConfigurationRequest) String() string {
 func (*GetTypeConfigurationRequest) ProtoMessage() {}
 
 func (x *GetTypeConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[95]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7010,7 +7756,7 @@ func (x *GetTypeConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTypeConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetTypeConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{95}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *GetTypeConfigurationRequest) GetType() string {
@@ -7030,7 +7776,7 @@ type GetTypeConfigurationResponse struct {
 
 func (x *GetTypeConfigurationResponse) Reset() {
 	*x = GetTypeConfigurationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[96]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7042,7 +7788,7 @@ func (x *GetTypeConfigurationResponse) String() string {
 func (*GetTypeConfigurationResponse) ProtoMessage() {}
 
 func (x *GetTypeConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[96]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7055,7 +7801,7 @@ func (x *GetTypeConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTypeConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetTypeConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{96}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *GetTypeConfigurationResponse) GetConfiguration() *TypeConfiguration {
@@ -7091,14 +7837,27 @@ type IndexGeneration struct {
 	CreatedAt string `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// ActivatedAt is when it was last activated, RFC3339, and empty for a
 	// generation that has never served.
-	ActivatedAt   string `protobuf:"bytes,7,opt,name=activated_at,json=activatedAt,proto3" json:"activated_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ActivatedAt string `protobuf:"bytes,7,opt,name=activated_at,json=activatedAt,proto3" json:"activated_at,omitempty"`
+	// DeliveryFields are the delivery fields the generation was built with:
+	// those the active configuration declared when the generation was
+	// created, one entry per type and field. The indexer writes every
+	// declared delivery field into the index under "delivery.<name>", so a
+	// generation built with a field holds it for every document it indexes;
+	// a field declared after the generation was created is written for the
+	// documents indexed from then on, but not for those already in it, and
+	// is not recorded here.
+	//
+	// It is the record RegisterConfigGeneration's reindex_needed is derived
+	// from. A generation created before delivery fields were indexed has
+	// none, and holds none of them.
+	DeliveryFields []*IndexedDeliveryField `protobuf:"bytes,8,rep,name=delivery_fields,json=deliveryFields,proto3" json:"delivery_fields,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *IndexGeneration) Reset() {
 	*x = IndexGeneration{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[97]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7110,7 +7869,7 @@ func (x *IndexGeneration) String() string {
 func (*IndexGeneration) ProtoMessage() {}
 
 func (x *IndexGeneration) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[97]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7123,7 +7882,7 @@ func (x *IndexGeneration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexGeneration.ProtoReflect.Descriptor instead.
 func (*IndexGeneration) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{97}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *IndexGeneration) GetName() string {
@@ -7175,6 +7934,92 @@ func (x *IndexGeneration) GetActivatedAt() string {
 	return ""
 }
 
+func (x *IndexGeneration) GetDeliveryFields() []*IndexedDeliveryField {
+	if x != nil {
+		return x.DeliveryFields
+	}
+	return nil
+}
+
+// IndexedDeliveryField is one delivery field of one type that an index
+// generation was built with.
+type IndexedDeliveryField struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DocumentType the field was declared on.
+	DocumentType string `protobuf:"bytes,1,opt,name=document_type,json=documentType,proto3" json:"document_type,omitempty"`
+	// Name of the delivery field, as TypeDeliveryField.name.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Kind of the field, as TypeDeliveryField.kind. It decides the index
+	// mapping: "keyword" is a keyword, "number" a double, "geo" a geo point
+	// and "text" analysed text.
+	Kind string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	// Expression the values were extracted with, as
+	// TypeDeliveryField.expression. A field whose expression has changed
+	// since is not covered by the generation: its documents carry what the
+	// old expression extracted.
+	Expression    string `protobuf:"bytes,4,opt,name=expression,proto3" json:"expression,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IndexedDeliveryField) Reset() {
+	*x = IndexedDeliveryField{}
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexedDeliveryField) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexedDeliveryField) ProtoMessage() {}
+
+func (x *IndexedDeliveryField) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexedDeliveryField.ProtoReflect.Descriptor instead.
+func (*IndexedDeliveryField) Descriptor() ([]byte, []int) {
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{109}
+}
+
+func (x *IndexedDeliveryField) GetDocumentType() string {
+	if x != nil {
+		return x.DocumentType
+	}
+	return ""
+}
+
+func (x *IndexedDeliveryField) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *IndexedDeliveryField) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *IndexedDeliveryField) GetExpression() string {
+	if x != nil {
+		return x.Expression
+	}
+	return ""
+}
+
 type CreateIndexGenerationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Name of the generation. A short readable codename is generated when it
@@ -7198,7 +8043,7 @@ type CreateIndexGenerationRequest struct {
 
 func (x *CreateIndexGenerationRequest) Reset() {
 	*x = CreateIndexGenerationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[98]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7210,7 +8055,7 @@ func (x *CreateIndexGenerationRequest) String() string {
 func (*CreateIndexGenerationRequest) ProtoMessage() {}
 
 func (x *CreateIndexGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[98]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7223,7 +8068,7 @@ func (x *CreateIndexGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateIndexGenerationRequest.ProtoReflect.Descriptor instead.
 func (*CreateIndexGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{98}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *CreateIndexGenerationRequest) GetName() string {
@@ -7257,7 +8102,7 @@ type CreateIndexGenerationResponse struct {
 
 func (x *CreateIndexGenerationResponse) Reset() {
 	*x = CreateIndexGenerationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[99]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7269,7 +8114,7 @@ func (x *CreateIndexGenerationResponse) String() string {
 func (*CreateIndexGenerationResponse) ProtoMessage() {}
 
 func (x *CreateIndexGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[99]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7282,7 +8127,7 @@ func (x *CreateIndexGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateIndexGenerationResponse.ProtoReflect.Descriptor instead.
 func (*CreateIndexGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{99}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *CreateIndexGenerationResponse) GetGeneration() *IndexGeneration {
@@ -7300,7 +8145,7 @@ type ListIndexGenerationsRequest struct {
 
 func (x *ListIndexGenerationsRequest) Reset() {
 	*x = ListIndexGenerationsRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[100]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7312,7 +8157,7 @@ func (x *ListIndexGenerationsRequest) String() string {
 func (*ListIndexGenerationsRequest) ProtoMessage() {}
 
 func (x *ListIndexGenerationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[100]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7325,7 +8170,7 @@ func (x *ListIndexGenerationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListIndexGenerationsRequest.ProtoReflect.Descriptor instead.
 func (*ListIndexGenerationsRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{100}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{112}
 }
 
 type ListIndexGenerationsResponse struct {
@@ -7341,7 +8186,7 @@ type ListIndexGenerationsResponse struct {
 
 func (x *ListIndexGenerationsResponse) Reset() {
 	*x = ListIndexGenerationsResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[101]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7353,7 +8198,7 @@ func (x *ListIndexGenerationsResponse) String() string {
 func (*ListIndexGenerationsResponse) ProtoMessage() {}
 
 func (x *ListIndexGenerationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[101]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7366,7 +8211,7 @@ func (x *ListIndexGenerationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListIndexGenerationsResponse.ProtoReflect.Descriptor instead.
 func (*ListIndexGenerationsResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{101}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *ListIndexGenerationsResponse) GetGenerations() []*IndexGenerationStatus {
@@ -7402,7 +8247,7 @@ type IndexGenerationStatus struct {
 
 func (x *IndexGenerationStatus) Reset() {
 	*x = IndexGenerationStatus{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[102]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7414,7 +8259,7 @@ func (x *IndexGenerationStatus) String() string {
 func (*IndexGenerationStatus) ProtoMessage() {}
 
 func (x *IndexGenerationStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[102]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7427,7 +8272,7 @@ func (x *IndexGenerationStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexGenerationStatus.ProtoReflect.Descriptor instead.
 func (*IndexGenerationStatus) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{102}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *IndexGenerationStatus) GetGeneration() *IndexGeneration {
@@ -7464,7 +8309,7 @@ type ActivateIndexGenerationRequest struct {
 
 func (x *ActivateIndexGenerationRequest) Reset() {
 	*x = ActivateIndexGenerationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[103]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7476,7 +8321,7 @@ func (x *ActivateIndexGenerationRequest) String() string {
 func (*ActivateIndexGenerationRequest) ProtoMessage() {}
 
 func (x *ActivateIndexGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[103]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7489,7 +8334,7 @@ func (x *ActivateIndexGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateIndexGenerationRequest.ProtoReflect.Descriptor instead.
 func (*ActivateIndexGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{103}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *ActivateIndexGenerationRequest) GetName() string {
@@ -7522,7 +8367,7 @@ type ActivateIndexGenerationResponse struct {
 
 func (x *ActivateIndexGenerationResponse) Reset() {
 	*x = ActivateIndexGenerationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[104]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7534,7 +8379,7 @@ func (x *ActivateIndexGenerationResponse) String() string {
 func (*ActivateIndexGenerationResponse) ProtoMessage() {}
 
 func (x *ActivateIndexGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[104]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7547,7 +8392,7 @@ func (x *ActivateIndexGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateIndexGenerationResponse.ProtoReflect.Descriptor instead.
 func (*ActivateIndexGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{104}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *ActivateIndexGenerationResponse) GetGeneration() *IndexGeneration {
@@ -7574,7 +8419,7 @@ type DeleteIndexGenerationRequest struct {
 
 func (x *DeleteIndexGenerationRequest) Reset() {
 	*x = DeleteIndexGenerationRequest{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[105]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7586,7 +8431,7 @@ func (x *DeleteIndexGenerationRequest) String() string {
 func (*DeleteIndexGenerationRequest) ProtoMessage() {}
 
 func (x *DeleteIndexGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[105]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7599,7 +8444,7 @@ func (x *DeleteIndexGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIndexGenerationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteIndexGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{105}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *DeleteIndexGenerationRequest) GetName() string {
@@ -7620,7 +8465,7 @@ type DeleteIndexGenerationResponse struct {
 
 func (x *DeleteIndexGenerationResponse) Reset() {
 	*x = DeleteIndexGenerationResponse{}
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[106]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7632,7 +8477,7 @@ func (x *DeleteIndexGenerationResponse) String() string {
 func (*DeleteIndexGenerationResponse) ProtoMessage() {}
 
 func (x *DeleteIndexGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_service_proto_msgTypes[106]
+	mi := &file_elephant_distribution_v1_service_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7645,7 +8490,7 @@ func (x *DeleteIndexGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIndexGenerationResponse.ProtoReflect.Descriptor instead.
 func (*DeleteIndexGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{106}
+	return file_elephant_distribution_v1_service_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *DeleteIndexGenerationResponse) GetGeneration() *IndexGeneration {
@@ -7892,9 +8737,10 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x04hash\x18\x02 \x01(\tR\x04hash\x12\x1c\n" +
 	"\tsignature\x18\x03 \x01(\tR\tsignature\"+\n" +
 	"\aSubsets\x12 \n" +
-	"\vexpressions\x18\x01 \x03(\tR\vexpressions\"W\n" +
+	"\vexpressions\x18\x01 \x03(\tR\vexpressions\"{\n" +
 	"\x17GetNewDocumentsResponse\x12<\n" +
-	"\x05items\x18\x01 \x03(\v2&.elephant.distribution.v1.DocumentItemR\x05items\"\xb6\x02\n" +
+	"\x05items\x18\x01 \x03(\v2&.elephant.distribution.v1.DocumentItemR\x05items\x12\"\n" +
+	"\rlast_event_id\x18\x02 \x01(\x03R\vlastEventId\"\xb6\x02\n" +
 	"\fDocumentItem\x12=\n" +
 	"\x05event\x18\x01 \x01(\v2'.elephant.distribution.v1.DocumentEventR\x05event\x12-\n" +
 	"\bdocument\x18\x02 \x01(\v2\x11.newsdoc.DocumentR\bdocument\x12A\n" +
@@ -8027,7 +8873,30 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x1cDeleteRendererSecretResponse\"\x1c\n" +
 	"\x1aListRendererSecretsRequest\"g\n" +
 	"\x1bListRendererSecretsResponse\x12H\n" +
-	"\asecrets\x18\x01 \x03(\v2..elephant.distribution.v1.RendererSecretStatusR\asecrets\"\xbe\x03\n" +
+	"\asecrets\x18\x01 \x03(\v2..elephant.distribution.v1.RendererSecretStatusR\asecrets\"\x9e\x01\n" +
+	"\x10EntitlementGrant\x12\x10\n" +
+	"\x03org\x18\x01 \x01(\tR\x03org\x12 \n" +
+	"\ventitlement\x18\x02 \x01(\tR\ventitlement\x12\x1d\n" +
+	"\n" +
+	"granted_at\x18\x03 \x01(\tR\tgrantedAt\x12\x1d\n" +
+	"\n" +
+	"granted_by\x18\x04 \x01(\tR\tgrantedBy\x12\x18\n" +
+	"\adefined\x18\x05 \x01(\bR\adefined\"M\n" +
+	"\x17GrantEntitlementRequest\x12\x10\n" +
+	"\x03org\x18\x01 \x01(\tR\x03org\x12 \n" +
+	"\ventitlement\x18\x02 \x01(\tR\ventitlement\"\\\n" +
+	"\x18GrantEntitlementResponse\x12@\n" +
+	"\x05grant\x18\x01 \x01(\v2*.elephant.distribution.v1.EntitlementGrantR\x05grant\"N\n" +
+	"\x18RevokeEntitlementRequest\x12\x10\n" +
+	"\x03org\x18\x01 \x01(\tR\x03org\x12 \n" +
+	"\ventitlement\x18\x02 \x01(\tR\ventitlement\"]\n" +
+	"\x19RevokeEntitlementResponse\x12@\n" +
+	"\x05grant\x18\x01 \x01(\v2*.elephant.distribution.v1.EntitlementGrantR\x05grant\"R\n" +
+	"\x1cListEntitlementGrantsRequest\x12\x10\n" +
+	"\x03org\x18\x01 \x01(\tR\x03org\x12 \n" +
+	"\ventitlement\x18\x02 \x01(\tR\ventitlement\"c\n" +
+	"\x1dListEntitlementGrantsResponse\x12B\n" +
+	"\x06grants\x18\x01 \x03(\v2*.elephant.distribution.v1.EntitlementGrantR\x06grants\"\x89\x04\n" +
 	"\x10ConfigGeneration\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1d\n" +
@@ -8039,7 +8908,8 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"renditions\x18\a \x03(\v20.elephant.distribution.v1.RenditionConfigurationR\n" +
 	"renditions\x12R\n" +
-	"\trenderers\x18\b \x01(\v24.elephant.distribution.v1.HTMLRenderingConfigurationR\trenderers\"\x97\x03\n" +
+	"\trenderers\x18\b \x01(\v24.elephant.distribution.v1.HTMLRenderingConfigurationR\trenderers\x12I\n" +
+	"\fentitlements\x18\t \x03(\v2%.elephant.distribution.v1.EntitlementR\fentitlements\"\xe2\x03\n" +
 	"\x1fRegisterConfigGenerationRequest\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12J\n" +
 	"\aschemas\x18\x02 \x03(\v20.elephant.distribution.v1.ConfigGenerationSchemaR\aschemas\x12D\n" +
@@ -8048,11 +8918,28 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"renditions\x18\x05 \x03(\v20.elephant.distribution.v1.RenditionConfigurationR\n" +
 	"renditions\x12R\n" +
-	"\trenderers\x18\x06 \x01(\v24.elephant.distribution.v1.HTMLRenderingConfigurationR\trenderers\"n\n" +
+	"\trenderers\x18\x06 \x01(\v24.elephant.distribution.v1.HTMLRenderingConfigurationR\trenderers\x12I\n" +
+	"\fentitlements\x18\a \x03(\v2%.elephant.distribution.v1.EntitlementR\fentitlements\"\xbd\x01\n" +
 	" RegisterConfigGenerationResponse\x12J\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\v2*.elephant.distribution.v1.ConfigGenerationR\n" +
-	"generation\"1\n" +
+	"generation\x12M\n" +
+	"\x0ereindex_needed\x18\x02 \x03(\v2&.elephant.distribution.v1.GateCoverageR\rreindexNeeded\"\x84\x01\n" +
+	"\vEntitlement\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12?\n" +
+	"\x05gates\x18\x03 \x03(\v2).elephant.distribution.v1.EntitlementGateR\x05gates\"}\n" +
+	"\x0fEntitlementGate\x12#\n" +
+	"\rdocument_type\x18\x01 \x01(\tR\fdocumentType\x12E\n" +
+	"\tcondition\x18\x02 \x01(\v2'.elephant.distribution.v1.GateConditionR\tcondition\"N\n" +
+	"\rGateCondition\x12%\n" +
+	"\x0edelivery_field\x18\x01 \x01(\tR\rdeliveryField\x12\x16\n" +
+	"\x06values\x18\x02 \x03(\tR\x06values\"\xa7\x01\n" +
+	"\fGateCoverage\x12 \n" +
+	"\ventitlement\x18\x01 \x01(\tR\ventitlement\x12#\n" +
+	"\rdocument_type\x18\x02 \x01(\tR\fdocumentType\x12%\n" +
+	"\x0edelivery_field\x18\x03 \x01(\tR\rdeliveryField\x12)\n" +
+	"\x10index_generation\x18\x04 \x01(\tR\x0findexGeneration\"1\n" +
 	"\x1fActivateConfigGenerationRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"n\n" +
 	" ActivateConfigGenerationResponse\x12J\n" +
@@ -8190,7 +9077,7 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x1bGetTypeConfigurationRequest\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\"q\n" +
 	"\x1cGetTypeConfigurationResponse\x12Q\n" +
-	"\rconfiguration\x18\x01 \x01(\v2+.elephant.distribution.v1.TypeConfigurationR\rconfiguration\"\xcb\x01\n" +
+	"\rconfiguration\x18\x01 \x01(\v2+.elephant.distribution.v1.TypeConfigurationR\rconfiguration\"\xa4\x02\n" +
 	"\x0fIndexGeneration\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x16\n" +
@@ -8199,7 +9086,15 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x06active\x18\x05 \x01(\bR\x06active\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x06 \x01(\tR\tcreatedAt\x12!\n" +
-	"\factivated_at\x18\a \x01(\tR\vactivatedAt\"d\n" +
+	"\factivated_at\x18\a \x01(\tR\vactivatedAt\x12W\n" +
+	"\x0fdelivery_fields\x18\b \x03(\v2..elephant.distribution.v1.IndexedDeliveryFieldR\x0edeliveryFields\"\x83\x01\n" +
+	"\x14IndexedDeliveryField\x12#\n" +
+	"\rdocument_type\x18\x01 \x01(\tR\fdocumentType\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
+	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1e\n" +
+	"\n" +
+	"expression\x18\x04 \x01(\tR\n" +
+	"expression\"d\n" +
 	"\x1cCreateIndexGenerationRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x16\n" +
@@ -8231,7 +9126,7 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x1dDeleteIndexGenerationResponse\x12I\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\v2).elephant.distribution.v1.IndexGenerationR\n" +
-	"generation2\xe4\x14\n" +
+	"generation2\xe8\x17\n" +
 	"\x14ConfigurationService\x12\x91\x01\n" +
 	"\x18RegisterConfigGeneration\x129.elephant.distribution.v1.RegisterConfigGenerationRequest\x1a:.elephant.distribution.v1.RegisterConfigGenerationResponse\x12\x91\x01\n" +
 	"\x18ActivateConfigGeneration\x129.elephant.distribution.v1.ActivateConfigGenerationRequest\x1a:.elephant.distribution.v1.ActivateConfigGenerationResponse\x12\x94\x01\n" +
@@ -8243,7 +9138,10 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x14GetTypeConfiguration\x125.elephant.distribution.v1.GetTypeConfigurationRequest\x1a6.elephant.distribution.v1.GetTypeConfigurationResponse\x12|\n" +
 	"\x11SetRendererSecret\x122.elephant.distribution.v1.SetRendererSecretRequest\x1a3.elephant.distribution.v1.SetRendererSecretResponse\x12\x85\x01\n" +
 	"\x14DeleteRendererSecret\x125.elephant.distribution.v1.DeleteRendererSecretRequest\x1a6.elephant.distribution.v1.DeleteRendererSecretResponse\x12\x82\x01\n" +
-	"\x13ListRendererSecrets\x124.elephant.distribution.v1.ListRendererSecretsRequest\x1a5.elephant.distribution.v1.ListRendererSecretsResponse\x12m\n" +
+	"\x13ListRendererSecrets\x124.elephant.distribution.v1.ListRendererSecretsRequest\x1a5.elephant.distribution.v1.ListRendererSecretsResponse\x12y\n" +
+	"\x10GrantEntitlement\x121.elephant.distribution.v1.GrantEntitlementRequest\x1a2.elephant.distribution.v1.GrantEntitlementResponse\x12|\n" +
+	"\x11RevokeEntitlement\x122.elephant.distribution.v1.RevokeEntitlementRequest\x1a3.elephant.distribution.v1.RevokeEntitlementResponse\x12\x88\x01\n" +
+	"\x15ListEntitlementGrants\x126.elephant.distribution.v1.ListEntitlementGrantsRequest\x1a7.elephant.distribution.v1.ListEntitlementGrantsResponse\x12m\n" +
 	"\fSetSyncState\x12-.elephant.distribution.v1.SetSyncStateRequest\x1a..elephant.distribution.v1.SetSyncStateResponse\x12p\n" +
 	"\rGetSyncStatus\x12..elephant.distribution.v1.GetSyncStatusRequest\x1a/.elephant.distribution.v1.GetSyncStatusResponse\x12p\n" +
 	"\rEraseDocument\x12..elephant.distribution.v1.EraseDocumentRequest\x1a/.elephant.distribution.v1.EraseDocumentResponse\x12y\n" +
@@ -8283,7 +9181,7 @@ func file_elephant_distribution_v1_service_proto_rawDescGZIP() []byte {
 	return file_elephant_distribution_v1_service_proto_rawDescData
 }
 
-var file_elephant_distribution_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 121)
+var file_elephant_distribution_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 133)
 var file_elephant_distribution_v1_service_proto_goTypes = []any{
 	(*GetNewDocumentsRequest)(nil),            // 0: elephant.distribution.v1.GetNewDocumentsRequest
 	(*RenditionParameters)(nil),               // 1: elephant.distribution.v1.RenditionParameters
@@ -8347,88 +9245,100 @@ var file_elephant_distribution_v1_service_proto_goTypes = []any{
 	(*DeleteRendererSecretResponse)(nil),      // 59: elephant.distribution.v1.DeleteRendererSecretResponse
 	(*ListRendererSecretsRequest)(nil),        // 60: elephant.distribution.v1.ListRendererSecretsRequest
 	(*ListRendererSecretsResponse)(nil),       // 61: elephant.distribution.v1.ListRendererSecretsResponse
-	(*ConfigGeneration)(nil),                  // 62: elephant.distribution.v1.ConfigGeneration
-	(*RegisterConfigGenerationRequest)(nil),   // 63: elephant.distribution.v1.RegisterConfigGenerationRequest
-	(*RegisterConfigGenerationResponse)(nil),  // 64: elephant.distribution.v1.RegisterConfigGenerationResponse
-	(*ActivateConfigGenerationRequest)(nil),   // 65: elephant.distribution.v1.ActivateConfigGenerationRequest
-	(*ActivateConfigGenerationResponse)(nil),  // 66: elephant.distribution.v1.ActivateConfigGenerationResponse
-	(*GetActiveConfigGenerationRequest)(nil),  // 67: elephant.distribution.v1.GetActiveConfigGenerationRequest
-	(*GetActiveConfigGenerationResponse)(nil), // 68: elephant.distribution.v1.GetActiveConfigGenerationResponse
-	(*ListConfigGenerationsRequest)(nil),      // 69: elephant.distribution.v1.ListConfigGenerationsRequest
-	(*ListConfigGenerationsResponse)(nil),     // 70: elephant.distribution.v1.ListConfigGenerationsResponse
-	(*GetSchemaRequest)(nil),                  // 71: elephant.distribution.v1.GetSchemaRequest
-	(*GetSchemaResponse)(nil),                 // 72: elephant.distribution.v1.GetSchemaResponse
-	(*GetAllActiveSchemasRequest)(nil),        // 73: elephant.distribution.v1.GetAllActiveSchemasRequest
-	(*GetAllActiveSchemasResponse)(nil),       // 74: elephant.distribution.v1.GetAllActiveSchemasResponse
-	(*GetDocumentTypesRequest)(nil),           // 75: elephant.distribution.v1.GetDocumentTypesRequest
-	(*GetDocumentTypesResponse)(nil),          // 76: elephant.distribution.v1.GetDocumentTypesResponse
-	(*TypeConfiguration)(nil),                 // 77: elephant.distribution.v1.TypeConfiguration
-	(*TypeFacetExpression)(nil),               // 78: elephant.distribution.v1.TypeFacetExpression
-	(*TypeDeliveryField)(nil),                 // 79: elephant.distribution.v1.TypeDeliveryField
-	(*TypeTimeExpression)(nil),                // 80: elephant.distribution.v1.TypeTimeExpression
-	(*LabelExpression)(nil),                   // 81: elephant.distribution.v1.LabelExpression
-	(*SetSyncStateRequest)(nil),               // 82: elephant.distribution.v1.SetSyncStateRequest
-	(*SetSyncStateResponse)(nil),              // 83: elephant.distribution.v1.SetSyncStateResponse
-	(*GetSyncStatusRequest)(nil),              // 84: elephant.distribution.v1.GetSyncStatusRequest
-	(*GetSyncStatusResponse)(nil),             // 85: elephant.distribution.v1.GetSyncStatusResponse
-	(*EraseDocumentRequest)(nil),              // 86: elephant.distribution.v1.EraseDocumentRequest
-	(*EraseDocumentResponse)(nil),             // 87: elephant.distribution.v1.EraseDocumentResponse
-	(*GetErasureStatusRequest)(nil),           // 88: elephant.distribution.v1.GetErasureStatusRequest
-	(*GetErasureStatusResponse)(nil),          // 89: elephant.distribution.v1.GetErasureStatusResponse
-	(*ErasureStatus)(nil),                     // 90: elephant.distribution.v1.ErasureStatus
-	(*DeliveryErasureObligation)(nil),         // 91: elephant.distribution.v1.DeliveryErasureObligation
-	(*RematerializePartitionRequest)(nil),     // 92: elephant.distribution.v1.RematerializePartitionRequest
-	(*RematerializePartitionResponse)(nil),    // 93: elephant.distribution.v1.RematerializePartitionResponse
-	(*RematerializationStatus)(nil),           // 94: elephant.distribution.v1.RematerializationStatus
-	(*GetTypeConfigurationRequest)(nil),       // 95: elephant.distribution.v1.GetTypeConfigurationRequest
-	(*GetTypeConfigurationResponse)(nil),      // 96: elephant.distribution.v1.GetTypeConfigurationResponse
-	(*IndexGeneration)(nil),                   // 97: elephant.distribution.v1.IndexGeneration
-	(*CreateIndexGenerationRequest)(nil),      // 98: elephant.distribution.v1.CreateIndexGenerationRequest
-	(*CreateIndexGenerationResponse)(nil),     // 99: elephant.distribution.v1.CreateIndexGenerationResponse
-	(*ListIndexGenerationsRequest)(nil),       // 100: elephant.distribution.v1.ListIndexGenerationsRequest
-	(*ListIndexGenerationsResponse)(nil),      // 101: elephant.distribution.v1.ListIndexGenerationsResponse
-	(*IndexGenerationStatus)(nil),             // 102: elephant.distribution.v1.IndexGenerationStatus
-	(*ActivateIndexGenerationRequest)(nil),    // 103: elephant.distribution.v1.ActivateIndexGenerationRequest
-	(*ActivateIndexGenerationResponse)(nil),   // 104: elephant.distribution.v1.ActivateIndexGenerationResponse
-	(*DeleteIndexGenerationRequest)(nil),      // 105: elephant.distribution.v1.DeleteIndexGenerationRequest
-	(*DeleteIndexGenerationResponse)(nil),     // 106: elephant.distribution.v1.DeleteIndexGenerationResponse
-	nil,                                       // 107: elephant.distribution.v1.GetNewDocumentsRequest.SubsetEntry
-	nil,                                       // 108: elephant.distribution.v1.GetNewDocumentsRequest.RenditionsEntry
-	nil,                                       // 109: elephant.distribution.v1.GetDocumentRequest.RenditionsEntry
-	nil,                                       // 110: elephant.distribution.v1.GetDocumentVersionsRequest.SubsetEntry
-	nil,                                       // 111: elephant.distribution.v1.GetDocumentVersionsRequest.RenditionsEntry
-	nil,                                       // 112: elephant.distribution.v1.ListPublishedVersionsRequest.FacetsEntry
-	nil,                                       // 113: elephant.distribution.v1.ListPublishedVersionsRequest.SubsetEntry
-	nil,                                       // 114: elephant.distribution.v1.ListPublishedVersionsRequest.RenditionsEntry
-	nil,                                       // 115: elephant.distribution.v1.ListPlannedVersionsRequest.FacetsEntry
-	nil,                                       // 116: elephant.distribution.v1.ListPlannedVersionsRequest.SubsetEntry
-	nil,                                       // 117: elephant.distribution.v1.ListPlannedVersionsRequest.RenditionsEntry
-	nil,                                       // 118: elephant.distribution.v1.ExtractedValues.ValuesEntry
-	nil,                                       // 119: elephant.distribution.v1.RendererPolicy.AttributesEntry
-	nil,                                       // 120: elephant.distribution.v1.GetAllActiveSchemasRequest.KnownEntry
-	(*newsdoc.Document)(nil),                  // 121: newsdoc.Document
-	(*newsdoc.Block)(nil),                     // 122: newsdoc.Block
+	(*EntitlementGrant)(nil),                  // 62: elephant.distribution.v1.EntitlementGrant
+	(*GrantEntitlementRequest)(nil),           // 63: elephant.distribution.v1.GrantEntitlementRequest
+	(*GrantEntitlementResponse)(nil),          // 64: elephant.distribution.v1.GrantEntitlementResponse
+	(*RevokeEntitlementRequest)(nil),          // 65: elephant.distribution.v1.RevokeEntitlementRequest
+	(*RevokeEntitlementResponse)(nil),         // 66: elephant.distribution.v1.RevokeEntitlementResponse
+	(*ListEntitlementGrantsRequest)(nil),      // 67: elephant.distribution.v1.ListEntitlementGrantsRequest
+	(*ListEntitlementGrantsResponse)(nil),     // 68: elephant.distribution.v1.ListEntitlementGrantsResponse
+	(*ConfigGeneration)(nil),                  // 69: elephant.distribution.v1.ConfigGeneration
+	(*RegisterConfigGenerationRequest)(nil),   // 70: elephant.distribution.v1.RegisterConfigGenerationRequest
+	(*RegisterConfigGenerationResponse)(nil),  // 71: elephant.distribution.v1.RegisterConfigGenerationResponse
+	(*Entitlement)(nil),                       // 72: elephant.distribution.v1.Entitlement
+	(*EntitlementGate)(nil),                   // 73: elephant.distribution.v1.EntitlementGate
+	(*GateCondition)(nil),                     // 74: elephant.distribution.v1.GateCondition
+	(*GateCoverage)(nil),                      // 75: elephant.distribution.v1.GateCoverage
+	(*ActivateConfigGenerationRequest)(nil),   // 76: elephant.distribution.v1.ActivateConfigGenerationRequest
+	(*ActivateConfigGenerationResponse)(nil),  // 77: elephant.distribution.v1.ActivateConfigGenerationResponse
+	(*GetActiveConfigGenerationRequest)(nil),  // 78: elephant.distribution.v1.GetActiveConfigGenerationRequest
+	(*GetActiveConfigGenerationResponse)(nil), // 79: elephant.distribution.v1.GetActiveConfigGenerationResponse
+	(*ListConfigGenerationsRequest)(nil),      // 80: elephant.distribution.v1.ListConfigGenerationsRequest
+	(*ListConfigGenerationsResponse)(nil),     // 81: elephant.distribution.v1.ListConfigGenerationsResponse
+	(*GetSchemaRequest)(nil),                  // 82: elephant.distribution.v1.GetSchemaRequest
+	(*GetSchemaResponse)(nil),                 // 83: elephant.distribution.v1.GetSchemaResponse
+	(*GetAllActiveSchemasRequest)(nil),        // 84: elephant.distribution.v1.GetAllActiveSchemasRequest
+	(*GetAllActiveSchemasResponse)(nil),       // 85: elephant.distribution.v1.GetAllActiveSchemasResponse
+	(*GetDocumentTypesRequest)(nil),           // 86: elephant.distribution.v1.GetDocumentTypesRequest
+	(*GetDocumentTypesResponse)(nil),          // 87: elephant.distribution.v1.GetDocumentTypesResponse
+	(*TypeConfiguration)(nil),                 // 88: elephant.distribution.v1.TypeConfiguration
+	(*TypeFacetExpression)(nil),               // 89: elephant.distribution.v1.TypeFacetExpression
+	(*TypeDeliveryField)(nil),                 // 90: elephant.distribution.v1.TypeDeliveryField
+	(*TypeTimeExpression)(nil),                // 91: elephant.distribution.v1.TypeTimeExpression
+	(*LabelExpression)(nil),                   // 92: elephant.distribution.v1.LabelExpression
+	(*SetSyncStateRequest)(nil),               // 93: elephant.distribution.v1.SetSyncStateRequest
+	(*SetSyncStateResponse)(nil),              // 94: elephant.distribution.v1.SetSyncStateResponse
+	(*GetSyncStatusRequest)(nil),              // 95: elephant.distribution.v1.GetSyncStatusRequest
+	(*GetSyncStatusResponse)(nil),             // 96: elephant.distribution.v1.GetSyncStatusResponse
+	(*EraseDocumentRequest)(nil),              // 97: elephant.distribution.v1.EraseDocumentRequest
+	(*EraseDocumentResponse)(nil),             // 98: elephant.distribution.v1.EraseDocumentResponse
+	(*GetErasureStatusRequest)(nil),           // 99: elephant.distribution.v1.GetErasureStatusRequest
+	(*GetErasureStatusResponse)(nil),          // 100: elephant.distribution.v1.GetErasureStatusResponse
+	(*ErasureStatus)(nil),                     // 101: elephant.distribution.v1.ErasureStatus
+	(*DeliveryErasureObligation)(nil),         // 102: elephant.distribution.v1.DeliveryErasureObligation
+	(*RematerializePartitionRequest)(nil),     // 103: elephant.distribution.v1.RematerializePartitionRequest
+	(*RematerializePartitionResponse)(nil),    // 104: elephant.distribution.v1.RematerializePartitionResponse
+	(*RematerializationStatus)(nil),           // 105: elephant.distribution.v1.RematerializationStatus
+	(*GetTypeConfigurationRequest)(nil),       // 106: elephant.distribution.v1.GetTypeConfigurationRequest
+	(*GetTypeConfigurationResponse)(nil),      // 107: elephant.distribution.v1.GetTypeConfigurationResponse
+	(*IndexGeneration)(nil),                   // 108: elephant.distribution.v1.IndexGeneration
+	(*IndexedDeliveryField)(nil),              // 109: elephant.distribution.v1.IndexedDeliveryField
+	(*CreateIndexGenerationRequest)(nil),      // 110: elephant.distribution.v1.CreateIndexGenerationRequest
+	(*CreateIndexGenerationResponse)(nil),     // 111: elephant.distribution.v1.CreateIndexGenerationResponse
+	(*ListIndexGenerationsRequest)(nil),       // 112: elephant.distribution.v1.ListIndexGenerationsRequest
+	(*ListIndexGenerationsResponse)(nil),      // 113: elephant.distribution.v1.ListIndexGenerationsResponse
+	(*IndexGenerationStatus)(nil),             // 114: elephant.distribution.v1.IndexGenerationStatus
+	(*ActivateIndexGenerationRequest)(nil),    // 115: elephant.distribution.v1.ActivateIndexGenerationRequest
+	(*ActivateIndexGenerationResponse)(nil),   // 116: elephant.distribution.v1.ActivateIndexGenerationResponse
+	(*DeleteIndexGenerationRequest)(nil),      // 117: elephant.distribution.v1.DeleteIndexGenerationRequest
+	(*DeleteIndexGenerationResponse)(nil),     // 118: elephant.distribution.v1.DeleteIndexGenerationResponse
+	nil,                                       // 119: elephant.distribution.v1.GetNewDocumentsRequest.SubsetEntry
+	nil,                                       // 120: elephant.distribution.v1.GetNewDocumentsRequest.RenditionsEntry
+	nil,                                       // 121: elephant.distribution.v1.GetDocumentRequest.RenditionsEntry
+	nil,                                       // 122: elephant.distribution.v1.GetDocumentVersionsRequest.SubsetEntry
+	nil,                                       // 123: elephant.distribution.v1.GetDocumentVersionsRequest.RenditionsEntry
+	nil,                                       // 124: elephant.distribution.v1.ListPublishedVersionsRequest.FacetsEntry
+	nil,                                       // 125: elephant.distribution.v1.ListPublishedVersionsRequest.SubsetEntry
+	nil,                                       // 126: elephant.distribution.v1.ListPublishedVersionsRequest.RenditionsEntry
+	nil,                                       // 127: elephant.distribution.v1.ListPlannedVersionsRequest.FacetsEntry
+	nil,                                       // 128: elephant.distribution.v1.ListPlannedVersionsRequest.SubsetEntry
+	nil,                                       // 129: elephant.distribution.v1.ListPlannedVersionsRequest.RenditionsEntry
+	nil,                                       // 130: elephant.distribution.v1.ExtractedValues.ValuesEntry
+	nil,                                       // 131: elephant.distribution.v1.RendererPolicy.AttributesEntry
+	nil,                                       // 132: elephant.distribution.v1.GetAllActiveSchemasRequest.KnownEntry
+	(*newsdoc.Document)(nil),                  // 133: newsdoc.Document
+	(*newsdoc.Block)(nil),                     // 134: newsdoc.Block
 }
 var file_elephant_distribution_v1_service_proto_depIdxs = []int32{
-	107, // 0: elephant.distribution.v1.GetNewDocumentsRequest.subset:type_name -> elephant.distribution.v1.GetNewDocumentsRequest.SubsetEntry
-	108, // 1: elephant.distribution.v1.GetNewDocumentsRequest.renditions:type_name -> elephant.distribution.v1.GetNewDocumentsRequest.RenditionsEntry
-	109, // 2: elephant.distribution.v1.GetDocumentRequest.renditions:type_name -> elephant.distribution.v1.GetDocumentRequest.RenditionsEntry
-	121, // 3: elephant.distribution.v1.GetDocumentResponse.document:type_name -> newsdoc.Document
-	121, // 4: elephant.distribution.v1.PublishedVersion.document:type_name -> newsdoc.Document
+	119, // 0: elephant.distribution.v1.GetNewDocumentsRequest.subset:type_name -> elephant.distribution.v1.GetNewDocumentsRequest.SubsetEntry
+	120, // 1: elephant.distribution.v1.GetNewDocumentsRequest.renditions:type_name -> elephant.distribution.v1.GetNewDocumentsRequest.RenditionsEntry
+	121, // 2: elephant.distribution.v1.GetDocumentRequest.renditions:type_name -> elephant.distribution.v1.GetDocumentRequest.RenditionsEntry
+	133, // 3: elephant.distribution.v1.GetDocumentResponse.document:type_name -> newsdoc.Document
+	133, // 4: elephant.distribution.v1.PublishedVersion.document:type_name -> newsdoc.Document
 	38,  // 5: elephant.distribution.v1.PublishedVersion.subset:type_name -> elephant.distribution.v1.ExtractedValues
 	5,   // 6: elephant.distribution.v1.GetDocumentVersionsRequest.versions:type_name -> elephant.distribution.v1.DocumentVersionRef
-	110, // 7: elephant.distribution.v1.GetDocumentVersionsRequest.subset:type_name -> elephant.distribution.v1.GetDocumentVersionsRequest.SubsetEntry
-	111, // 8: elephant.distribution.v1.GetDocumentVersionsRequest.renditions:type_name -> elephant.distribution.v1.GetDocumentVersionsRequest.RenditionsEntry
-	121, // 9: elephant.distribution.v1.LoadedDocumentVersion.document:type_name -> newsdoc.Document
+	122, // 7: elephant.distribution.v1.GetDocumentVersionsRequest.subset:type_name -> elephant.distribution.v1.GetDocumentVersionsRequest.SubsetEntry
+	123, // 8: elephant.distribution.v1.GetDocumentVersionsRequest.renditions:type_name -> elephant.distribution.v1.GetDocumentVersionsRequest.RenditionsEntry
+	133, // 9: elephant.distribution.v1.LoadedDocumentVersion.document:type_name -> newsdoc.Document
 	38,  // 10: elephant.distribution.v1.LoadedDocumentVersion.subset:type_name -> elephant.distribution.v1.ExtractedValues
 	7,   // 11: elephant.distribution.v1.GetDocumentVersionsResponse.versions:type_name -> elephant.distribution.v1.LoadedDocumentVersion
-	112, // 12: elephant.distribution.v1.ListPublishedVersionsRequest.facets:type_name -> elephant.distribution.v1.ListPublishedVersionsRequest.FacetsEntry
-	113, // 13: elephant.distribution.v1.ListPublishedVersionsRequest.subset:type_name -> elephant.distribution.v1.ListPublishedVersionsRequest.SubsetEntry
-	114, // 14: elephant.distribution.v1.ListPublishedVersionsRequest.renditions:type_name -> elephant.distribution.v1.ListPublishedVersionsRequest.RenditionsEntry
+	124, // 12: elephant.distribution.v1.ListPublishedVersionsRequest.facets:type_name -> elephant.distribution.v1.ListPublishedVersionsRequest.FacetsEntry
+	125, // 13: elephant.distribution.v1.ListPublishedVersionsRequest.subset:type_name -> elephant.distribution.v1.ListPublishedVersionsRequest.SubsetEntry
+	126, // 14: elephant.distribution.v1.ListPublishedVersionsRequest.renditions:type_name -> elephant.distribution.v1.ListPublishedVersionsRequest.RenditionsEntry
 	4,   // 15: elephant.distribution.v1.ListPublishedVersionsResponse.items:type_name -> elephant.distribution.v1.PublishedVersion
-	115, // 16: elephant.distribution.v1.ListPlannedVersionsRequest.facets:type_name -> elephant.distribution.v1.ListPlannedVersionsRequest.FacetsEntry
-	116, // 17: elephant.distribution.v1.ListPlannedVersionsRequest.subset:type_name -> elephant.distribution.v1.ListPlannedVersionsRequest.SubsetEntry
-	117, // 18: elephant.distribution.v1.ListPlannedVersionsRequest.renditions:type_name -> elephant.distribution.v1.ListPlannedVersionsRequest.RenditionsEntry
+	127, // 16: elephant.distribution.v1.ListPlannedVersionsRequest.facets:type_name -> elephant.distribution.v1.ListPlannedVersionsRequest.FacetsEntry
+	128, // 17: elephant.distribution.v1.ListPlannedVersionsRequest.subset:type_name -> elephant.distribution.v1.ListPlannedVersionsRequest.SubsetEntry
+	129, // 18: elephant.distribution.v1.ListPlannedVersionsRequest.renditions:type_name -> elephant.distribution.v1.ListPlannedVersionsRequest.RenditionsEntry
 	4,   // 19: elephant.distribution.v1.ListPlannedVersionsResponse.items:type_name -> elephant.distribution.v1.PublishedVersion
 	14,  // 20: elephant.distribution.v1.CreateImportUploadRequest.files:type_name -> elephant.distribution.v1.ImportFile
 	16,  // 21: elephant.distribution.v1.CreateImportUploadResponse.files:type_name -> elephant.distribution.v1.ImportFileUpload
@@ -8438,134 +9348,149 @@ var file_elephant_distribution_v1_service_proto_depIdxs = []int32{
 	32,  // 25: elephant.distribution.v1.ListArchiveChunksResponse.chunks:type_name -> elephant.distribution.v1.ArchiveChunk
 	37,  // 26: elephant.distribution.v1.GetNewDocumentsResponse.items:type_name -> elephant.distribution.v1.DocumentItem
 	40,  // 27: elephant.distribution.v1.DocumentItem.event:type_name -> elephant.distribution.v1.DocumentEvent
-	121, // 28: elephant.distribution.v1.DocumentItem.document:type_name -> newsdoc.Document
+	133, // 28: elephant.distribution.v1.DocumentItem.document:type_name -> newsdoc.Document
 	38,  // 29: elephant.distribution.v1.DocumentItem.subset:type_name -> elephant.distribution.v1.ExtractedValues
-	118, // 30: elephant.distribution.v1.ExtractedValues.values:type_name -> elephant.distribution.v1.ExtractedValues.ValuesEntry
-	122, // 31: elephant.distribution.v1.ExtractedValue.block:type_name -> newsdoc.Block
+	130, // 30: elephant.distribution.v1.ExtractedValues.values:type_name -> elephant.distribution.v1.ExtractedValues.ValuesEntry
+	134, // 31: elephant.distribution.v1.ExtractedValue.block:type_name -> newsdoc.Block
 	43,  // 32: elephant.distribution.v1.GetSigningKeysResponse.keys:type_name -> elephant.distribution.v1.SigningKey
-	77,  // 33: elephant.distribution.v1.ConfigGenerationType.configuration:type_name -> elephant.distribution.v1.TypeConfiguration
+	88,  // 33: elephant.distribution.v1.ConfigGenerationType.configuration:type_name -> elephant.distribution.v1.TypeConfiguration
 	47,  // 34: elephant.distribution.v1.RenditionConfiguration.sources:type_name -> elephant.distribution.v1.RenditionSource
 	50,  // 35: elephant.distribution.v1.HTMLRenderingConfiguration.renderers:type_name -> elephant.distribution.v1.RendererConfiguration
 	51,  // 36: elephant.distribution.v1.RendererConfiguration.triggers:type_name -> elephant.distribution.v1.RendererTrigger
 	52,  // 37: elephant.distribution.v1.RendererConfiguration.policy:type_name -> elephant.distribution.v1.RendererPolicy
 	54,  // 38: elephant.distribution.v1.RendererConfiguration.circuit_breaker:type_name -> elephant.distribution.v1.RendererCircuitBreaker
-	119, // 39: elephant.distribution.v1.RendererPolicy.attributes:type_name -> elephant.distribution.v1.RendererPolicy.AttributesEntry
+	131, // 39: elephant.distribution.v1.RendererPolicy.attributes:type_name -> elephant.distribution.v1.RendererPolicy.AttributesEntry
 	55,  // 40: elephant.distribution.v1.SetRendererSecretResponse.status:type_name -> elephant.distribution.v1.RendererSecretStatus
 	55,  // 41: elephant.distribution.v1.ListRendererSecretsResponse.secrets:type_name -> elephant.distribution.v1.RendererSecretStatus
-	45,  // 42: elephant.distribution.v1.ConfigGeneration.schemas:type_name -> elephant.distribution.v1.ConfigGenerationSchema
-	46,  // 43: elephant.distribution.v1.ConfigGeneration.types:type_name -> elephant.distribution.v1.ConfigGenerationType
-	48,  // 44: elephant.distribution.v1.ConfigGeneration.renditions:type_name -> elephant.distribution.v1.RenditionConfiguration
-	49,  // 45: elephant.distribution.v1.ConfigGeneration.renderers:type_name -> elephant.distribution.v1.HTMLRenderingConfiguration
-	45,  // 46: elephant.distribution.v1.RegisterConfigGenerationRequest.schemas:type_name -> elephant.distribution.v1.ConfigGenerationSchema
-	46,  // 47: elephant.distribution.v1.RegisterConfigGenerationRequest.types:type_name -> elephant.distribution.v1.ConfigGenerationType
-	48,  // 48: elephant.distribution.v1.RegisterConfigGenerationRequest.renditions:type_name -> elephant.distribution.v1.RenditionConfiguration
-	49,  // 49: elephant.distribution.v1.RegisterConfigGenerationRequest.renderers:type_name -> elephant.distribution.v1.HTMLRenderingConfiguration
-	62,  // 50: elephant.distribution.v1.RegisterConfigGenerationResponse.generation:type_name -> elephant.distribution.v1.ConfigGeneration
-	62,  // 51: elephant.distribution.v1.ActivateConfigGenerationResponse.generation:type_name -> elephant.distribution.v1.ConfigGeneration
-	62,  // 52: elephant.distribution.v1.GetActiveConfigGenerationResponse.generation:type_name -> elephant.distribution.v1.ConfigGeneration
-	62,  // 53: elephant.distribution.v1.ListConfigGenerationsResponse.generations:type_name -> elephant.distribution.v1.ConfigGeneration
-	120, // 54: elephant.distribution.v1.GetAllActiveSchemasRequest.known:type_name -> elephant.distribution.v1.GetAllActiveSchemasRequest.KnownEntry
-	44,  // 55: elephant.distribution.v1.GetAllActiveSchemasResponse.schemas:type_name -> elephant.distribution.v1.Schema
-	80,  // 56: elephant.distribution.v1.TypeConfiguration.time_expressions:type_name -> elephant.distribution.v1.TypeTimeExpression
-	81,  // 57: elephant.distribution.v1.TypeConfiguration.label_expressions:type_name -> elephant.distribution.v1.LabelExpression
-	78,  // 58: elephant.distribution.v1.TypeConfiguration.facet_expressions:type_name -> elephant.distribution.v1.TypeFacetExpression
-	79,  // 59: elephant.distribution.v1.TypeConfiguration.delivery_fields:type_name -> elephant.distribution.v1.TypeDeliveryField
-	90,  // 60: elephant.distribution.v1.EraseDocumentResponse.status:type_name -> elephant.distribution.v1.ErasureStatus
-	90,  // 61: elephant.distribution.v1.GetErasureStatusResponse.status:type_name -> elephant.distribution.v1.ErasureStatus
-	91,  // 62: elephant.distribution.v1.ErasureStatus.pending_deliveries:type_name -> elephant.distribution.v1.DeliveryErasureObligation
-	94,  // 63: elephant.distribution.v1.RematerializePartitionResponse.status:type_name -> elephant.distribution.v1.RematerializationStatus
-	77,  // 64: elephant.distribution.v1.GetTypeConfigurationResponse.configuration:type_name -> elephant.distribution.v1.TypeConfiguration
-	97,  // 65: elephant.distribution.v1.CreateIndexGenerationResponse.generation:type_name -> elephant.distribution.v1.IndexGeneration
-	102, // 66: elephant.distribution.v1.ListIndexGenerationsResponse.generations:type_name -> elephant.distribution.v1.IndexGenerationStatus
-	97,  // 67: elephant.distribution.v1.IndexGenerationStatus.generation:type_name -> elephant.distribution.v1.IndexGeneration
-	97,  // 68: elephant.distribution.v1.ActivateIndexGenerationResponse.generation:type_name -> elephant.distribution.v1.IndexGeneration
-	97,  // 69: elephant.distribution.v1.DeleteIndexGenerationResponse.generation:type_name -> elephant.distribution.v1.IndexGeneration
-	35,  // 70: elephant.distribution.v1.GetNewDocumentsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
-	1,   // 71: elephant.distribution.v1.GetNewDocumentsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
-	1,   // 72: elephant.distribution.v1.GetDocumentRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
-	35,  // 73: elephant.distribution.v1.GetDocumentVersionsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
-	1,   // 74: elephant.distribution.v1.GetDocumentVersionsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
-	9,   // 75: elephant.distribution.v1.ListPublishedVersionsRequest.FacetsEntry.value:type_name -> elephant.distribution.v1.FacetValues
-	35,  // 76: elephant.distribution.v1.ListPublishedVersionsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
-	1,   // 77: elephant.distribution.v1.ListPublishedVersionsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
-	9,   // 78: elephant.distribution.v1.ListPlannedVersionsRequest.FacetsEntry.value:type_name -> elephant.distribution.v1.FacetValues
-	35,  // 79: elephant.distribution.v1.ListPlannedVersionsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
-	1,   // 80: elephant.distribution.v1.ListPlannedVersionsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
-	39,  // 81: elephant.distribution.v1.ExtractedValues.ValuesEntry.value:type_name -> elephant.distribution.v1.ExtractedValue
-	53,  // 82: elephant.distribution.v1.RendererPolicy.AttributesEntry.value:type_name -> elephant.distribution.v1.RendererAttributes
-	63,  // 83: elephant.distribution.v1.ConfigurationService.RegisterConfigGeneration:input_type -> elephant.distribution.v1.RegisterConfigGenerationRequest
-	65,  // 84: elephant.distribution.v1.ConfigurationService.ActivateConfigGeneration:input_type -> elephant.distribution.v1.ActivateConfigGenerationRequest
-	67,  // 85: elephant.distribution.v1.ConfigurationService.GetActiveConfigGeneration:input_type -> elephant.distribution.v1.GetActiveConfigGenerationRequest
-	69,  // 86: elephant.distribution.v1.ConfigurationService.ListConfigGenerations:input_type -> elephant.distribution.v1.ListConfigGenerationsRequest
-	71,  // 87: elephant.distribution.v1.ConfigurationService.GetSchema:input_type -> elephant.distribution.v1.GetSchemaRequest
-	73,  // 88: elephant.distribution.v1.ConfigurationService.GetAllActiveSchemas:input_type -> elephant.distribution.v1.GetAllActiveSchemasRequest
-	75,  // 89: elephant.distribution.v1.ConfigurationService.GetDocumentTypes:input_type -> elephant.distribution.v1.GetDocumentTypesRequest
-	95,  // 90: elephant.distribution.v1.ConfigurationService.GetTypeConfiguration:input_type -> elephant.distribution.v1.GetTypeConfigurationRequest
-	56,  // 91: elephant.distribution.v1.ConfigurationService.SetRendererSecret:input_type -> elephant.distribution.v1.SetRendererSecretRequest
-	58,  // 92: elephant.distribution.v1.ConfigurationService.DeleteRendererSecret:input_type -> elephant.distribution.v1.DeleteRendererSecretRequest
-	60,  // 93: elephant.distribution.v1.ConfigurationService.ListRendererSecrets:input_type -> elephant.distribution.v1.ListRendererSecretsRequest
-	82,  // 94: elephant.distribution.v1.ConfigurationService.SetSyncState:input_type -> elephant.distribution.v1.SetSyncStateRequest
-	84,  // 95: elephant.distribution.v1.ConfigurationService.GetSyncStatus:input_type -> elephant.distribution.v1.GetSyncStatusRequest
-	86,  // 96: elephant.distribution.v1.ConfigurationService.EraseDocument:input_type -> elephant.distribution.v1.EraseDocumentRequest
-	88,  // 97: elephant.distribution.v1.ConfigurationService.GetErasureStatus:input_type -> elephant.distribution.v1.GetErasureStatusRequest
-	92,  // 98: elephant.distribution.v1.ConfigurationService.RematerializePartition:input_type -> elephant.distribution.v1.RematerializePartitionRequest
-	98,  // 99: elephant.distribution.v1.ConfigurationService.CreateIndexGeneration:input_type -> elephant.distribution.v1.CreateIndexGenerationRequest
-	100, // 100: elephant.distribution.v1.ConfigurationService.ListIndexGenerations:input_type -> elephant.distribution.v1.ListIndexGenerationsRequest
-	103, // 101: elephant.distribution.v1.ConfigurationService.ActivateIndexGeneration:input_type -> elephant.distribution.v1.ActivateIndexGenerationRequest
-	105, // 102: elephant.distribution.v1.ConfigurationService.DeleteIndexGeneration:input_type -> elephant.distribution.v1.DeleteIndexGenerationRequest
-	0,   // 103: elephant.distribution.v1.ContentService.GetNewDocuments:input_type -> elephant.distribution.v1.GetNewDocumentsRequest
-	41,  // 104: elephant.distribution.v1.ContentService.GetSigningKeys:input_type -> elephant.distribution.v1.GetSigningKeysRequest
-	2,   // 105: elephant.distribution.v1.ContentService.GetDocument:input_type -> elephant.distribution.v1.GetDocumentRequest
-	15,  // 106: elephant.distribution.v1.ContentService.CreateImportUpload:input_type -> elephant.distribution.v1.CreateImportUploadRequest
-	18,  // 107: elephant.distribution.v1.ContentService.FinalizeImportUpload:input_type -> elephant.distribution.v1.FinalizeImportUploadRequest
-	20,  // 108: elephant.distribution.v1.ContentService.GetImportStatus:input_type -> elephant.distribution.v1.GetImportStatusRequest
-	22,  // 109: elephant.distribution.v1.ContentService.ListImports:input_type -> elephant.distribution.v1.ListImportsRequest
-	23,  // 110: elephant.distribution.v1.ContentService.CancelImport:input_type -> elephant.distribution.v1.CancelImportRequest
-	10,  // 111: elephant.distribution.v1.ContentService.ListPublishedVersions:input_type -> elephant.distribution.v1.ListPublishedVersionsRequest
-	12,  // 112: elephant.distribution.v1.ContentService.ListPlannedVersions:input_type -> elephant.distribution.v1.ListPlannedVersionsRequest
-	6,   // 113: elephant.distribution.v1.ContentService.GetDocumentVersions:input_type -> elephant.distribution.v1.GetDocumentVersionsRequest
-	27,  // 114: elephant.distribution.v1.ArchiveService.ListArchivedDocuments:input_type -> elephant.distribution.v1.ListArchivedDocumentsRequest
-	30,  // 115: elephant.distribution.v1.ArchiveService.ListArchiveChunks:input_type -> elephant.distribution.v1.ListArchiveChunksRequest
-	33,  // 116: elephant.distribution.v1.ArchiveService.GetArchivedDocument:input_type -> elephant.distribution.v1.GetArchivedDocumentRequest
-	64,  // 117: elephant.distribution.v1.ConfigurationService.RegisterConfigGeneration:output_type -> elephant.distribution.v1.RegisterConfigGenerationResponse
-	66,  // 118: elephant.distribution.v1.ConfigurationService.ActivateConfigGeneration:output_type -> elephant.distribution.v1.ActivateConfigGenerationResponse
-	68,  // 119: elephant.distribution.v1.ConfigurationService.GetActiveConfigGeneration:output_type -> elephant.distribution.v1.GetActiveConfigGenerationResponse
-	70,  // 120: elephant.distribution.v1.ConfigurationService.ListConfigGenerations:output_type -> elephant.distribution.v1.ListConfigGenerationsResponse
-	72,  // 121: elephant.distribution.v1.ConfigurationService.GetSchema:output_type -> elephant.distribution.v1.GetSchemaResponse
-	74,  // 122: elephant.distribution.v1.ConfigurationService.GetAllActiveSchemas:output_type -> elephant.distribution.v1.GetAllActiveSchemasResponse
-	76,  // 123: elephant.distribution.v1.ConfigurationService.GetDocumentTypes:output_type -> elephant.distribution.v1.GetDocumentTypesResponse
-	96,  // 124: elephant.distribution.v1.ConfigurationService.GetTypeConfiguration:output_type -> elephant.distribution.v1.GetTypeConfigurationResponse
-	57,  // 125: elephant.distribution.v1.ConfigurationService.SetRendererSecret:output_type -> elephant.distribution.v1.SetRendererSecretResponse
-	59,  // 126: elephant.distribution.v1.ConfigurationService.DeleteRendererSecret:output_type -> elephant.distribution.v1.DeleteRendererSecretResponse
-	61,  // 127: elephant.distribution.v1.ConfigurationService.ListRendererSecrets:output_type -> elephant.distribution.v1.ListRendererSecretsResponse
-	83,  // 128: elephant.distribution.v1.ConfigurationService.SetSyncState:output_type -> elephant.distribution.v1.SetSyncStateResponse
-	85,  // 129: elephant.distribution.v1.ConfigurationService.GetSyncStatus:output_type -> elephant.distribution.v1.GetSyncStatusResponse
-	87,  // 130: elephant.distribution.v1.ConfigurationService.EraseDocument:output_type -> elephant.distribution.v1.EraseDocumentResponse
-	89,  // 131: elephant.distribution.v1.ConfigurationService.GetErasureStatus:output_type -> elephant.distribution.v1.GetErasureStatusResponse
-	93,  // 132: elephant.distribution.v1.ConfigurationService.RematerializePartition:output_type -> elephant.distribution.v1.RematerializePartitionResponse
-	99,  // 133: elephant.distribution.v1.ConfigurationService.CreateIndexGeneration:output_type -> elephant.distribution.v1.CreateIndexGenerationResponse
-	101, // 134: elephant.distribution.v1.ConfigurationService.ListIndexGenerations:output_type -> elephant.distribution.v1.ListIndexGenerationsResponse
-	104, // 135: elephant.distribution.v1.ConfigurationService.ActivateIndexGeneration:output_type -> elephant.distribution.v1.ActivateIndexGenerationResponse
-	106, // 136: elephant.distribution.v1.ConfigurationService.DeleteIndexGeneration:output_type -> elephant.distribution.v1.DeleteIndexGenerationResponse
-	36,  // 137: elephant.distribution.v1.ContentService.GetNewDocuments:output_type -> elephant.distribution.v1.GetNewDocumentsResponse
-	42,  // 138: elephant.distribution.v1.ContentService.GetSigningKeys:output_type -> elephant.distribution.v1.GetSigningKeysResponse
-	3,   // 139: elephant.distribution.v1.ContentService.GetDocument:output_type -> elephant.distribution.v1.GetDocumentResponse
-	17,  // 140: elephant.distribution.v1.ContentService.CreateImportUpload:output_type -> elephant.distribution.v1.CreateImportUploadResponse
-	19,  // 141: elephant.distribution.v1.ContentService.FinalizeImportUpload:output_type -> elephant.distribution.v1.FinalizeImportUploadResponse
-	21,  // 142: elephant.distribution.v1.ContentService.GetImportStatus:output_type -> elephant.distribution.v1.GetImportStatusResponse
-	25,  // 143: elephant.distribution.v1.ContentService.ListImports:output_type -> elephant.distribution.v1.ListImportsResponse
-	24,  // 144: elephant.distribution.v1.ContentService.CancelImport:output_type -> elephant.distribution.v1.CancelImportResponse
-	11,  // 145: elephant.distribution.v1.ContentService.ListPublishedVersions:output_type -> elephant.distribution.v1.ListPublishedVersionsResponse
-	13,  // 146: elephant.distribution.v1.ContentService.ListPlannedVersions:output_type -> elephant.distribution.v1.ListPlannedVersionsResponse
-	8,   // 147: elephant.distribution.v1.ContentService.GetDocumentVersions:output_type -> elephant.distribution.v1.GetDocumentVersionsResponse
-	28,  // 148: elephant.distribution.v1.ArchiveService.ListArchivedDocuments:output_type -> elephant.distribution.v1.ListArchivedDocumentsResponse
-	31,  // 149: elephant.distribution.v1.ArchiveService.ListArchiveChunks:output_type -> elephant.distribution.v1.ListArchiveChunksResponse
-	34,  // 150: elephant.distribution.v1.ArchiveService.GetArchivedDocument:output_type -> elephant.distribution.v1.GetArchivedDocumentResponse
-	117, // [117:151] is the sub-list for method output_type
-	83,  // [83:117] is the sub-list for method input_type
-	83,  // [83:83] is the sub-list for extension type_name
-	83,  // [83:83] is the sub-list for extension extendee
-	0,   // [0:83] is the sub-list for field type_name
+	62,  // 42: elephant.distribution.v1.GrantEntitlementResponse.grant:type_name -> elephant.distribution.v1.EntitlementGrant
+	62,  // 43: elephant.distribution.v1.RevokeEntitlementResponse.grant:type_name -> elephant.distribution.v1.EntitlementGrant
+	62,  // 44: elephant.distribution.v1.ListEntitlementGrantsResponse.grants:type_name -> elephant.distribution.v1.EntitlementGrant
+	45,  // 45: elephant.distribution.v1.ConfigGeneration.schemas:type_name -> elephant.distribution.v1.ConfigGenerationSchema
+	46,  // 46: elephant.distribution.v1.ConfigGeneration.types:type_name -> elephant.distribution.v1.ConfigGenerationType
+	48,  // 47: elephant.distribution.v1.ConfigGeneration.renditions:type_name -> elephant.distribution.v1.RenditionConfiguration
+	49,  // 48: elephant.distribution.v1.ConfigGeneration.renderers:type_name -> elephant.distribution.v1.HTMLRenderingConfiguration
+	72,  // 49: elephant.distribution.v1.ConfigGeneration.entitlements:type_name -> elephant.distribution.v1.Entitlement
+	45,  // 50: elephant.distribution.v1.RegisterConfigGenerationRequest.schemas:type_name -> elephant.distribution.v1.ConfigGenerationSchema
+	46,  // 51: elephant.distribution.v1.RegisterConfigGenerationRequest.types:type_name -> elephant.distribution.v1.ConfigGenerationType
+	48,  // 52: elephant.distribution.v1.RegisterConfigGenerationRequest.renditions:type_name -> elephant.distribution.v1.RenditionConfiguration
+	49,  // 53: elephant.distribution.v1.RegisterConfigGenerationRequest.renderers:type_name -> elephant.distribution.v1.HTMLRenderingConfiguration
+	72,  // 54: elephant.distribution.v1.RegisterConfigGenerationRequest.entitlements:type_name -> elephant.distribution.v1.Entitlement
+	69,  // 55: elephant.distribution.v1.RegisterConfigGenerationResponse.generation:type_name -> elephant.distribution.v1.ConfigGeneration
+	75,  // 56: elephant.distribution.v1.RegisterConfigGenerationResponse.reindex_needed:type_name -> elephant.distribution.v1.GateCoverage
+	73,  // 57: elephant.distribution.v1.Entitlement.gates:type_name -> elephant.distribution.v1.EntitlementGate
+	74,  // 58: elephant.distribution.v1.EntitlementGate.condition:type_name -> elephant.distribution.v1.GateCondition
+	69,  // 59: elephant.distribution.v1.ActivateConfigGenerationResponse.generation:type_name -> elephant.distribution.v1.ConfigGeneration
+	69,  // 60: elephant.distribution.v1.GetActiveConfigGenerationResponse.generation:type_name -> elephant.distribution.v1.ConfigGeneration
+	69,  // 61: elephant.distribution.v1.ListConfigGenerationsResponse.generations:type_name -> elephant.distribution.v1.ConfigGeneration
+	132, // 62: elephant.distribution.v1.GetAllActiveSchemasRequest.known:type_name -> elephant.distribution.v1.GetAllActiveSchemasRequest.KnownEntry
+	44,  // 63: elephant.distribution.v1.GetAllActiveSchemasResponse.schemas:type_name -> elephant.distribution.v1.Schema
+	91,  // 64: elephant.distribution.v1.TypeConfiguration.time_expressions:type_name -> elephant.distribution.v1.TypeTimeExpression
+	92,  // 65: elephant.distribution.v1.TypeConfiguration.label_expressions:type_name -> elephant.distribution.v1.LabelExpression
+	89,  // 66: elephant.distribution.v1.TypeConfiguration.facet_expressions:type_name -> elephant.distribution.v1.TypeFacetExpression
+	90,  // 67: elephant.distribution.v1.TypeConfiguration.delivery_fields:type_name -> elephant.distribution.v1.TypeDeliveryField
+	101, // 68: elephant.distribution.v1.EraseDocumentResponse.status:type_name -> elephant.distribution.v1.ErasureStatus
+	101, // 69: elephant.distribution.v1.GetErasureStatusResponse.status:type_name -> elephant.distribution.v1.ErasureStatus
+	102, // 70: elephant.distribution.v1.ErasureStatus.pending_deliveries:type_name -> elephant.distribution.v1.DeliveryErasureObligation
+	105, // 71: elephant.distribution.v1.RematerializePartitionResponse.status:type_name -> elephant.distribution.v1.RematerializationStatus
+	88,  // 72: elephant.distribution.v1.GetTypeConfigurationResponse.configuration:type_name -> elephant.distribution.v1.TypeConfiguration
+	109, // 73: elephant.distribution.v1.IndexGeneration.delivery_fields:type_name -> elephant.distribution.v1.IndexedDeliveryField
+	108, // 74: elephant.distribution.v1.CreateIndexGenerationResponse.generation:type_name -> elephant.distribution.v1.IndexGeneration
+	114, // 75: elephant.distribution.v1.ListIndexGenerationsResponse.generations:type_name -> elephant.distribution.v1.IndexGenerationStatus
+	108, // 76: elephant.distribution.v1.IndexGenerationStatus.generation:type_name -> elephant.distribution.v1.IndexGeneration
+	108, // 77: elephant.distribution.v1.ActivateIndexGenerationResponse.generation:type_name -> elephant.distribution.v1.IndexGeneration
+	108, // 78: elephant.distribution.v1.DeleteIndexGenerationResponse.generation:type_name -> elephant.distribution.v1.IndexGeneration
+	35,  // 79: elephant.distribution.v1.GetNewDocumentsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
+	1,   // 80: elephant.distribution.v1.GetNewDocumentsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
+	1,   // 81: elephant.distribution.v1.GetDocumentRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
+	35,  // 82: elephant.distribution.v1.GetDocumentVersionsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
+	1,   // 83: elephant.distribution.v1.GetDocumentVersionsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
+	9,   // 84: elephant.distribution.v1.ListPublishedVersionsRequest.FacetsEntry.value:type_name -> elephant.distribution.v1.FacetValues
+	35,  // 85: elephant.distribution.v1.ListPublishedVersionsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
+	1,   // 86: elephant.distribution.v1.ListPublishedVersionsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
+	9,   // 87: elephant.distribution.v1.ListPlannedVersionsRequest.FacetsEntry.value:type_name -> elephant.distribution.v1.FacetValues
+	35,  // 88: elephant.distribution.v1.ListPlannedVersionsRequest.SubsetEntry.value:type_name -> elephant.distribution.v1.Subsets
+	1,   // 89: elephant.distribution.v1.ListPlannedVersionsRequest.RenditionsEntry.value:type_name -> elephant.distribution.v1.RenditionParameters
+	39,  // 90: elephant.distribution.v1.ExtractedValues.ValuesEntry.value:type_name -> elephant.distribution.v1.ExtractedValue
+	53,  // 91: elephant.distribution.v1.RendererPolicy.AttributesEntry.value:type_name -> elephant.distribution.v1.RendererAttributes
+	70,  // 92: elephant.distribution.v1.ConfigurationService.RegisterConfigGeneration:input_type -> elephant.distribution.v1.RegisterConfigGenerationRequest
+	76,  // 93: elephant.distribution.v1.ConfigurationService.ActivateConfigGeneration:input_type -> elephant.distribution.v1.ActivateConfigGenerationRequest
+	78,  // 94: elephant.distribution.v1.ConfigurationService.GetActiveConfigGeneration:input_type -> elephant.distribution.v1.GetActiveConfigGenerationRequest
+	80,  // 95: elephant.distribution.v1.ConfigurationService.ListConfigGenerations:input_type -> elephant.distribution.v1.ListConfigGenerationsRequest
+	82,  // 96: elephant.distribution.v1.ConfigurationService.GetSchema:input_type -> elephant.distribution.v1.GetSchemaRequest
+	84,  // 97: elephant.distribution.v1.ConfigurationService.GetAllActiveSchemas:input_type -> elephant.distribution.v1.GetAllActiveSchemasRequest
+	86,  // 98: elephant.distribution.v1.ConfigurationService.GetDocumentTypes:input_type -> elephant.distribution.v1.GetDocumentTypesRequest
+	106, // 99: elephant.distribution.v1.ConfigurationService.GetTypeConfiguration:input_type -> elephant.distribution.v1.GetTypeConfigurationRequest
+	56,  // 100: elephant.distribution.v1.ConfigurationService.SetRendererSecret:input_type -> elephant.distribution.v1.SetRendererSecretRequest
+	58,  // 101: elephant.distribution.v1.ConfigurationService.DeleteRendererSecret:input_type -> elephant.distribution.v1.DeleteRendererSecretRequest
+	60,  // 102: elephant.distribution.v1.ConfigurationService.ListRendererSecrets:input_type -> elephant.distribution.v1.ListRendererSecretsRequest
+	63,  // 103: elephant.distribution.v1.ConfigurationService.GrantEntitlement:input_type -> elephant.distribution.v1.GrantEntitlementRequest
+	65,  // 104: elephant.distribution.v1.ConfigurationService.RevokeEntitlement:input_type -> elephant.distribution.v1.RevokeEntitlementRequest
+	67,  // 105: elephant.distribution.v1.ConfigurationService.ListEntitlementGrants:input_type -> elephant.distribution.v1.ListEntitlementGrantsRequest
+	93,  // 106: elephant.distribution.v1.ConfigurationService.SetSyncState:input_type -> elephant.distribution.v1.SetSyncStateRequest
+	95,  // 107: elephant.distribution.v1.ConfigurationService.GetSyncStatus:input_type -> elephant.distribution.v1.GetSyncStatusRequest
+	97,  // 108: elephant.distribution.v1.ConfigurationService.EraseDocument:input_type -> elephant.distribution.v1.EraseDocumentRequest
+	99,  // 109: elephant.distribution.v1.ConfigurationService.GetErasureStatus:input_type -> elephant.distribution.v1.GetErasureStatusRequest
+	103, // 110: elephant.distribution.v1.ConfigurationService.RematerializePartition:input_type -> elephant.distribution.v1.RematerializePartitionRequest
+	110, // 111: elephant.distribution.v1.ConfigurationService.CreateIndexGeneration:input_type -> elephant.distribution.v1.CreateIndexGenerationRequest
+	112, // 112: elephant.distribution.v1.ConfigurationService.ListIndexGenerations:input_type -> elephant.distribution.v1.ListIndexGenerationsRequest
+	115, // 113: elephant.distribution.v1.ConfigurationService.ActivateIndexGeneration:input_type -> elephant.distribution.v1.ActivateIndexGenerationRequest
+	117, // 114: elephant.distribution.v1.ConfigurationService.DeleteIndexGeneration:input_type -> elephant.distribution.v1.DeleteIndexGenerationRequest
+	0,   // 115: elephant.distribution.v1.ContentService.GetNewDocuments:input_type -> elephant.distribution.v1.GetNewDocumentsRequest
+	41,  // 116: elephant.distribution.v1.ContentService.GetSigningKeys:input_type -> elephant.distribution.v1.GetSigningKeysRequest
+	2,   // 117: elephant.distribution.v1.ContentService.GetDocument:input_type -> elephant.distribution.v1.GetDocumentRequest
+	15,  // 118: elephant.distribution.v1.ContentService.CreateImportUpload:input_type -> elephant.distribution.v1.CreateImportUploadRequest
+	18,  // 119: elephant.distribution.v1.ContentService.FinalizeImportUpload:input_type -> elephant.distribution.v1.FinalizeImportUploadRequest
+	20,  // 120: elephant.distribution.v1.ContentService.GetImportStatus:input_type -> elephant.distribution.v1.GetImportStatusRequest
+	22,  // 121: elephant.distribution.v1.ContentService.ListImports:input_type -> elephant.distribution.v1.ListImportsRequest
+	23,  // 122: elephant.distribution.v1.ContentService.CancelImport:input_type -> elephant.distribution.v1.CancelImportRequest
+	10,  // 123: elephant.distribution.v1.ContentService.ListPublishedVersions:input_type -> elephant.distribution.v1.ListPublishedVersionsRequest
+	12,  // 124: elephant.distribution.v1.ContentService.ListPlannedVersions:input_type -> elephant.distribution.v1.ListPlannedVersionsRequest
+	6,   // 125: elephant.distribution.v1.ContentService.GetDocumentVersions:input_type -> elephant.distribution.v1.GetDocumentVersionsRequest
+	27,  // 126: elephant.distribution.v1.ArchiveService.ListArchivedDocuments:input_type -> elephant.distribution.v1.ListArchivedDocumentsRequest
+	30,  // 127: elephant.distribution.v1.ArchiveService.ListArchiveChunks:input_type -> elephant.distribution.v1.ListArchiveChunksRequest
+	33,  // 128: elephant.distribution.v1.ArchiveService.GetArchivedDocument:input_type -> elephant.distribution.v1.GetArchivedDocumentRequest
+	71,  // 129: elephant.distribution.v1.ConfigurationService.RegisterConfigGeneration:output_type -> elephant.distribution.v1.RegisterConfigGenerationResponse
+	77,  // 130: elephant.distribution.v1.ConfigurationService.ActivateConfigGeneration:output_type -> elephant.distribution.v1.ActivateConfigGenerationResponse
+	79,  // 131: elephant.distribution.v1.ConfigurationService.GetActiveConfigGeneration:output_type -> elephant.distribution.v1.GetActiveConfigGenerationResponse
+	81,  // 132: elephant.distribution.v1.ConfigurationService.ListConfigGenerations:output_type -> elephant.distribution.v1.ListConfigGenerationsResponse
+	83,  // 133: elephant.distribution.v1.ConfigurationService.GetSchema:output_type -> elephant.distribution.v1.GetSchemaResponse
+	85,  // 134: elephant.distribution.v1.ConfigurationService.GetAllActiveSchemas:output_type -> elephant.distribution.v1.GetAllActiveSchemasResponse
+	87,  // 135: elephant.distribution.v1.ConfigurationService.GetDocumentTypes:output_type -> elephant.distribution.v1.GetDocumentTypesResponse
+	107, // 136: elephant.distribution.v1.ConfigurationService.GetTypeConfiguration:output_type -> elephant.distribution.v1.GetTypeConfigurationResponse
+	57,  // 137: elephant.distribution.v1.ConfigurationService.SetRendererSecret:output_type -> elephant.distribution.v1.SetRendererSecretResponse
+	59,  // 138: elephant.distribution.v1.ConfigurationService.DeleteRendererSecret:output_type -> elephant.distribution.v1.DeleteRendererSecretResponse
+	61,  // 139: elephant.distribution.v1.ConfigurationService.ListRendererSecrets:output_type -> elephant.distribution.v1.ListRendererSecretsResponse
+	64,  // 140: elephant.distribution.v1.ConfigurationService.GrantEntitlement:output_type -> elephant.distribution.v1.GrantEntitlementResponse
+	66,  // 141: elephant.distribution.v1.ConfigurationService.RevokeEntitlement:output_type -> elephant.distribution.v1.RevokeEntitlementResponse
+	68,  // 142: elephant.distribution.v1.ConfigurationService.ListEntitlementGrants:output_type -> elephant.distribution.v1.ListEntitlementGrantsResponse
+	94,  // 143: elephant.distribution.v1.ConfigurationService.SetSyncState:output_type -> elephant.distribution.v1.SetSyncStateResponse
+	96,  // 144: elephant.distribution.v1.ConfigurationService.GetSyncStatus:output_type -> elephant.distribution.v1.GetSyncStatusResponse
+	98,  // 145: elephant.distribution.v1.ConfigurationService.EraseDocument:output_type -> elephant.distribution.v1.EraseDocumentResponse
+	100, // 146: elephant.distribution.v1.ConfigurationService.GetErasureStatus:output_type -> elephant.distribution.v1.GetErasureStatusResponse
+	104, // 147: elephant.distribution.v1.ConfigurationService.RematerializePartition:output_type -> elephant.distribution.v1.RematerializePartitionResponse
+	111, // 148: elephant.distribution.v1.ConfigurationService.CreateIndexGeneration:output_type -> elephant.distribution.v1.CreateIndexGenerationResponse
+	113, // 149: elephant.distribution.v1.ConfigurationService.ListIndexGenerations:output_type -> elephant.distribution.v1.ListIndexGenerationsResponse
+	116, // 150: elephant.distribution.v1.ConfigurationService.ActivateIndexGeneration:output_type -> elephant.distribution.v1.ActivateIndexGenerationResponse
+	118, // 151: elephant.distribution.v1.ConfigurationService.DeleteIndexGeneration:output_type -> elephant.distribution.v1.DeleteIndexGenerationResponse
+	36,  // 152: elephant.distribution.v1.ContentService.GetNewDocuments:output_type -> elephant.distribution.v1.GetNewDocumentsResponse
+	42,  // 153: elephant.distribution.v1.ContentService.GetSigningKeys:output_type -> elephant.distribution.v1.GetSigningKeysResponse
+	3,   // 154: elephant.distribution.v1.ContentService.GetDocument:output_type -> elephant.distribution.v1.GetDocumentResponse
+	17,  // 155: elephant.distribution.v1.ContentService.CreateImportUpload:output_type -> elephant.distribution.v1.CreateImportUploadResponse
+	19,  // 156: elephant.distribution.v1.ContentService.FinalizeImportUpload:output_type -> elephant.distribution.v1.FinalizeImportUploadResponse
+	21,  // 157: elephant.distribution.v1.ContentService.GetImportStatus:output_type -> elephant.distribution.v1.GetImportStatusResponse
+	25,  // 158: elephant.distribution.v1.ContentService.ListImports:output_type -> elephant.distribution.v1.ListImportsResponse
+	24,  // 159: elephant.distribution.v1.ContentService.CancelImport:output_type -> elephant.distribution.v1.CancelImportResponse
+	11,  // 160: elephant.distribution.v1.ContentService.ListPublishedVersions:output_type -> elephant.distribution.v1.ListPublishedVersionsResponse
+	13,  // 161: elephant.distribution.v1.ContentService.ListPlannedVersions:output_type -> elephant.distribution.v1.ListPlannedVersionsResponse
+	8,   // 162: elephant.distribution.v1.ContentService.GetDocumentVersions:output_type -> elephant.distribution.v1.GetDocumentVersionsResponse
+	28,  // 163: elephant.distribution.v1.ArchiveService.ListArchivedDocuments:output_type -> elephant.distribution.v1.ListArchivedDocumentsResponse
+	31,  // 164: elephant.distribution.v1.ArchiveService.ListArchiveChunks:output_type -> elephant.distribution.v1.ListArchiveChunksResponse
+	34,  // 165: elephant.distribution.v1.ArchiveService.GetArchivedDocument:output_type -> elephant.distribution.v1.GetArchivedDocumentResponse
+	129, // [129:166] is the sub-list for method output_type
+	92,  // [92:129] is the sub-list for method input_type
+	92,  // [92:92] is the sub-list for extension type_name
+	92,  // [92:92] is the sub-list for extension extendee
+	0,   // [0:92] is the sub-list for field type_name
 }
 
 func init() { file_elephant_distribution_v1_service_proto_init() }
@@ -8579,7 +9504,7 @@ func file_elephant_distribution_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_elephant_distribution_v1_service_proto_rawDesc), len(file_elephant_distribution_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   121,
+			NumMessages:   133,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

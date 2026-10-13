@@ -58,7 +58,9 @@ type QueryRequest struct {
 	// never reports the superseded copy's values.
 	Tier string `protobuf:"bytes,2,opt,name=tier,proto3" json:"tier,omitempty"`
 	// DocumentTypes to search. Empty searches all types the caller can
-	// read. A type that isn't indexed is an invalid argument.
+	// read. A type that isn't indexed is an invalid argument, and a type an
+	// entitlement the caller lacks gates as a whole is PermissionDenied with
+	// reason=not_entitled - see SearchService.Query.
 	//
 	// For a semantic query (knn) the empty list is every indexed type that
 	// carries embeddings: the types that don't are skipped rather than
@@ -1728,7 +1730,8 @@ type Hit struct {
 	// ContentService.GetDocumentVersions.
 	//
 	// A hit with neither a document nor deferred set has no document to
-	// load: it was deleted or erased since it was indexed.
+	// load: it was deleted or erased since it was indexed, or the version
+	// that would be loaded is one the caller is not entitled to.
 	Deferred bool `protobuf:"varint,9,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is the loaded document rendered to HTML, when the query
 	// asked for it with include_html. It is rendered from the version that

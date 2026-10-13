@@ -12,6 +12,11 @@ service ConfigurationService {
   // versions can be re-used by name and version without re-supplying the
   // spec; if the spec is supplied for an existing version it must match
   // the stored one. Returns the new generation ID.
+  //
+  // The entitlements are validated here, and a field gate whose field
+  // search cannot see on all of the indexed content is reported in the
+  // response rather than refused: see
+  // RegisterConfigGenerationResponse.reindex_needed.
   rpc RegisterConfigGeneration(RegisterConfigGenerationRequest) returns (RegisterConfigGenerationResponse);
   // ActivateConfigGeneration switches the active configuration to the
   // generation with the given ID.
@@ -56,6 +61,35 @@ service ConfigurationService {
   // the keyring entry each one is sealed under and when it was last
   // written. Never their values.
   rpc ListRendererSecrets(ListRendererSecretsRequest) returns (ListRendererSecretsResponse);
+  // GrantEntitlement grants an organisation an entitlement: from then on
+  // the content the entitlement's gates hide is visible to callers whose
+  // "org" claim names the organisation, and is delivered to the
+  // subscriptions and destinations it owns. See Entitlement for what a
+  // gate hides.
+  //
+  // Grants are a table in the service rather than a claim in the token,
+  // because the delivery matcher and push run without a caller and need
+  // the owner's grants, and a grant takes effect on every surface and in
+  // every process at once. Granting is idempotent: granting what is
+  // already granted returns the existing grant unchanged.
+  //
+  // The entitlement is not checked against the configuration. A grant
+  // naming an entitlement the active generation does not define is kept
+  // and does nothing until a generation that defines it is activated, so
+  // grants can be put in place before the gate that needs them.
+  rpc GrantEntitlement(GrantEntitlementRequest) returns (GrantEntitlementResponse);
+  // RevokeEntitlement removes a grant. It takes effect immediately on
+  // every surface: the next read is refused, nothing more is queued for
+  // the organisation's destinations, and queued pushes that are not sent
+  // yet are dropped when their turn comes. Erasure deletion markers are
+  // the exception and are still sent: the obligation to tell a destination
+  // outlives the grant that put the content there.
+  //
+  // Revoking a grant that does not exist is not an error.
+  rpc RevokeEntitlement(RevokeEntitlementRequest) returns (RevokeEntitlementResponse);
+  // ListEntitlementGrants lists the grants, optionally narrowed to one
+  // organisation or one entitlement.
+  rpc ListEntitlementGrants(ListEntitlementGrantsRequest) returns (ListEntitlementGrantsResponse);
   // SetSyncState sets the desired state of the distribution sync worker.
   // A cold-started service (no configuration, no sync position) starts
   // out paused so that the repository eventlog isn't consumed - and
@@ -151,6 +185,13 @@ service ConfigurationService {
   // create a generation on the new cluster, watch it catch up with
   // ListIndexGenerations, compare results through the generation override
   // on SearchService.Query, activate, and delete the old one.
+  //
+  // It is also how a delivery field gets onto content indexed before the
+  // field was declared, which is what a field gate introduced on existing
+  // content needs before search follows it. The generation records the
+  // delivery fields of the active configuration it is created under - see
+  // IndexGeneration.delivery_fields - and RegisterConfigGeneration reports
+  // a gate on a field the active index generation was not built with.
   rpc CreateIndexGeneration(CreateIndexGenerationRequest) returns (CreateIndexGenerationResponse);
   // ListIndexGenerations lists the index generations together with the
   // position each one's indexer has reached in the distribution eventlog
@@ -198,7 +239,28 @@ service ConfigurationService {
   rpc DeleteIndexGeneration(DeleteIndexGenerationRequest) returns (DeleteIndexGenerationResponse);
 }
 
+// ContentService serves the distributed documents: the eventlog, single
+// and batch document reads, and the daily views.
+//
+// What a caller sees is limited by its organisation's entitlements, read
+// from the "org" claim; see Entitlement and
+// ConfigurationService.GrantEntitlement. A document a gate hides from the
+// caller is not acknowledged to exist where the surface can avoid it: a
+// listing leaves it out, and a read of it answers NotFound - never
+// PermissionDenied - so that probing for an ID answers nothing. The one
+// exception is content that was stored before the field its gate reads
+// was declared: it is listed, because the stored record of what was
+// published is not rewritten, but its body is refused like any other
+// gated document's, so the entry carries neither a document nor deferred.
 service ContentService {
+  // GetNewDocuments reads the distribution eventlog.
+  //
+  // An event for a document the caller is not entitled to is left out of
+  // the page, so the last item is not necessarily the last event the page
+  // covered. Continue from GetNewDocumentsResponse.last_event_id rather
+  // than from the last item: a page that was entirely gated comes back
+  // with no items and a last_event_id beyond them, and a consumer that
+  // follows it does not stall on a run of gated events.
   rpc GetNewDocuments(GetNewDocumentsRequest) returns (GetNewDocumentsResponse);
   // GetSigningKeys returns the public keys the transparency log's
   // signatures are made with, so that a consumer reading the log with
@@ -218,6 +280,10 @@ service ContentService {
   // GetDocument returns a single document, transparently falling back to
   // the archive if the requested version (or the whole document) has been
   // evicted from the hot data set. The document is returned in-band.
+  //
+  // A document the caller is not entitled to is NotFound, exactly as one
+  // that does not exist. The check is made on the version actually served,
+  // so the same document can be found at one version and not at another.
   rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
   // CreateImportUpload starts a bulk import upload: the client declares
   // the files that make up the import set and gets a presigned PUT URL
@@ -297,6 +363,10 @@ service ContentService {
   // inline_horizon the entries come back deferred and their documents are
   // streamed in with GetDocumentVersions.
   //
+  // A version the caller is not entitled to is left out, by its type or by
+  // the facet values it was stored with; see ContentService for the
+  // content that is listed without a body instead.
+  //
   // Intended for backward-anchored types - articles, flashes, editorial
   // information - where the question is what was published when. See
   // ListPlannedVersions for the calendar view of forward-anchored types.
@@ -311,6 +381,8 @@ service ContentService {
   // never carries version history. An item rescheduled out of the
   // interval leaves it entirely rather than staying behind under its old
   // date.
+  //
+  // Entitlements apply as they do to ListPublishedVersions.
   //
   // Intended for forward-anchored types: planning items and calendar
   // entries.
@@ -327,6 +399,9 @@ service ContentService {
   // and version here to fetch them, in whatever order and at whatever
   // rate suits the client - typically what is on screen first, and the
   // rest as the reader scrolls.
+  //
+  // A version the caller is not entitled to comes back with found false,
+  // as GetDocument answers NotFound for it.
   //
   // The same bound applies here: ask for more than the server will load
   // in one response and the surplus comes back deferred again, so a
@@ -504,7 +579,8 @@ message PublishedVersion {
   // doc_uuid and version.
   //
   // An entry with neither a document nor deferred set has no document to
-  // load - it has been erased - so don't ask for it again.
+  // load - it has been erased, or the caller is not entitled to it - so
+  // don't ask for it again.
   bool deferred = 10;
   // RenderedHTML is this version rendered to HTML, when the request asked
   // for it with include_html. It follows the document: a deferred entry
@@ -580,7 +656,9 @@ message LoadedDocumentVersion {
   // makes progress.
   bool deferred = 7;
   // Found is false when the version is in neither the store nor the
-  // archive: erased, deleted, or never distributed. Don't ask again.
+  // archive - erased, deleted, or never distributed - and when the caller
+  // is not entitled to it, which is deliberately not told apart. Don't ask
+  // again.
   bool found = 8;
   // RenderedHTML is this version rendered to HTML, when the request asked
   // for it with include_html. Absent for a deferred version, exactly as
@@ -875,6 +953,13 @@ message ImportStatus {
 // catalog and mints the URLs. Object keys and the presigning mechanism are
 // internal: consumers address content by identity (uuid, version,
 // chunk_id), never by storage key.
+//
+// Access requires the "dist_archive_read" scope, and that scope GRANTS
+// EVERY ENTITLEMENT. A presigned URL hands out a whole document object or
+// a whole eventlog chunk, which cannot be filtered by the caller's
+// entitlements, so the catalog and the chunks are served unfiltered.
+// Grant the scope only to an organisation that is entitled to all of the
+// content; see Entitlement.
 service ArchiveService {
   // ListArchivedDocuments enumerates the latest archived version of every
   // document offloaded to the archive, for a current-state snapshot. Pair
@@ -976,7 +1061,15 @@ message Subsets {
 }
 
 message GetNewDocumentsResponse {
+  // Items are the events of the page, in event ID order, less those the
+  // caller is not entitled to.
   repeated DocumentItem items = 1;
+  // LastEventID is the ID of the last event the page covered, the events
+  // left out for entitlement included. Pass it as after to read on. It is
+  // the ID of the last item whenever nothing was left out, and zero when
+  // the page covered no events at all - a read at the head of the log
+  // that timed out - in which case read on from the same after.
+  int64 last_event_id = 2;
 }
 
 message DocumentItem {
@@ -991,8 +1084,8 @@ message DocumentItem {
   // loading bound. Fetch it with ContentService.GetDocumentVersions.
   //
   // An item with neither a document nor deferred set has no document to
-  // load: it is a tombstone, or the document has been deleted or erased.
-  // Don't ask for it again.
+  // load: it is a tombstone, the document has been deleted or erased, or
+  // the caller is not entitled to it. Don't ask for it again.
   bool deferred = 4;
   // RenderedHTML is the document rendered to HTML, when the request asked
   // for it with include_html. An <article> fragment, and empty whenever
@@ -1488,6 +1581,65 @@ message ListRendererSecretsResponse {
   repeated RendererSecretStatus secrets = 1;
 }
 
+// EntitlementGrant is one organisation's grant of one entitlement.
+message EntitlementGrant {
+  // Org is the organisation, as the "org" claim of its callers' tokens
+  // names it.
+  string org = 1;
+  // Entitlement is the name of the granted entitlement, Entitlement.name.
+  string entitlement = 2;
+  // GrantedAt is when the grant was made, RFC 3339.
+  string granted_at = 3;
+  // GrantedBy is the subject of the credentials the grant was made with.
+  string granted_by = 4;
+  // Defined is whether the active configuration generation defines the
+  // entitlement. A grant of an undefined entitlement is kept and does
+  // nothing until a generation that defines it is activated.
+  bool defined = 5;
+}
+
+message GrantEntitlementRequest {
+  // Org to grant the entitlement to, as its "org" claim names it.
+  // Required.
+  string org = 1;
+  // Entitlement to grant, by name. Required, and it has to match
+  // ^[a-z0-9][a-z0-9_-]*$, but it need not be defined by the active
+  // generation.
+  string entitlement = 2;
+}
+
+message GrantEntitlementResponse {
+  // Grant as it is stored: the existing one, unchanged, when the
+  // organisation already held the entitlement.
+  EntitlementGrant grant = 1;
+}
+
+message RevokeEntitlementRequest {
+  // Org to revoke the entitlement from. Required.
+  string org = 1;
+  // Entitlement to revoke, by name. Required.
+  string entitlement = 2;
+}
+
+message RevokeEntitlementResponse {
+  // Grant that was revoked, as it was before the revocation. Unset when
+  // there was no such grant.
+  EntitlementGrant grant = 1;
+}
+
+message ListEntitlementGrantsRequest {
+  // Org narrows the list to one organisation's grants. Optional.
+  string org = 1;
+  // Entitlement narrows the list to the grants of one entitlement.
+  // Optional.
+  string entitlement = 2;
+}
+
+message ListEntitlementGrantsResponse {
+  // Grants ordered by organisation and then by entitlement.
+  repeated EntitlementGrant grants = 1;
+}
+
 message ConfigGeneration {
   // ID is assigned by the server on registration.
   int64 id = 1;
@@ -1508,6 +1660,12 @@ message ConfigGeneration {
   // document types that render, the image variant the markup embeds, and
   // the registered renderers. Absent when the generation renders no HTML.
   HTMLRenderingConfiguration renderers = 8;
+  // Entitlements are the product tiers the generation defines, each with
+  // the gates that hide its content from an organisation without a grant
+  // for it. They take effect when the generation is activated. Empty
+  // gates nothing: every caller with the scope for a surface sees all of
+  // its content.
+  repeated Entitlement entitlements = 9;
 }
 
 message RegisterConfigGenerationRequest {
@@ -1535,11 +1693,115 @@ message RegisterConfigGenerationRequest {
   // is never created. Absent leaves the generation with no HTML
   // rendering.
   HTMLRenderingConfiguration renderers = 6;
+  // Entitlements the generation should define. Order is preserved, and
+  // carries no meaning: a document several gates match requires every one
+  // of their entitlements, whatever order they are declared in.
+  //
+  // They are validated here - names, that every gated type is a type of
+  // the generation, and that a gate's condition names a keyword delivery
+  // field the type declares together with a facet of the same name and
+  // expression - so that a gate that cannot be enforced on every surface
+  // is never created. See EntitlementGate.
+  repeated Entitlement entitlements = 7;
 }
 
 message RegisterConfigGenerationResponse {
   // Generation is the persisted generation, with its assigned ID.
   ConfigGeneration generation = 1;
+  // ReindexNeeded lists the field gates whose delivery field the active
+  // index generation was not built with. Search can only exclude a
+  // document by a field the index holds for it, so until the index is
+  // rebuilt a gated document indexed before the field was declared is
+  // still found by search - its body is refused on every surface all the
+  // same, and the eventlog and the daily views go on listing it.
+  //
+  // It is a report, not a refusal: the generation is registered either
+  // way, and a gate on a field the active index generation was built with
+  // yields nothing here. The remedy is a new index generation
+  // created under a configuration that declares the field -
+  // ConfigurationService.CreateIndexGeneration - built, activated, and
+  // with the archived partitions re-materialized. Empty when there is no
+  // active index generation to compare with.
+  repeated GateCoverage reindex_needed = 2;
+}
+
+// Entitlement is a product tier: content that an organisation only sees
+// when it has been granted the entitlement by name. The entitlement
+// itself says what it hides, through its gates; who holds it is the
+// grants, ConfigurationService.GrantEntitlement.
+//
+// Entitlements are evaluated when content is read or delivered, never
+// stamped on what is stored, so changing a gate is an activation and not
+// a rewrite. A document that matches the gates of several entitlements
+// requires all of them, which fails closed.
+//
+// The one place an entitlement does not reach is the archive export:
+// ArchiveService hands out presigned URLs to whole objects and chunks,
+// which cannot be filtered, so "dist_archive_read" grants every
+// entitlement. Grant that scope only to an organisation that is entitled
+// to everything.
+message Entitlement {
+  // Name of the entitlement, which is what a grant names. It matches
+  // ^[a-z0-9][a-z0-9_-]*$, e.g. "preem" or "print-content", and is
+  // unique within the generation.
+  string name = 1;
+  // Description is the human-readable text an operator reads beside the
+  // name. Optional.
+  string description = 2;
+  // Gates are what the entitlement hides from an organisation that does
+  // not hold it, at most one per document type. At least one: an
+  // entitlement with no gates would hide nothing.
+  repeated EntitlementGate gates = 3;
+}
+
+// EntitlementGate hides documents of one type: all of them, or, with a
+// condition, those whose delivery field carries one of the condition's
+// values.
+message EntitlementGate {
+  // DocumentType the gate applies to, e.g. "core/article". It has to be a
+  // type configured in the generation.
+  string document_type = 1;
+  // Condition narrows the gate to the documents whose delivery field
+  // carries any of the given values. Absent hides every document of the
+  // type, and a caller that names the type explicitly in a search is
+  // refused rather than answered with nothing.
+  GateCondition condition = 2;
+}
+
+// GateCondition selects the gated documents of a type by a delivery field.
+//
+// The field is read wherever the document is: from the delivery-field row
+// on the hot paths, from the facet the type stores with every version in
+// the daily views, from the index in search, and from the document itself
+// when its body is served. That is why the field has to be declared twice
+// on the gated type - as a delivery field of kind "keyword" and as a facet
+// of the same name with the same expression - and why registration refuses
+// a condition where it is not.
+message GateCondition {
+  // DeliveryField is the name of the delivery field, from the
+  // deployment's delivery-field vocabulary, e.g. "section".
+  string delivery_field = 1;
+  // Values that gate the document. A document is gated when the field
+  // carries any one of them. At least one. These are the values as they
+  // are extracted, matched exactly: a section is the UUID of its
+  // core/section document, never its name.
+  repeated string values = 2;
+}
+
+// GateCoverage is one field gate that search cannot fully enforce, because
+// the index was not built with its delivery field.
+message GateCoverage {
+  // Entitlement the gate belongs to.
+  string entitlement = 1;
+  // DocumentType the gate applies to.
+  string document_type = 2;
+  // DeliveryField the gate's condition names.
+  string delivery_field = 3;
+  // IndexGeneration is the name of the active index generation, which was
+  // not built with the field for the type: the field is absent from its
+  // IndexGeneration.delivery_fields, or recorded there with a different
+  // expression.
+  string index_generation = 4;
 }
 
 message ActivateConfigGenerationRequest {
@@ -1974,6 +2236,37 @@ message IndexGeneration {
   // ActivatedAt is when it was last activated, RFC3339, and empty for a
   // generation that has never served.
   string activated_at = 7;
+  // DeliveryFields are the delivery fields the generation was built with:
+  // those the active configuration declared when the generation was
+  // created, one entry per type and field. The indexer writes every
+  // declared delivery field into the index under "delivery.<name>", so a
+  // generation built with a field holds it for every document it indexes;
+  // a field declared after the generation was created is written for the
+  // documents indexed from then on, but not for those already in it, and
+  // is not recorded here.
+  //
+  // It is the record RegisterConfigGeneration's reindex_needed is derived
+  // from. A generation created before delivery fields were indexed has
+  // none, and holds none of them.
+  repeated IndexedDeliveryField delivery_fields = 8;
+}
+
+// IndexedDeliveryField is one delivery field of one type that an index
+// generation was built with.
+message IndexedDeliveryField {
+  // DocumentType the field was declared on.
+  string document_type = 1;
+  // Name of the delivery field, as TypeDeliveryField.name.
+  string name = 2;
+  // Kind of the field, as TypeDeliveryField.kind. It decides the index
+  // mapping: "keyword" is a keyword, "number" a double, "geo" a geo point
+  // and "text" analysed text.
+  string kind = 3;
+  // Expression the values were extracted with, as
+  // TypeDeliveryField.expression. A field whose expression has changed
+  // since is not covered by the generation: its documents carry what the
+  // old expression extracted.
+  string expression = 4;
 }
 
 message CreateIndexGenerationRequest {

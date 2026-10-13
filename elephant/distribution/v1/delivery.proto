@@ -18,6 +18,14 @@ option go_package = "github.com/ttab/elephant-public-api/elephant/distribution/v
 // credentials - and owner_tier picks which of the two, defaulting to the
 // organisation, exactly as it does on Subscriptions.
 //
+// Delivery is limited by the owner's entitlements, see Entitlement, as
+// Subscriptions' matches are: nothing is queued for a document the owner
+// is not entitled to, and a queued push is checked again when it is sent,
+// so a revoked grant stops delivery that is already in flight. A deletion
+// marker for an erased document is the exception and is always sent:
+// telling a destination about an erasure is an obligation that outlives
+// the grant that put the content there.
+//
 // Credentials are write-only. They are stored encrypted and there is no
 // call that returns them; a destination reports which kinds it holds and
 // when they were last written, and nothing else. Losing them is a

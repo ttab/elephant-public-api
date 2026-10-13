@@ -14,14 +14,38 @@ option go_package = "github.com/ttab/elephant-public-api/elephant/distribution/v
 // Access requires the "dist_search" scope, which is granted by "dist_read"
 // (search is a view of what the caller can already fetch) and by
 // "dist_admin".
+//
+// Search sees what the caller's organisation is entitled to, as Content
+// does; see Entitlement. Documents a gate hides are filtered out inside
+// the query, so the hit count, the paging and the k of a semantic query
+// are all counted over what the caller may see, and a result never
+// reveals that gated documents exist.
 service SearchService {
   // Query searches one language series of one tier. Language is required
   // and a query never fans out across languages: searching several
   // languages is several calls.
+  //
+  // A document type that an entitlement the caller's organisation does
+  // not hold gates as a whole is refused when it is named in
+  // document_types: PermissionDenied with the error meta
+  // reason=not_entitled. Type names are not secret - the configuration
+  // and the delivery-field vocabulary list them - so a refusal tells the
+  // caller nothing it could not find out, and an empty result would look
+  // like an answer. Left out of an empty document_types, the type is
+  // skipped silently. Documents hidden by a field gate are excluded from
+  // the hits, semantic queries included, with no error.
   rpc Query(QueryRequest) returns (QueryResponse);
   // GetMappings returns the searchable fields of a document type and the
   // type of each field, as the union across the language indexes. Use it
   // to find out what can be queried, and how, before building a query.
+  //
+  // The deployment's delivery fields are among them, under
+  // "delivery.<name>", so a query can filter on the same vocabulary a
+  // delivery rule is written in.
+  //
+  // A document type an entitlement the caller's organisation does not
+  // hold gates as a whole is refused as Query refuses it: PermissionDenied
+  // with reason=not_entitled.
   rpc GetMappings(GetMappingsRequest) returns (GetMappingsResponse);
 }
 
@@ -60,7 +84,9 @@ message QueryRequest {
   // never reports the superseded copy's values.
   string tier = 2;
   // DocumentTypes to search. Empty searches all types the caller can
-  // read. A type that isn't indexed is an invalid argument.
+  // read. A type that isn't indexed is an invalid argument, and a type an
+  // entitlement the caller lacks gates as a whole is PermissionDenied with
+  // reason=not_entitled - see SearchService.Query.
   //
   // For a semantic query (knn) the empty list is every indexed type that
   // carries embeddings: the types that don't are skipped rather than
@@ -529,7 +555,8 @@ message Hit {
   // ContentService.GetDocumentVersions.
   //
   // A hit with neither a document nor deferred set has no document to
-  // load: it was deleted or erased since it was indexed.
+  // load: it was deleted or erased since it was indexed, or the version
+  // that would be loaded is one the caller is not entitled to.
   bool deferred = 9;
   // RenderedHTML is the loaded document rendered to HTML, when the query
   // asked for it with include_html. It is rendered from the version that

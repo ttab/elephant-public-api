@@ -34,6 +34,20 @@ read as — `RESUME_ACTION_DRAIN`, `RESUME_FROM_PRIOR_POSITION`,
 and `SubscriptionClass` is never reported unspecified. A client that sends
 the enums by name in JSON is unaffected; one that sends numbers is not.
 
+**Behaviour change (distribution entitlements):** what a caller sees can now
+depend on its organisation's entitlements, read from the `org` claim. A
+document an entitlement gates is left out of listings, search and delivery for
+an organisation without a grant, and a read of it is `NotFound`; a search or
+`GetMappings` that names a wholly gated type explicitly is `PermissionDenied`
+with `reason=not_entitled`. An eventlog consumer must continue from the new
+`GetNewDocumentsResponse.last_event_id` rather than from its last item, since
+gated events are left out of a page and a page can come back empty with the
+log still moving on. `dist_archive_read` grants every entitlement, because
+presigned archive URLs cannot be filtered: give it only to an organisation
+entitled to everything. Nothing is gated until a configuration generation
+declares an entitlement. The declarations in
+[service.proto](elephant/distribution/v1/service.proto) carry the detail.
+
 **Behaviour change (distribution eventlog):** `DocumentEvent.event_type` has a
 third value, `"deleted"`, for the repository's deletion of a document. It used
 to be reported as `"unpublished"`, which is a different instruction to a
@@ -46,6 +60,27 @@ payload, so a verifier is unaffected.
 
 Changes:
 
+- Distribution's configuration generation declares entitlements:
+  `ConfigGeneration.entitlements` and
+  `RegisterConfigGenerationRequest.entitlements` carry `Entitlement`s with a
+  name, a description and per-type `EntitlementGate`s, each hiding a whole
+  type or, with a `GateCondition`, the documents whose keyword delivery field
+  carries one of the given values. A condition's field must also be a facet
+  of the same name and expression on the gated type, or registration refuses
+  it.
+- `RegisterConfigGenerationResponse.reindex_needed` reports, as
+  `GateCoverage`, each field gate whose delivery field the active index
+  generation was not built with: search does not exclude the content indexed
+  before the field until a new index generation is built. It is derived from
+  the new `IndexGeneration.delivery_fields`, which records the delivery fields
+  (`IndexedDeliveryField`) a generation was created with and is returned
+  wherever an index generation is.
+- `ConfigurationService` gains `GrantEntitlement`, `RevokeEntitlement` and
+  `ListEntitlementGrants`, under `dist_admin`. An `EntitlementGrant` carries
+  `org`, `entitlement`, `granted_at`, `granted_by` and whether the active
+  generation defines the entitlement; a grant of an undefined entitlement is
+  kept and does nothing. A revocation stops queued pushes, but erasure
+  deletion markers are still sent.
 - Assets has a `StorageService` for originals that live in no other archive,
   such as third-party PDFs and audio: `CreateUpload` returns a presigned PUT
   URL, `CommitUpload` makes the uploaded bytes an asset version, and

@@ -27,6 +27,15 @@ option go_package = "github.com/ttab/elephant-public-api/elephant/distribution/v
 // long; without one it lives until it is deleted. See
 // CreateSubscriptionRequest.
 //
+// Matches are limited by the owner's entitlements, see Entitlement: a
+// document the owner is not entitled to is not recorded as a match, and
+// one recorded before a grant was revoked is left out of PollMatches. The
+// entitlements are those of an organisation, so a subject-owned
+// subscription is evaluated against the organisation of the subject that
+// created it, as that organisation's grants stand when the document is
+// matched - a grant or a revocation reaches every existing subscription
+// without the subscription being written again.
+//
 // Access requires the "dist_subscribe" scope, which is granted by
 // "dist_admin".
 service SubscriptionsService {
