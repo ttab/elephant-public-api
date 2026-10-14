@@ -64,10 +64,15 @@ type SearchServiceClient interface {
 	// That catches what the filter inside the query cannot: a document that
 	// moved into a gate after the version the index matched on (the index
 	// collapses on the document and would otherwise return the older,
-	// ungated version), and content indexed before its gate's field was -
-	// see RegisterConfigGenerationResponse.reindex_needed. Those are
-	// counted in total, so a page can hold fewer hits than size while more
-	// pages follow.
+	// ungated version). Those are counted in total, so a page can hold fewer
+	// hits than size while more pages follow.
+	//
+	// Neither catches a document whose current version was stored before
+	// its gate's field was declared: the index has no value to exclude it
+	// on, and the stored version records none for the check to read. Until
+	// the index generation is rebuilt such a hit is returned with the fields
+	// asked for; only its document is refused, and with load_documents the
+	// hit is dropped. See RegisterConfigGenerationResponse.reindex_needed.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it
@@ -149,10 +154,15 @@ type SearchServiceHandler interface {
 	// That catches what the filter inside the query cannot: a document that
 	// moved into a gate after the version the index matched on (the index
 	// collapses on the document and would otherwise return the older,
-	// ungated version), and content indexed before its gate's field was -
-	// see RegisterConfigGenerationResponse.reindex_needed. Those are
-	// counted in total, so a page can hold fewer hits than size while more
-	// pages follow.
+	// ungated version). Those are counted in total, so a page can hold fewer
+	// hits than size while more pages follow.
+	//
+	// Neither catches a document whose current version was stored before
+	// its gate's field was declared: the index has no value to exclude it
+	// on, and the stored version records none for the check to read. Until
+	// the index generation is rebuilt such a hit is returned with the fields
+	// asked for; only its document is refused, and with load_documents the
+	// hit is dropped. See RegisterConfigGenerationResponse.reindex_needed.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it

@@ -5469,19 +5469,22 @@ type RegisterConfigGenerationResponse struct {
 	// index generation was not built with. Search can only exclude a
 	// document inside the query by a field the index holds for it, so until
 	// the index is rebuilt a gated document indexed before the field was
-	// declared still matches. It is dropped from the hits after the query -
-	// see SearchService.Query - so nothing of it is returned, but it is
-	// counted in the total and a page can come back short. Its body is
-	// refused on every surface all the same, and the eventlog and the daily
-	// views go on listing it.
+	// declared still matches. When its current stored version records the
+	// gated value the hit is dropped after the query - see
+	// SearchService.Query - but a version stored before the field was
+	// declared records it nowhere, and such a hit is returned with the
+	// fields asked for until the rebuild. Its body is refused on every
+	// surface all the same, and the eventlog and the daily views go on
+	// listing it.
 	//
 	// It is a report, not a refusal: the generation is registered either
 	// way, and a gate on a field the active index generation was built with
-	// yields nothing here. The remedy is a new index generation
-	// created under a configuration that declares the field -
-	// ConfigurationService.CreateIndexGeneration - built, activated, and
-	// with the archived partitions re-materialized. Empty when there is no
-	// active index generation to compare with.
+	// yields nothing here. The remedy is a new index generation created
+	// under a configuration that declares the field -
+	// ConfigurationService.CreateIndexGeneration - built and activated: its
+	// bootstrap projects the archived documents from their bodies, so the
+	// archived partitions need no re-materialization. Empty when there is
+	// no active index generation to compare with.
 	ReindexNeeded []*GateCoverage `protobuf:"bytes,2,rep,name=reindex_needed,json=reindexNeeded,proto3" json:"reindex_needed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
