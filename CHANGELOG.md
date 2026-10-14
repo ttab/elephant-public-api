@@ -4,7 +4,7 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
-## [v0.2.0] - Unreleased
+## [v0.2.0] - 2026-10-14
 
 **Breaking:** every declaration moves to the versioned layout, and the
 generated Go is connect-go's own. `assets/service.proto` is now
