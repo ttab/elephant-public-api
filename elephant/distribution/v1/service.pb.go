@@ -65,10 +65,10 @@ type GetNewDocumentsRequest struct {
 	// doc_hash, signature and parent. Together with the fields an event
 	// always carries they are the complete signed payload, so a consumer
 	// can recompute each entry's hash, verify the signature against the
-	// public keys at GET /signing-keys, and check that the page chains
-	// wherever its event IDs are consecutive - a caller that is not
-	// entitled to every document gets a log with gaps, see
-	// DocumentEvent.parent.
+	// public keys at GET /signing-keys, and check that the page chains. A
+	// withheld item carries signature and parent too, so the chain runs
+	// through it unbroken, but not the rest of the payload; see
+	// DocumentItem.withheld.
 	// Off by default: the three fields are a few hundred bytes an event
 	// that a consumer which doesn't verify would carry for nothing.
 	Verification bool `protobuf:"varint,8,opt,name=verification,proto3" json:"verification,omitempty"`
@@ -2822,15 +2822,11 @@ func (x *Subsets) GetExpressions() []string {
 
 type GetNewDocumentsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Items are the events of the page, in event ID order, less those the
-	// caller is not entitled to.
-	Items []*DocumentItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
-	// LastEventID is the ID of the last event the page covered, the events
-	// left out for entitlement included. Pass it as after to read on. It is
-	// the ID of the last item whenever nothing was left out, and zero when
-	// the page covered no events at all - a read at the head of the log
-	// that timed out - in which case read on from the same after.
-	LastEventId   int64 `protobuf:"varint,2,opt,name=last_event_id,json=lastEventId,proto3" json:"last_event_id,omitempty"`
+	// Items are the events of the page, in event ID order, one for every
+	// event in the range the page covers. An event the caller is not
+	// entitled to is a withheld placeholder, see DocumentItem.withheld.
+	// Read on from the ID of the last item.
+	Items         []*DocumentItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2872,13 +2868,6 @@ func (x *GetNewDocumentsResponse) GetItems() []*DocumentItem {
 	return nil
 }
 
-func (x *GetNewDocumentsResponse) GetLastEventId() int64 {
-	if x != nil {
-		return x.LastEventId
-	}
-	return 0
-}
-
 type DocumentItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Event information.
@@ -2892,15 +2881,16 @@ type DocumentItem struct {
 	// loading bound. Fetch it with ContentService.GetDocumentVersions.
 	//
 	// An item with neither a document nor deferred set has no document to
-	// load: it is a tombstone, the document has been deleted or erased, or
-	// the caller is not entitled to it. Don't ask for it again. An item the
+	// load: it is a tombstone, the document has been deleted or erased, the
+	// caller is not entitled to it, or it is a withheld placeholder. Don't
+	// ask for it again. An item the
 	// caller is not entitled to carries no subset and no rendered_html
 	// either: everything taken from the body is withheld with it.
 	Deferred bool `protobuf:"varint,4,opt,name=deferred,proto3" json:"deferred,omitempty"`
 	// RenderedHTML is the document rendered to HTML, when the request asked
 	// for it with include_html. An <article> fragment, and empty whenever
 	// there is no document to render it from: a deferred item, a tombstone,
-	// or a type the configuration renders no HTML for.
+	// a withheld item, or a type the configuration renders no HTML for.
 	RenderedHtml string `protobuf:"bytes,5,opt,name=rendered_html,json=renderedHtml,proto3" json:"rendered_html,omitempty"`
 	// RenderedHtmlDeferred says the fragment was not rendered because the
 	// response ran out of render budget, and that asking again is worth
@@ -2916,8 +2906,33 @@ type DocumentItem struct {
 	// retries for ever. Re-ask through GetDocumentVersions with the exact
 	// (uuid, version), the same way a deferred document is re-asked.
 	RenderedHtmlDeferred bool `protobuf:"varint,6,opt,name=rendered_html_deferred,json=renderedHtmlDeferred,proto3" json:"rendered_html_deferred,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Withheld marks a placeholder for an event the caller is not entitled
+	// to: see ContentService.GetNewDocuments. It holds the event's place in
+	// the log and the hash chain, and nothing of the document.
+	//
+	// Its event carries only id, and with verification signature and
+	// parent: event_type, doc_uuid, version, type, source, nonce, the
+	// timestamps and doc_hash are all empty, and the item has no document,
+	// subset or rendered_html and is never deferred. Skip it for anything
+	// but following the log and verifying the chain.
+	//
+	// What a verifier can check of a placeholder is its linkage and its
+	// signature, not its payload. Parent must be the signature of the entry
+	// before it, and the entry after it must name its signature as parent,
+	// exactly as for any other entry. The signature carries the sha256 of
+	// the signed payload and the ECDSA signature over that digest, so it
+	// verifies against the key it names on its own; what cannot be done
+	// without the withheld fields is recomputing the digest from the
+	// payload. The full payload of every entry is in the archived eventlog
+	// chunks, which ArchiveService serves under "dist_archive_read".
+	//
+	// An entry that is listed with neither a document nor deferred is not a
+	// placeholder: that is content stored before its gate's field was
+	// declared, whose event the caller sees and whose body is refused - see
+	// ContentService.
+	Withheld      bool `protobuf:"varint,7,opt,name=withheld,proto3" json:"withheld,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DocumentItem) Reset() {
@@ -2988,6 +3003,13 @@ func (x *DocumentItem) GetRenderedHtml() string {
 func (x *DocumentItem) GetRenderedHtmlDeferred() bool {
 	if x != nil {
 		return x.RenderedHtmlDeferred
+	}
+	return false
+}
+
+func (x *DocumentItem) GetWithheld() bool {
+	if x != nil {
+		return x.Withheld
 	}
 	return false
 }
@@ -3158,6 +3180,9 @@ type DocumentEvent struct {
 	// Both carry a negative version, so the sign alone does not tell them
 	// apart. Read this field rather than the sign.
 	//
+	// Empty on a withheld placeholder, which is no kind of event the caller
+	// may know about; see DocumentItem.withheld.
+	//
 	// Not part of the hashed event payload.
 	EventType string `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	// DocUUID is the UUID of the affected document.
@@ -3227,16 +3252,11 @@ type DocumentEvent struct {
 	// between neighbouring entries of a page, and from the last entry of
 	// one page to the first entry of the next.
 	//
-	// That is every entry only for a caller entitled to all of the content.
-	// For any other caller the events it is not entitled to are left out of
-	// the log (see ContentService.GetNewDocuments), and an entry whose id is
-	// not its predecessor's plus one - within a page, or after a page whose
-	// last_event_id is beyond its last item - names a signature the caller
-	// never received. The chain is checked between consecutive IDs only;
-	// across a gap the entry's own signature is all that can be verified.
-	// The unbroken chain is in the archived eventlog chunks, which
-	// ArchiveService serves unfiltered under "dist_archive_read".
-	// Requires verification.
+	// That holds for every caller, whatever it is entitled to: an event
+	// the caller may not see is a withheld placeholder that still carries
+	// its signature and parent (see DocumentItem.withheld), so the log has
+	// no gaps and the chain is checked across every entry. Requires
+	// verification.
 	Parent string `protobuf:"bytes,12,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Nonce is the generation this event belongs to: the repository's
 	// per-generation document nonce, the sequence of versions between a
@@ -8773,17 +8793,17 @@ const file_elephant_distribution_v1_service_proto_rawDesc = "" +
 	"\x04hash\x18\x02 \x01(\tR\x04hash\x12\x1c\n" +
 	"\tsignature\x18\x03 \x01(\tR\tsignature\"+\n" +
 	"\aSubsets\x12 \n" +
-	"\vexpressions\x18\x01 \x03(\tR\vexpressions\"{\n" +
+	"\vexpressions\x18\x01 \x03(\tR\vexpressions\"W\n" +
 	"\x17GetNewDocumentsResponse\x12<\n" +
-	"\x05items\x18\x01 \x03(\v2&.elephant.distribution.v1.DocumentItemR\x05items\x12\"\n" +
-	"\rlast_event_id\x18\x02 \x01(\x03R\vlastEventId\"\xb6\x02\n" +
+	"\x05items\x18\x01 \x03(\v2&.elephant.distribution.v1.DocumentItemR\x05items\"\xd2\x02\n" +
 	"\fDocumentItem\x12=\n" +
 	"\x05event\x18\x01 \x01(\v2'.elephant.distribution.v1.DocumentEventR\x05event\x12-\n" +
 	"\bdocument\x18\x02 \x01(\v2\x11.newsdoc.DocumentR\bdocument\x12A\n" +
 	"\x06subset\x18\x03 \x03(\v2).elephant.distribution.v1.ExtractedValuesR\x06subset\x12\x1a\n" +
 	"\bdeferred\x18\x04 \x01(\bR\bdeferred\x12#\n" +
 	"\rrendered_html\x18\x05 \x01(\tR\frenderedHtml\x124\n" +
-	"\x16rendered_html_deferred\x18\x06 \x01(\bR\x14renderedHtmlDeferred\"\xe3\x01\n" +
+	"\x16rendered_html_deferred\x18\x06 \x01(\bR\x14renderedHtmlDeferred\x12\x1a\n" +
+	"\bwithheld\x18\a \x01(\bR\bwithheld\"\xe3\x01\n" +
 	"\x0fExtractedValues\x12\x1c\n" +
 	"\textractor\x18\x01 \x01(\x03R\textractor\x12M\n" +
 	"\x06values\x18\x02 \x03(\v25.elephant.distribution.v1.ExtractedValues.ValuesEntryR\x06values\x1ac\n" +

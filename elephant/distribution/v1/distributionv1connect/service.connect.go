@@ -1218,18 +1218,19 @@ func (UnimplementedConfigurationServiceHandler) DeleteIndexGeneration(context.Co
 type ContentServiceClient interface {
 	// GetNewDocuments reads the distribution eventlog.
 	//
-	// An event for a document the caller is not entitled to is left out of
-	// the page, so the last item is not necessarily the last event the page
-	// covered. Continue from GetNewDocumentsResponse.last_event_id rather
-	// than from the last item: a page that was entirely gated comes back
-	// with no items and a last_event_id beyond them, and a consumer that
-	// follows it does not stall on a run of gated events.
+	// An event for a document the caller is not entitled to is withheld
+	// rather than left out: its place in the page is held by a placeholder,
+	// an item with withheld set that carries the event's id and - when the
+	// request asked for verification - its signature and parent, and
+	// nothing else. No document, type, uuid, version, timestamps or
+	// anything taken from the body, so a placeholder says only that an
+	// event the caller may not see exists at that position in the log.
 	//
-	// A left-out event is a gap in the event IDs, and the hash chain cannot
-	// be checked across it: the entry after the gap names the signature of
-	// an event the caller never received. A verifying consumer checks the
-	// chain between consecutive IDs only and every entry's signature on its
-	// own - see DocumentEvent.parent.
+	// The page therefore covers every event ID in its range, as it does for
+	// a caller entitled to everything: continue from the last item, and a
+	// run of gated events cannot stall a consumer. And the hash chain
+	// verifies across a placeholder, since the entry after it names the
+	// signature the placeholder carries - see DocumentEvent.parent.
 	GetNewDocuments(context.Context, *connect.Request[v1.GetNewDocumentsRequest]) (*connect.Response[v1.GetNewDocumentsResponse], error)
 	// GetSigningKeys returns the public keys the transparency log's
 	// signatures are made with, so that a consumer reading the log with
@@ -1534,18 +1535,19 @@ func (c *contentServiceClient) GetDocumentVersions(ctx context.Context, req *con
 type ContentServiceHandler interface {
 	// GetNewDocuments reads the distribution eventlog.
 	//
-	// An event for a document the caller is not entitled to is left out of
-	// the page, so the last item is not necessarily the last event the page
-	// covered. Continue from GetNewDocumentsResponse.last_event_id rather
-	// than from the last item: a page that was entirely gated comes back
-	// with no items and a last_event_id beyond them, and a consumer that
-	// follows it does not stall on a run of gated events.
+	// An event for a document the caller is not entitled to is withheld
+	// rather than left out: its place in the page is held by a placeholder,
+	// an item with withheld set that carries the event's id and - when the
+	// request asked for verification - its signature and parent, and
+	// nothing else. No document, type, uuid, version, timestamps or
+	// anything taken from the body, so a placeholder says only that an
+	// event the caller may not see exists at that position in the log.
 	//
-	// A left-out event is a gap in the event IDs, and the hash chain cannot
-	// be checked across it: the entry after the gap names the signature of
-	// an event the caller never received. A verifying consumer checks the
-	// chain between consecutive IDs only and every entry's signature on its
-	// own - see DocumentEvent.parent.
+	// The page therefore covers every event ID in its range, as it does for
+	// a caller entitled to everything: continue from the last item, and a
+	// run of gated events cannot stall a consumer. And the hash chain
+	// verifies across a placeholder, since the entry after it names the
+	// signature the placeholder carries - see DocumentEvent.parent.
 	GetNewDocuments(context.Context, *connect.Request[v1.GetNewDocumentsRequest]) (*connect.Response[v1.GetNewDocumentsResponse], error)
 	// GetSigningKeys returns the public keys the transparency log's
 	// signatures are made with, so that a consumer reading the log with

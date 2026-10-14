@@ -34,12 +34,14 @@ read as — `RESUME_ACTION_DRAIN`, `RESUME_FROM_PRIOR_POSITION`,
 and `SubscriptionClass` is never reported unspecified. A client that sends
 the enums by name in JSON is unaffected; one that sends numbers is not.
 
-**Breaking (distribution eventlog cursor):** `GetNewDocuments` leaves out the
-events a caller is not entitled to, so every consumer continues from the new
-`GetNewDocumentsResponse.last_event_id` rather than from its last item: a page
-can come back empty while the log moves on. A verifier checks
-`DocumentEvent.parent` only between consecutive event IDs, since a left-out
-event is a gap in the chain.
+**Breaking (distribution eventlog):** `GetNewDocuments` returns an event a
+caller is not entitled to as a placeholder, a `DocumentItem` with the new
+`withheld` set whose event carries only `id` and, with `verification`,
+`signature` and `parent`. A consumer skips withheld items; one that acts on
+every item would otherwise read an empty `event_type` and `doc_uuid`. Pages
+still cover every event ID, so the cursor stays the last item's ID, and the
+hash chain verifies across a placeholder; see `DocumentItem.withheld` in
+[service.proto](elephant/distribution/v1/service.proto).
 
 **Behaviour change (distribution entitlements):** what a caller sees can now
 depend on its organisation's entitlements, read from the `org` claim; a token

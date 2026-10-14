@@ -252,6 +252,8 @@ service ConfigurationService {
 // was declared: it is listed, because the stored record of what was
 // published is not rewritten, but its body is refused like any other
 // gated document's, so the entry carries neither a document nor deferred.
+// The eventlog is the other exception, because it is a hash chain: a
+// gated event is not left out of it but withheld, see GetNewDocuments.
 //
 // Entitlements fail closed. A token with no "org" claim, or an empty one,
 // belongs to no organisation and so holds no grants: every gate applies
@@ -262,18 +264,19 @@ service ConfigurationService {
 service ContentService {
   // GetNewDocuments reads the distribution eventlog.
   //
-  // An event for a document the caller is not entitled to is left out of
-  // the page, so the last item is not necessarily the last event the page
-  // covered. Continue from GetNewDocumentsResponse.last_event_id rather
-  // than from the last item: a page that was entirely gated comes back
-  // with no items and a last_event_id beyond them, and a consumer that
-  // follows it does not stall on a run of gated events.
+  // An event for a document the caller is not entitled to is withheld
+  // rather than left out: its place in the page is held by a placeholder,
+  // an item with withheld set that carries the event's id and - when the
+  // request asked for verification - its signature and parent, and
+  // nothing else. No document, type, uuid, version, timestamps or
+  // anything taken from the body, so a placeholder says only that an
+  // event the caller may not see exists at that position in the log.
   //
-  // A left-out event is a gap in the event IDs, and the hash chain cannot
-  // be checked across it: the entry after the gap names the signature of
-  // an event the caller never received. A verifying consumer checks the
-  // chain between consecutive IDs only and every entry's signature on its
-  // own - see DocumentEvent.parent.
+  // The page therefore covers every event ID in its range, as it does for
+  // a caller entitled to everything: continue from the last item, and a
+  // run of gated events cannot stall a consumer. And the hash chain
+  // verifies across a placeholder, since the entry after it names the
+  // signature the placeholder carries - see DocumentEvent.parent.
   rpc GetNewDocuments(GetNewDocumentsRequest) returns (GetNewDocumentsResponse);
   // GetSigningKeys returns the public keys the transparency log's
   // signatures are made with, so that a consumer reading the log with
@@ -465,10 +468,10 @@ message GetNewDocumentsRequest {
   // doc_hash, signature and parent. Together with the fields an event
   // always carries they are the complete signed payload, so a consumer
   // can recompute each entry's hash, verify the signature against the
-  // public keys at GET /signing-keys, and check that the page chains
-  // wherever its event IDs are consecutive - a caller that is not
-  // entitled to every document gets a log with gaps, see
-  // DocumentEvent.parent.
+  // public keys at GET /signing-keys, and check that the page chains. A
+  // withheld item carries signature and parent too, so the chain runs
+  // through it unbroken, but not the rest of the payload; see
+  // DocumentItem.withheld.
   // Off by default: the three fields are a few hundred bytes an event
   // that a consumer which doesn't verify would carry for nothing.
   bool verification = 8;
@@ -1081,15 +1084,11 @@ message Subsets {
 }
 
 message GetNewDocumentsResponse {
-  // Items are the events of the page, in event ID order, less those the
-  // caller is not entitled to.
+  // Items are the events of the page, in event ID order, one for every
+  // event in the range the page covers. An event the caller is not
+  // entitled to is a withheld placeholder, see DocumentItem.withheld.
+  // Read on from the ID of the last item.
   repeated DocumentItem items = 1;
-  // LastEventID is the ID of the last event the page covered, the events
-  // left out for entitlement included. Pass it as after to read on. It is
-  // the ID of the last item whenever nothing was left out, and zero when
-  // the page covered no events at all - a read at the head of the log
-  // that timed out - in which case read on from the same after.
-  int64 last_event_id = 2;
 }
 
 message DocumentItem {
@@ -1104,15 +1103,16 @@ message DocumentItem {
   // loading bound. Fetch it with ContentService.GetDocumentVersions.
   //
   // An item with neither a document nor deferred set has no document to
-  // load: it is a tombstone, the document has been deleted or erased, or
-  // the caller is not entitled to it. Don't ask for it again. An item the
+  // load: it is a tombstone, the document has been deleted or erased, the
+  // caller is not entitled to it, or it is a withheld placeholder. Don't
+  // ask for it again. An item the
   // caller is not entitled to carries no subset and no rendered_html
   // either: everything taken from the body is withheld with it.
   bool deferred = 4;
   // RenderedHTML is the document rendered to HTML, when the request asked
   // for it with include_html. An <article> fragment, and empty whenever
   // there is no document to render it from: a deferred item, a tombstone,
-  // or a type the configuration renders no HTML for.
+  // a withheld item, or a type the configuration renders no HTML for.
   string rendered_html = 5;
   // RenderedHtmlDeferred says the fragment was not rendered because the
   // response ran out of render budget, and that asking again is worth
@@ -1128,6 +1128,31 @@ message DocumentItem {
   // retries for ever. Re-ask through GetDocumentVersions with the exact
   // (uuid, version), the same way a deferred document is re-asked.
   bool rendered_html_deferred = 6;
+  // Withheld marks a placeholder for an event the caller is not entitled
+  // to: see ContentService.GetNewDocuments. It holds the event's place in
+  // the log and the hash chain, and nothing of the document.
+  //
+  // Its event carries only id, and with verification signature and
+  // parent: event_type, doc_uuid, version, type, source, nonce, the
+  // timestamps and doc_hash are all empty, and the item has no document,
+  // subset or rendered_html and is never deferred. Skip it for anything
+  // but following the log and verifying the chain.
+  //
+  // What a verifier can check of a placeholder is its linkage and its
+  // signature, not its payload. Parent must be the signature of the entry
+  // before it, and the entry after it must name its signature as parent,
+  // exactly as for any other entry. The signature carries the sha256 of
+  // the signed payload and the ECDSA signature over that digest, so it
+  // verifies against the key it names on its own; what cannot be done
+  // without the withheld fields is recomputing the digest from the
+  // payload. The full payload of every entry is in the archived eventlog
+  // chunks, which ArchiveService serves under "dist_archive_read".
+  //
+  // An entry that is listed with neither a document nor deferred is not a
+  // placeholder: that is content stored before its gate's field was
+  // declared, whose event the caller sees and whose body is refused - see
+  // ContentService.
+  bool withheld = 7;
 }
 
 message ExtractedValues {
@@ -1186,6 +1211,9 @@ message DocumentEvent {
   //
   // Both carry a negative version, so the sign alone does not tell them
   // apart. Read this field rather than the sign.
+  //
+  // Empty on a withheld placeholder, which is no kind of event the caller
+  // may know about; see DocumentItem.withheld.
   //
   // Not part of the hashed event payload.
   string event_type = 2;
@@ -1256,16 +1284,11 @@ message DocumentEvent {
   // between neighbouring entries of a page, and from the last entry of
   // one page to the first entry of the next.
   //
-  // That is every entry only for a caller entitled to all of the content.
-  // For any other caller the events it is not entitled to are left out of
-  // the log (see ContentService.GetNewDocuments), and an entry whose id is
-  // not its predecessor's plus one - within a page, or after a page whose
-  // last_event_id is beyond its last item - names a signature the caller
-  // never received. The chain is checked between consecutive IDs only;
-  // across a gap the entry's own signature is all that can be verified.
-  // The unbroken chain is in the archived eventlog chunks, which
-  // ArchiveService serves unfiltered under "dist_archive_read".
-  // Requires verification.
+  // That holds for every caller, whatever it is entitled to: an event
+  // the caller may not see is a withheld placeholder that still carries
+  // its signature and parent (see DocumentItem.withheld), so the log has
+  // no gaps and the chain is checked across every entry. Requires
+  // verification.
   string parent = 12;
   // Nonce is the generation this event belongs to: the repository's
   // per-generation document nonce, the sequence of versions between a
