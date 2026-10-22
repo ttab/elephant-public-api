@@ -73,6 +73,15 @@ type SearchServiceClient interface {
 	// the index generation is rebuilt such a hit is returned with the fields
 	// asked for; only its document is refused, and with load_documents the
 	// hit is dropped. See RegisterConfigGenerationResponse.reindex_needed.
+	//
+	// A search names every partition it reaches in the request it sends to
+	// the index, and that list has to fit the cluster's request line. A
+	// query whose partitions don't fit is refused before anything is sent:
+	// InvalidArgument on document_types with the error meta
+	// reason=too_many_partitions, and document_types listing the (at most
+	// three) types that contribute the most, largest first. Name fewer
+	// types or narrow the query with date_from and date_to. There is no
+	// limit on the number of types as such.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it
@@ -163,6 +172,15 @@ type SearchServiceHandler interface {
 	// the index generation is rebuilt such a hit is returned with the fields
 	// asked for; only its document is refused, and with load_documents the
 	// hit is dropped. See RegisterConfigGenerationResponse.reindex_needed.
+	//
+	// A search names every partition it reaches in the request it sends to
+	// the index, and that list has to fit the cluster's request line. A
+	// query whose partitions don't fit is refused before anything is sent:
+	// InvalidArgument on document_types with the error meta
+	// reason=too_many_partitions, and document_types listing the (at most
+	// three) types that contribute the most, largest first. Name fewer
+	// types or narrow the query with date_from and date_to. There is no
+	// limit on the number of types as such.
 	Query(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.QueryResponse], error)
 	// GetMappings returns the searchable fields of a document type and the
 	// type of each field, as the union across the language indexes. Use it

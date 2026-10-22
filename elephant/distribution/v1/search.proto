@@ -58,6 +58,15 @@ service SearchService {
   // the index generation is rebuilt such a hit is returned with the fields
   // asked for; only its document is refused, and with load_documents the
   // hit is dropped. See RegisterConfigGenerationResponse.reindex_needed.
+  //
+  // A search names every partition it reaches in the request it sends to
+  // the index, and that list has to fit the cluster's request line. A
+  // query whose partitions don't fit is refused before anything is sent:
+  // InvalidArgument on document_types with the error meta
+  // reason=too_many_partitions, and document_types listing the (at most
+  // three) types that contribute the most, largest first. Name fewer
+  // types or narrow the query with date_from and date_to. There is no
+  // limit on the number of types as such.
   rpc Query(QueryRequest) returns (QueryResponse);
   // GetMappings returns the searchable fields of a document type and the
   // type of each field, as the union across the language indexes. Use it
@@ -85,21 +94,25 @@ message QueryRequest {
   //
   // "recent" is not "whatever the cluster happens to hold locally". It
   // applies an implicit window on the document's anchor timestamp, so
-  // that recent means the same thing on the first day of a quarter as on
+  // that recent means the same thing on the first day of a partition as on
   // the last. For document types anchored on when they happened - news,
   // and everything else dated by publication - that window is a
-  // first_published no older than the configured recent window, 30 days
-  // by default. Types that aren't partitioned by time, the entity
-  // registries such as sections and authors, are never windowed and are
-  // returned in full by both tiers.
+  // first_published no older than the type's own recent window: the
+  // `recent` setting of its index configuration, 90 days by default and
+  // never longer than the type's grace. A query over several types applies
+  // each type's window to that type's documents. Types that aren't
+  // partitioned by time, the entity registries such as sections and
+  // authors, are never windowed and are returned in full by both tiers.
   //
   // "all" searches the archive set as well. The archive is served from
   // snapshots mounted on separate nodes, so it answers more slowly, and
   // the higher latency is accepted rather than worked around - which is
   // why it is an explicit choice and not the default. Scope an archive
-  // query with a range on the anchor field whenever you can: given a
-  // range, the server resolves the query to the archived partitions that
-  // intersect it instead of fanning out over every quarter ever indexed.
+  // query with date_from and date_to whenever you can: given a range, the
+  // server resolves the query to the archived partitions that intersect it
+  // instead of fanning out over every partition ever indexed. A type with
+  // a finite retention reaches back only as far as its retained
+  // partitions; GetMappings reports where that is.
   //
   // A document that has been corrected after its partition was archived
   // exists in both tiers. Hits are collapsed on the document UUID, and
@@ -627,6 +640,19 @@ message GetMappingsRequest {
 message GetMappingsResponse {
   // Properties of the document type, sorted by name.
   repeated MappingProperty properties = 1;
+  // Retention is how long the search index keeps the document type: the
+  // `retention` setting of its index configuration, "forever" or a
+  // calendar length such as "2y". The index drops a whole partition once
+  // its period is older than that; the content itself is kept.
+  string retention = 2;
+  // RetentionHorizon is where the retention reaches back to now, RFC3339:
+  // the start of the oldest partition the index still holds. A search
+  // reaches no further back, so a query that is bounded before it matches
+  // nothing because the content is outside retention, not because there
+  // is none. Older material may still answer for a while from a year the
+  // index has rolled up, until the whole year has aged out. Empty for a
+  // type that is kept forever or isn't partitioned by time.
+  string retention_horizon = 3;
 }
 
 // MappingProperty is a searchable field of a document type.

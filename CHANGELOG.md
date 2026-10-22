@@ -4,6 +4,39 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
+## [v0.3.0] - Unreleased
+
+Changes:
+
+- Distribution's `TypeConfiguration` gains an optional `index` block,
+  `TypeIndexSettings`, that tunes the type's search indexes: `partition`
+  (`month`, `quarter`, `year`), `archive` (`snapshot`, `none`), `rollup`,
+  `grace`, `recent`, `shards`, `archive_vectors` and `retention`. Calendar
+  lengths are strings such as `"14d"` or `"2y"`, and an empty value takes the
+  service default; registration refuses an unknown value or a setting that
+  doesn't apply to the type's anchor, naming the type and the setting.
+- `RegisterConfigGenerationResponse.layout_changes` and
+  `ActivateConfigGenerationResponse.layout_changes` report, as `LayoutChange`,
+  each type whose `partition` differs from the layout the active index
+  generation was built with. It is not a refusal: the layout is applied by
+  building a new index generation.
+- Distribution's `GetMappingsResponse` gains `retention` and
+  `retention_horizon`: the type's configured retention and, as RFC3339, the
+  start of the oldest partition the search index still holds, so a client can
+  tell "nothing matched" from "outside retention".
+- Distribution's `ErasureStatus.retired_partitions` lists the archived
+  partitions an erasure was waiting on that were dropped by the type's
+  retention rather than re-materialized.
+- The `tier = "recent"` window of a distribution search is documented as each
+  type's own `recent` setting, 90 days by default and capped at the type's
+  grace, rather than one deployment-wide 30 days.
+- A distribution `tier = "all"` search is no longer limited to four document
+  types: `SearchService.Query` documents the one refusal left,
+  `reason=too_many_partitions` when the partitions a query reaches don't fit
+  the request line, with `document_types` naming the types that contribute
+  most. `RematerializePartitionRequest.period` also takes `yyyymm` for a type
+  laid out in months.
+
 ## [v0.2.0] - 2026-10-14
 
 **Breaking:** every declaration moves to the versioned layout, and the

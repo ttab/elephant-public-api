@@ -310,9 +310,10 @@ type ConfigurationServiceClient interface {
 	// recorded state either way, and ordering a rebuild that is already
 	// under way changes nothing.
 	//
-	// A period of the form "yyyy" orders the rollup of a whole year: the
-	// years quarter partitions are rebuilt into a single yearly one and
-	// their mounts are dropped.
+	// A period of the form "yyyy" orders the rollup of a whole year for a
+	// type laid out in months or quarters: the year's partitions are rebuilt
+	// into a single yearly one and their mounts are dropped. For a type laid
+	// out in years it rebuilds that year's partition.
 	RematerializePartition(context.Context, *connect.Request[v1.RematerializePartitionRequest]) (*connect.Response[v1.RematerializePartitionResponse], error)
 	// CreateIndexGeneration registers a new index generation: a complete set
 	// of search indexes with an index name prefix of its own, built on one of
@@ -845,9 +846,10 @@ type ConfigurationServiceHandler interface {
 	// recorded state either way, and ordering a rebuild that is already
 	// under way changes nothing.
 	//
-	// A period of the form "yyyy" orders the rollup of a whole year: the
-	// years quarter partitions are rebuilt into a single yearly one and
-	// their mounts are dropped.
+	// A period of the form "yyyy" orders the rollup of a whole year for a
+	// type laid out in months or quarters: the year's partitions are rebuilt
+	// into a single yearly one and their mounts are dropped. For a type laid
+	// out in years it rebuilds that year's partition.
 	RematerializePartition(context.Context, *connect.Request[v1.RematerializePartitionRequest]) (*connect.Response[v1.RematerializePartitionResponse], error)
 	// CreateIndexGeneration registers a new index generation: a complete set
 	// of search indexes with an index name prefix of its own, built on one of

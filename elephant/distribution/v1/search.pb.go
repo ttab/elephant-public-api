@@ -35,21 +35,25 @@ type QueryRequest struct {
 	//
 	// "recent" is not "whatever the cluster happens to hold locally". It
 	// applies an implicit window on the document's anchor timestamp, so
-	// that recent means the same thing on the first day of a quarter as on
+	// that recent means the same thing on the first day of a partition as on
 	// the last. For document types anchored on when they happened - news,
 	// and everything else dated by publication - that window is a
-	// first_published no older than the configured recent window, 30 days
-	// by default. Types that aren't partitioned by time, the entity
-	// registries such as sections and authors, are never windowed and are
-	// returned in full by both tiers.
+	// first_published no older than the type's own recent window: the
+	// `recent` setting of its index configuration, 90 days by default and
+	// never longer than the type's grace. A query over several types applies
+	// each type's window to that type's documents. Types that aren't
+	// partitioned by time, the entity registries such as sections and
+	// authors, are never windowed and are returned in full by both tiers.
 	//
 	// "all" searches the archive set as well. The archive is served from
 	// snapshots mounted on separate nodes, so it answers more slowly, and
 	// the higher latency is accepted rather than worked around - which is
 	// why it is an explicit choice and not the default. Scope an archive
-	// query with a range on the anchor field whenever you can: given a
-	// range, the server resolves the query to the archived partitions that
-	// intersect it instead of fanning out over every quarter ever indexed.
+	// query with date_from and date_to whenever you can: given a range, the
+	// server resolves the query to the archived partitions that intersect it
+	// instead of fanning out over every partition ever indexed. A type with
+	// a finite retention reaches back only as far as its retained
+	// partitions; GetMappings reports where that is.
 	//
 	// A document that has been corrected after its partition was archived
 	// exists in both tiers. Hits are collapsed on the document UUID, and
@@ -1967,9 +1971,22 @@ func (x *GetMappingsRequest) GetDocumentType() string {
 type GetMappingsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Properties of the document type, sorted by name.
-	Properties    []*MappingProperty `protobuf:"bytes,1,rep,name=properties,proto3" json:"properties,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Properties []*MappingProperty `protobuf:"bytes,1,rep,name=properties,proto3" json:"properties,omitempty"`
+	// Retention is how long the search index keeps the document type: the
+	// `retention` setting of its index configuration, "forever" or a
+	// calendar length such as "2y". The index drops a whole partition once
+	// its period is older than that; the content itself is kept.
+	Retention string `protobuf:"bytes,2,opt,name=retention,proto3" json:"retention,omitempty"`
+	// RetentionHorizon is where the retention reaches back to now, RFC3339:
+	// the start of the oldest partition the index still holds. A search
+	// reaches no further back, so a query that is bounded before it matches
+	// nothing because the content is outside retention, not because there
+	// is none. Older material may still answer for a while from a year the
+	// index has rolled up, until the whole year has aged out. Empty for a
+	// type that is kept forever or isn't partitioned by time.
+	RetentionHorizon string `protobuf:"bytes,3,opt,name=retention_horizon,json=retentionHorizon,proto3" json:"retention_horizon,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetMappingsResponse) Reset() {
@@ -2007,6 +2024,20 @@ func (x *GetMappingsResponse) GetProperties() []*MappingProperty {
 		return x.Properties
 	}
 	return nil
+}
+
+func (x *GetMappingsResponse) GetRetention() string {
+	if x != nil {
+		return x.Retention
+	}
+	return ""
+}
+
+func (x *GetMappingsResponse) GetRetentionHorizon() string {
+	if x != nil {
+		return x.RetentionHorizon
+	}
+	return ""
 }
 
 // MappingProperty is a searchable field of a document type.
@@ -2284,11 +2315,13 @@ const file_elephant_distribution_v1_search_proto_rawDesc = "" +
 	"\fStringValues\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"9\n" +
 	"\x12GetMappingsRequest\x12#\n" +
-	"\rdocument_type\x18\x01 \x01(\tR\fdocumentType\"`\n" +
+	"\rdocument_type\x18\x01 \x01(\tR\fdocumentType\"\xab\x01\n" +
 	"\x13GetMappingsResponse\x12I\n" +
 	"\n" +
 	"properties\x18\x01 \x03(\v2).elephant.distribution.v1.MappingPropertyR\n" +
-	"properties\"\x8d\x01\n" +
+	"properties\x12\x1c\n" +
+	"\tretention\x18\x02 \x01(\tR\tretention\x12+\n" +
+	"\x11retention_horizon\x18\x03 \x01(\tR\x10retentionHorizon\"\x8d\x01\n" +
 	"\x0fMappingProperty\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +

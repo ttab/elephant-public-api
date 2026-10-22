@@ -164,9 +164,10 @@ service ConfigurationService {
   // recorded state either way, and ordering a rebuild that is already
   // under way changes nothing.
   //
-  // A period of the form "yyyy" orders the rollup of a whole year: the
-  // years quarter partitions are rebuilt into a single yearly one and
-  // their mounts are dropped.
+  // A period of the form "yyyy" orders the rollup of a whole year for a
+  // type laid out in months or quarters: the year's partitions are rebuilt
+  // into a single yearly one and their mounts are dropped. For a type laid
+  // out in years it rebuilds that year's partition.
   rpc RematerializePartition(RematerializePartitionRequest) returns (RematerializePartitionResponse);
   // CreateIndexGeneration registers a new index generation: a complete set
   // of search indexes with an index name prefix of its own, built on one of
@@ -1784,6 +1785,14 @@ message RegisterConfigGenerationResponse {
   // archived partitions need no re-materialization. Empty when there is
   // no active index generation to compare with.
   repeated GateCoverage reindex_needed = 2;
+  // LayoutChanges lists the types whose index layout - TypeIndexSettings
+  // partition, with the default filled in - differs from the one the
+  // active index generation was built with. Like reindex_needed it is a
+  // report, not a refusal: activating the generation applies its policy
+  // settings and moves no index, and the layout is applied by building a
+  // new index generation under it. Empty when there is no active index
+  // generation to compare with.
+  repeated LayoutChange layout_changes = 3;
 }
 
 // Entitlement is a product tier: content that an organisation only sees
@@ -1879,6 +1888,12 @@ message ActivateConfigGenerationRequest {
 
 message ActivateConfigGenerationResponse {
   ConfigGeneration generation = 1;
+  // LayoutChanges lists the types whose index layout differs from the one
+  // the active index generation was built with, as
+  // RegisterConfigGenerationResponse.layout_changes does. The activation
+  // is not refused for it: the generation's policy settings take effect,
+  // and the layout waits for a new index generation.
+  repeated LayoutChange layout_changes = 2;
 }
 
 message GetActiveConfigGenerationRequest {
@@ -1975,7 +1990,7 @@ message TypeConfiguration {
   // distribution event, which is immutable, so a document never moves
   // between partitions. "time_expressions" partitions by the dates
   // time_expressions extracts from the document, with everything from
-  // the current quarter onwards sharing one index.
+  // the current partition onwards sharing one index.
   string anchor = 6;
   // Embeddings enables semantic indexing of the document type: its
   // documents are chunked and embedded, its indexes are created with a
@@ -2024,6 +2039,102 @@ message TypeConfiguration {
   // the extracted values are held in memory for every version in a
   // matcher page while every candidate rule tree is evaluated.
   repeated TypeDeliveryField delivery_fields = 9;
+  // Index tunes how the type's search indexes are partitioned, tiered and
+  // kept. Absent, or any setting left empty, takes the service default,
+  // and the defaults are tuned for editorial content: yearly partitions,
+  // the previous year kept local, a 90-day recent window, archived as
+  // snapshots and kept for ever.
+  TypeIndexSettings index = 10;
+}
+
+// TypeIndexSettings is the index block of a type configuration. Every field
+// is optional: the zero value takes the service default.
+//
+// The values are strings in the configuration grammar rather than enums,
+// as anchor is: the empty string is the one way to say "the default", and
+// a value the server does not know is refused at registration, naming the
+// type and the setting, rather than read as something else.
+//
+// A calendar length is a whole number followed by "d", "m" or "y" - "14d",
+// "18m", "2y" - and counts calendar days, months and years, not a fixed
+// duration: partitions are calendar periods, and "2y" means two calendar
+// years.
+//
+// Partition is a layout setting and the rest are policy. A policy change
+// takes effect when the configuration generation is activated, for
+// whatever it touches next. The layout belongs to the index generation: a
+// configuration whose partition differs from the active index generation's
+// is registered and activated all the same, the difference is reported in
+// layout_changes, and it is applied by building and activating a new index
+// generation.
+//
+// A type without an anchor lives in one unpartitioned index per language
+// and accepts only shards, archive_vectors and retention = "forever";
+// registration refuses the other settings for it.
+message TypeIndexSettings {
+  // Partition is the period one index of the type covers: "month",
+  // "quarter" or "year". Defaults to "year".
+  string partition = 1;
+  // Archive is what happens to a closed partition once its grace has run
+  // out: "snapshot" shrinks, snapshots and mounts it in the archive tier,
+  // and late writes go to the overlay; "none" keeps it local and writable
+  // and only moves it from the recent alias to the archive alias. Defaults
+  // to "snapshot".
+  string archive = 2;
+  // Rollup is how long a year has to have been over, once its last
+  // partition is archived, before its partitions are rolled up into one
+  // index for the year: a calendar length, or "never" to keep the
+  // partitions. "0d" rolls a year up as soon as its last partition is
+  // archived. It only applies to archived sub-year partitions, so setting
+  // it with archive = "none" or partition = "year" is refused. Defaults to
+  // "1y".
+  string rollup = 3;
+  // Grace is how long a partition stays local and in the recent set after
+  // it ends: a calendar length of at least three days. Longer than the
+  // partition is allowed and keeps more than one closed partition local.
+  // Defaults to one partition.
+  string grace = 4;
+  // Recent is the window tier=recent searches cover for the type: a
+  // calendar length no longer than grace. Only a backward-anchored type
+  // (anchor "first_published") is windowed, so setting it on any other is
+  // refused. Defaults to 90 days, capped at the grace.
+  string recent = 5;
+  // Shards is the primary shard count of the type's hot indexes, applied
+  // to indexes created after activation. Zero takes the default of one;
+  // resilience comes from the deployment's replicas, not from more
+  // primaries.
+  int32 shards = 6;
+  // ArchiveVectors is the vector configuration an archived partition is
+  // rebuilt with: "inline" keeps the hot tier's shape, "on_disk" rebuilds
+  // with binary quantization and rescoring. Applied at the next rebuild of
+  // a partition. Defaults to "inline".
+  string archive_vectors = 7;
+  // Retention is how long the type's index material is kept: "forever",
+  // or a calendar length. A partition is dropped from the index once its
+  // whole period is older than the retention; the log and the archive are
+  // never touched. It may not be shorter than grace. Defaults to
+  // "forever".
+  string retention = 8;
+}
+
+// LayoutChange is a difference between the index layout a configuration
+// generation asks for and the one the active index generation was built
+// with. It is a report, not a refusal: the layout is fixed for the life of
+// an index generation, so the change is applied by creating an index
+// generation under the configuration, letting it catch up and activating
+// it.
+message LayoutChange {
+  // DocumentType the change is for, e.g. "core/article".
+  string document_type = 1;
+  // Setting is the layout setting that differs, e.g. "partition".
+  string setting = 2;
+  // Current is the value the active index generation was built with.
+  string current = 3;
+  // Configured is the value the configuration generation asks for, with
+  // the service default filled in where the type sets none.
+  string configured = 4;
+  // IndexGeneration is the name of the active index generation.
+  string index_generation = 5;
 }
 
 // TypeFacetExpression extracts one facet's values from a document.
@@ -2170,6 +2281,13 @@ message ErasureStatus {
   // what happened to it is the compliance value: an outstanding entry is
   // one with an empty cleared_at.
   repeated DeliveryErasureObligation pending_deliveries = 6;
+  // RetiredPartitions are the archived index partitions this erasure was
+  // waiting on that were dropped because the document type's retention
+  // passed them, rather than re-materialized. A retired partition has
+  // nothing left to find, so the erasure no longer waits on it; a
+  // partition that has left pending_partitions without being listed here
+  // was swept by a re-materialization.
+  repeated string retired_partitions = 7;
 }
 
 // DeliveryErasureObligation is one destination that holds, or held, a
@@ -2231,8 +2349,10 @@ message RematerializePartitionRequest {
   // Language segment of the partition, e.g. "sv". This is the index
   // language series, not a document language attribute.
   string language = 2;
-  // Period of the partition: "yyyyq[1-4]" for a quarter, or "yyyy" to roll
-  // a whole year of quarters into one partition.
+  // Period of the partition, at the granularity the type's indexes are
+  // laid out in: "yyyymm" for a month, "yyyyq[1-4]" for a quarter, or
+  // "yyyy" for a year - which, for a type laid out in months or quarters,
+  // rolls the whole year into one partition.
   string period = 3;
 }
 
