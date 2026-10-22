@@ -201,7 +201,7 @@ service ConfigurationService {
   // has come down to a handful of events.
   rpc ListIndexGenerations(ListIndexGenerationsRequest) returns (ListIndexGenerationsResponse);
   // ActivateIndexGeneration makes a generation the one that search,
-  // threshold calibration and subscription matching read. The switch is
+  // subscription previews and subscription matching read. The switch is
   // atomic and exactly one generation is active at a time.
   //
   // Activation is refused when the candidate lags the head of the eventlog
@@ -2416,8 +2416,8 @@ message IndexGeneration {
   // generation keeps its indexes but stops consuming the eventlog, and
   // falls behind for as long as it stays that way.
   bool enabled = 4;
-  // Active is whether this is the generation that search, calibration and
-  // subscription matching use.
+  // Active is whether this is the generation that search, subscription
+  // previews and subscription matching use.
   bool active = 5;
   // CreatedAt is when the generation was registered, RFC3339.
   string created_at = 6;

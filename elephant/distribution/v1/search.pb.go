@@ -1412,7 +1412,10 @@ func (x *FuzzinessAuto) GetHigh() int64 {
 // Hit.score for a knn hit is therefore directly comparable to
 // min_similarity, which is how a threshold is found: run a k query, look
 // at where the results stop being relevant, and read the threshold off the
-// scores.
+// scores. A radial query at that threshold over a recent date_from and
+// date_to then gives the volume it would have matched as the total, which
+// is what a subscription threshold costs. When the scores show no clean
+// cut, rephrase the text and look again.
 //
 // Thresholds are model-dependent and are not portable between deployments
 // or across an embedding model upgrade. Treat a min_similarity value as

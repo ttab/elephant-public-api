@@ -1274,8 +1274,12 @@ type VectorClauseMember struct {
 	// direction. The embeddings are normalized, so this is the same dial as
 	// a maximum inner product distance, and it is the same number as
 	// Hit.score for a knn query and KnnQuery.min_similarity - which is
-	// how a threshold is found without guessing, see CalibrateVectorClause
-	// and SearchService.Query.
+	// how a threshold is found without guessing: run the member as a knn
+	// query with k, read where the hits stop being relevant, and check the
+	// volume at that threshold with a radial query over a recent date
+	// range, whose total is the count; see KnnQuery and
+	// SearchService.Query. If no clean cut shows, rephrase the source and
+	// try again.
 	//
 	// Required: absent is an invalid argument. The field is optional so
 	// that a threshold of 0 - close to anything that isn't pointing away -
@@ -2786,495 +2790,6 @@ func (x *MemberProvenance) GetPassed() bool {
 	return false
 }
 
-type CalibrateVectorClauseRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Members to calibrate, scored the way a clause scores them: each
-	// document gets the highest similarity any of the members reaches. Pass
-	// the members of one clause to calibrate it as a whole, or a single
-	// member to calibrate it on its own. At least one is required.
-	//
-	// The min_similarity of a member is not used for scoring. When it is
-	// set it is added to the threshold ladder, so an existing threshold can
-	// be compared against the alternatives.
-	Members []*VectorClauseMember `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
-	// DocumentTypes to score against. Empty scores against every indexed
-	// type the caller can read. Use the types the subscription is going to
-	// name, the volume estimate is only about the documents it will see.
-	DocumentTypes []string `protobuf:"bytes,2,rep,name=document_types,json=documentTypes,proto3" json:"document_types,omitempty"`
-	// Language to score against, as the language tag documents are indexed
-	// under. Empty scores against every language, matching a subscription
-	// that leaves the language out.
-	Language string `protobuf:"bytes,3,opt,name=language,proto3" json:"language,omitempty"`
-	// WindowDays is the number of days back to score. Defaults to 7 and is
-	// capped by what the recent tier holds. A window shorter than a week
-	// will mistake the weekly publishing rhythm for a trend.
-	WindowDays int64 `protobuf:"varint,4,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`
-	// Thresholds is an explicit ladder of candidate thresholds to estimate
-	// volume at. Empty lets the server pick a ladder from the observed
-	// distribution, which is the normal way to use this.
-	Thresholds []float32 `protobuf:"fixed32,5,rep,packed,name=thresholds,proto3" json:"thresholds,omitempty"`
-	// TopHits is the number of highest-scoring documents to return for
-	// eyeballing. Defaults to 10, and is capped by the server.
-	TopHits int64 `protobuf:"varint,6,opt,name=top_hits,json=topHits,proto3" json:"top_hits,omitempty"`
-	// Floor is the similarity below which documents are not scored at all,
-	// which bounds the work the call does. Documents below it are counted
-	// as non-matches at every rung of the ladder, so a floor above a
-	// candidate threshold would understate its volume and is an invalid
-	// argument. Absent uses a server-chosen floor.
-	Floor *float32 `protobuf:"fixed32,7,opt,name=floor,proto3,oneof" json:"floor,omitempty"`
-	// Fields to return with each top hit, named as flat index fields (e.g.
-	// "document.rel.section.uuid"), as in SearchService.Query. Only the top hits
-	// carry them - they are for reading the results, and the rest of the
-	// response is counts.
-	//
-	// The title is returned whether or not it is selected, so eyeballing
-	// the top hits needs nothing here; this is for the other things that
-	// say what a document is.
-	Fields        []string `protobuf:"bytes,8,rep,name=fields,proto3" json:"fields,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CalibrateVectorClauseRequest) Reset() {
-	*x = CalibrateVectorClauseRequest{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[33]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CalibrateVectorClauseRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CalibrateVectorClauseRequest) ProtoMessage() {}
-
-func (x *CalibrateVectorClauseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[33]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CalibrateVectorClauseRequest.ProtoReflect.Descriptor instead.
-func (*CalibrateVectorClauseRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{33}
-}
-
-func (x *CalibrateVectorClauseRequest) GetMembers() []*VectorClauseMember {
-	if x != nil {
-		return x.Members
-	}
-	return nil
-}
-
-func (x *CalibrateVectorClauseRequest) GetDocumentTypes() []string {
-	if x != nil {
-		return x.DocumentTypes
-	}
-	return nil
-}
-
-func (x *CalibrateVectorClauseRequest) GetLanguage() string {
-	if x != nil {
-		return x.Language
-	}
-	return ""
-}
-
-func (x *CalibrateVectorClauseRequest) GetWindowDays() int64 {
-	if x != nil {
-		return x.WindowDays
-	}
-	return 0
-}
-
-func (x *CalibrateVectorClauseRequest) GetThresholds() []float32 {
-	if x != nil {
-		return x.Thresholds
-	}
-	return nil
-}
-
-func (x *CalibrateVectorClauseRequest) GetTopHits() int64 {
-	if x != nil {
-		return x.TopHits
-	}
-	return 0
-}
-
-func (x *CalibrateVectorClauseRequest) GetFloor() float32 {
-	if x != nil && x.Floor != nil {
-		return *x.Floor
-	}
-	return 0
-}
-
-func (x *CalibrateVectorClauseRequest) GetFields() []string {
-	if x != nil {
-		return x.Fields
-	}
-	return nil
-}
-
-type CalibrateVectorClauseResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// WindowStart is the beginning of the scored window, RFC3339.
-	WindowStart string `protobuf:"bytes,1,opt,name=window_start,json=windowStart,proto3" json:"window_start,omitempty"`
-	// WindowEnd is the end of the scored window, RFC3339.
-	WindowEnd string `protobuf:"bytes,2,opt,name=window_end,json=windowEnd,proto3" json:"window_end,omitempty"`
-	// WindowDays is the window that was actually scored, which can be
-	// shorter than the requested one.
-	WindowDays int64 `protobuf:"varint,3,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`
-	// ScoredDocuments is the number of documents in the window that scored
-	// at or above the floor. The percentiles are over these, not over every
-	// document in the window: the distribution of things that are at least
-	// vaguely related is what a threshold is chosen within.
-	ScoredDocuments int64 `protobuf:"varint,4,opt,name=scored_documents,json=scoredDocuments,proto3" json:"scored_documents,omitempty"`
-	// Floor that was applied.
-	Floor float32 `protobuf:"fixed32,5,opt,name=floor,proto3" json:"floor,omitempty"`
-	// Percentiles of the similarity distribution over the window, in
-	// ascending order of percentile.
-	Percentiles []*SimilarityPercentile `protobuf:"bytes,6,rep,name=percentiles,proto3" json:"percentiles,omitempty"`
-	// TopHits are the highest-scoring documents of the window, most similar
-	// first. Read them to find where the results stop being about what the
-	// clause is about; the similarity there is the threshold worth
-	// estimating volume at.
-	TopHits []*CalibrationHit `protobuf:"bytes,7,rep,name=top_hits,json=topHits,proto3" json:"top_hits,omitempty"`
-	// Thresholds is the ladder: what each candidate threshold would have
-	// matched over the window. This is the number a threshold is chosen on
-	// - a threshold is a volume decision, and matches per day is the volume
-	// it produces. Nothing here says anything about whether the matches are
-	// the right ones; that is what the top hits and PreviewSubscription are
-	// for.
-	Thresholds    []*ThresholdEstimate `protobuf:"bytes,8,rep,name=thresholds,proto3" json:"thresholds,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CalibrateVectorClauseResponse) Reset() {
-	*x = CalibrateVectorClauseResponse{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[34]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CalibrateVectorClauseResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CalibrateVectorClauseResponse) ProtoMessage() {}
-
-func (x *CalibrateVectorClauseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[34]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CalibrateVectorClauseResponse.ProtoReflect.Descriptor instead.
-func (*CalibrateVectorClauseResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *CalibrateVectorClauseResponse) GetWindowStart() string {
-	if x != nil {
-		return x.WindowStart
-	}
-	return ""
-}
-
-func (x *CalibrateVectorClauseResponse) GetWindowEnd() string {
-	if x != nil {
-		return x.WindowEnd
-	}
-	return ""
-}
-
-func (x *CalibrateVectorClauseResponse) GetWindowDays() int64 {
-	if x != nil {
-		return x.WindowDays
-	}
-	return 0
-}
-
-func (x *CalibrateVectorClauseResponse) GetScoredDocuments() int64 {
-	if x != nil {
-		return x.ScoredDocuments
-	}
-	return 0
-}
-
-func (x *CalibrateVectorClauseResponse) GetFloor() float32 {
-	if x != nil {
-		return x.Floor
-	}
-	return 0
-}
-
-func (x *CalibrateVectorClauseResponse) GetPercentiles() []*SimilarityPercentile {
-	if x != nil {
-		return x.Percentiles
-	}
-	return nil
-}
-
-func (x *CalibrateVectorClauseResponse) GetTopHits() []*CalibrationHit {
-	if x != nil {
-		return x.TopHits
-	}
-	return nil
-}
-
-func (x *CalibrateVectorClauseResponse) GetThresholds() []*ThresholdEstimate {
-	if x != nil {
-		return x.Thresholds
-	}
-	return nil
-}
-
-// SimilarityPercentile is one point of the similarity distribution.
-type SimilarityPercentile struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Percentile the value is for, e.g. 50, 99 or 99.9.
-	Percentile float64 `protobuf:"fixed64,1,opt,name=percentile,proto3" json:"percentile,omitempty"`
-	// Similarity at that percentile, on the same scale as
-	// VectorClauseMember.min_similarity.
-	Similarity    float32 `protobuf:"fixed32,2,opt,name=similarity,proto3" json:"similarity,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SimilarityPercentile) Reset() {
-	*x = SimilarityPercentile{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[35]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SimilarityPercentile) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SimilarityPercentile) ProtoMessage() {}
-
-func (x *SimilarityPercentile) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[35]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SimilarityPercentile.ProtoReflect.Descriptor instead.
-func (*SimilarityPercentile) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{35}
-}
-
-func (x *SimilarityPercentile) GetPercentile() float64 {
-	if x != nil {
-		return x.Percentile
-	}
-	return 0
-}
-
-func (x *SimilarityPercentile) GetSimilarity() float32 {
-	if x != nil {
-		return x.Similarity
-	}
-	return 0
-}
-
-// CalibrationHit is one of the documents a calibration scored highest.
-type CalibrationHit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID of the document. Pass it to ContentService.GetDocument to read it.
-	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	// Type of the document.
-	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	// Similarity the document scored, i.e. the highest similarity any of
-	// the calibrated members reached against any of its chunks.
-	Similarity float32 `protobuf:"fixed32,3,opt,name=similarity,proto3" json:"similarity,omitempty"`
-	// FirstPublished is when the document was first published, RFC3339.
-	FirstPublished string `protobuf:"bytes,4,opt,name=first_published,json=firstPublished,proto3" json:"first_published,omitempty"`
-	// MemberIndex is the position in the calibrated members of the member
-	// that scored highest against this document.
-	MemberIndex int64 `protobuf:"varint,5,opt,name=member_index,json=memberIndex,proto3" json:"member_index,omitempty"`
-	// Title of the document, always returned. Choosing a threshold means
-	// reading down the top hits until they stop being about what the
-	// clause is about, and a list of UUIDs cannot be read that way.
-	//
-	// Empty for a document the index holds no title for, which is not the
-	// same as a document that isn't there.
-	Title string `protobuf:"bytes,6,opt,name=title,proto3" json:"title,omitempty"`
-	// Fields are the values the request's field selection asked for. The
-	// title is not among them unless the selection named it too.
-	Fields        map[string]*StringValues `protobuf:"bytes,7,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CalibrationHit) Reset() {
-	*x = CalibrationHit{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[36]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CalibrationHit) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CalibrationHit) ProtoMessage() {}
-
-func (x *CalibrationHit) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[36]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CalibrationHit.ProtoReflect.Descriptor instead.
-func (*CalibrationHit) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{36}
-}
-
-func (x *CalibrationHit) GetUuid() string {
-	if x != nil {
-		return x.Uuid
-	}
-	return ""
-}
-
-func (x *CalibrationHit) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *CalibrationHit) GetSimilarity() float32 {
-	if x != nil {
-		return x.Similarity
-	}
-	return 0
-}
-
-func (x *CalibrationHit) GetFirstPublished() string {
-	if x != nil {
-		return x.FirstPublished
-	}
-	return ""
-}
-
-func (x *CalibrationHit) GetMemberIndex() int64 {
-	if x != nil {
-		return x.MemberIndex
-	}
-	return 0
-}
-
-func (x *CalibrationHit) GetTitle() string {
-	if x != nil {
-		return x.Title
-	}
-	return ""
-}
-
-func (x *CalibrationHit) GetFields() map[string]*StringValues {
-	if x != nil {
-		return x.Fields
-	}
-	return nil
-}
-
-// ThresholdEstimate is what one candidate threshold would have cost in
-// volume over the calibration window.
-type ThresholdEstimate struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// MinSimilarity is the candidate threshold.
-	MinSimilarity float32 `protobuf:"fixed32,1,opt,name=min_similarity,json=minSimilarity,proto3" json:"min_similarity,omitempty"`
-	// MatchedDocuments is the number of documents in the window that
-	// reached it.
-	MatchedDocuments int64 `protobuf:"varint,2,opt,name=matched_documents,json=matchedDocuments,proto3" json:"matched_documents,omitempty"`
-	// MatchesPerDay is matched_documents spread over the window. It is a
-	// rate over past traffic, not a forecast, and it is per clause: a
-	// subscription that ANDs this clause with a query or another clause
-	// will see fewer.
-	MatchesPerDay float64 `protobuf:"fixed64,3,opt,name=matches_per_day,json=matchesPerDay,proto3" json:"matches_per_day,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ThresholdEstimate) Reset() {
-	*x = ThresholdEstimate{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[37]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ThresholdEstimate) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ThresholdEstimate) ProtoMessage() {}
-
-func (x *ThresholdEstimate) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[37]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ThresholdEstimate.ProtoReflect.Descriptor instead.
-func (*ThresholdEstimate) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{37}
-}
-
-func (x *ThresholdEstimate) GetMinSimilarity() float32 {
-	if x != nil {
-		return x.MinSimilarity
-	}
-	return 0
-}
-
-func (x *ThresholdEstimate) GetMatchedDocuments() int64 {
-	if x != nil {
-		return x.MatchedDocuments
-	}
-	return 0
-}
-
-func (x *ThresholdEstimate) GetMatchesPerDay() float64 {
-	if x != nil {
-		return x.MatchesPerDay
-	}
-	return 0
-}
-
 type PreviewSubscriptionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Subscription definition to dry-run. Required. It is evaluated exactly
@@ -3299,7 +2814,7 @@ type PreviewSubscriptionRequest struct {
 
 func (x *PreviewSubscriptionRequest) Reset() {
 	*x = PreviewSubscriptionRequest{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[38]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3311,7 +2826,7 @@ func (x *PreviewSubscriptionRequest) String() string {
 func (*PreviewSubscriptionRequest) ProtoMessage() {}
 
 func (x *PreviewSubscriptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[38]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3324,7 +2839,7 @@ func (x *PreviewSubscriptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewSubscriptionRequest.ProtoReflect.Descriptor instead.
 func (*PreviewSubscriptionRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{38}
+	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *PreviewSubscriptionRequest) GetSubscription() *SubscriptionSpec {
@@ -3378,7 +2893,7 @@ type PreviewSubscriptionResponse struct {
 
 func (x *PreviewSubscriptionResponse) Reset() {
 	*x = PreviewSubscriptionResponse{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[39]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3390,7 +2905,7 @@ func (x *PreviewSubscriptionResponse) String() string {
 func (*PreviewSubscriptionResponse) ProtoMessage() {}
 
 func (x *PreviewSubscriptionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[39]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3403,7 +2918,7 @@ func (x *PreviewSubscriptionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewSubscriptionResponse.ProtoReflect.Descriptor instead.
 func (*PreviewSubscriptionResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{39}
+	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *PreviewSubscriptionResponse) GetTotal() *HitsTotal {
@@ -3474,7 +2989,7 @@ type PreviewMatch struct {
 
 func (x *PreviewMatch) Reset() {
 	*x = PreviewMatch{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[40]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3486,7 +3001,7 @@ func (x *PreviewMatch) String() string {
 func (*PreviewMatch) ProtoMessage() {}
 
 func (x *PreviewMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[40]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3499,7 +3014,7 @@ func (x *PreviewMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewMatch.ProtoReflect.Descriptor instead.
 func (*PreviewMatch) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{40}
+	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *PreviewMatch) GetUuid() string {
@@ -3552,7 +3067,7 @@ type GetDeliveryFieldsRequest struct {
 
 func (x *GetDeliveryFieldsRequest) Reset() {
 	*x = GetDeliveryFieldsRequest{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[41]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3564,7 +3079,7 @@ func (x *GetDeliveryFieldsRequest) String() string {
 func (*GetDeliveryFieldsRequest) ProtoMessage() {}
 
 func (x *GetDeliveryFieldsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[41]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3577,7 +3092,7 @@ func (x *GetDeliveryFieldsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeliveryFieldsRequest.ProtoReflect.Descriptor instead.
 func (*GetDeliveryFieldsRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{41}
+	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{36}
 }
 
 type GetDeliveryFieldsResponse struct {
@@ -3595,7 +3110,7 @@ type GetDeliveryFieldsResponse struct {
 
 func (x *GetDeliveryFieldsResponse) Reset() {
 	*x = GetDeliveryFieldsResponse{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[42]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3607,7 +3122,7 @@ func (x *GetDeliveryFieldsResponse) String() string {
 func (*GetDeliveryFieldsResponse) ProtoMessage() {}
 
 func (x *GetDeliveryFieldsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[42]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3620,7 +3135,7 @@ func (x *GetDeliveryFieldsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeliveryFieldsResponse.ProtoReflect.Descriptor instead.
 func (*GetDeliveryFieldsResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{42}
+	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetDeliveryFieldsResponse) GetFields() []*DeliveryField {
@@ -3657,7 +3172,7 @@ type DeliveryField struct {
 
 func (x *DeliveryField) Reset() {
 	*x = DeliveryField{}
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[43]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3669,7 +3184,7 @@ func (x *DeliveryField) String() string {
 func (*DeliveryField) ProtoMessage() {}
 
 func (x *DeliveryField) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[43]
+	mi := &file_elephant_distribution_v1_subscriptions_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3682,7 +3197,7 @@ func (x *DeliveryField) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryField.ProtoReflect.Descriptor instead.
 func (*DeliveryField) Descriptor() ([]byte, []int) {
-	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{43}
+	return file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *DeliveryField) GetName() string {
@@ -3882,57 +3397,7 @@ const file_elephant_distribution_v1_subscriptions_proto_rawDesc = "" +
 	"\n" +
 	"similarity\x18\x02 \x01(\x02R\n" +
 	"similarity\x12\x16\n" +
-	"\x06passed\x18\x03 \x01(\bR\x06passed\"\xc2\x02\n" +
-	"\x1cCalibrateVectorClauseRequest\x12F\n" +
-	"\amembers\x18\x01 \x03(\v2,.elephant.distribution.v1.VectorClauseMemberR\amembers\x12%\n" +
-	"\x0edocument_types\x18\x02 \x03(\tR\rdocumentTypes\x12\x1a\n" +
-	"\blanguage\x18\x03 \x01(\tR\blanguage\x12\x1f\n" +
-	"\vwindow_days\x18\x04 \x01(\x03R\n" +
-	"windowDays\x12\x1e\n" +
-	"\n" +
-	"thresholds\x18\x05 \x03(\x02R\n" +
-	"thresholds\x12\x19\n" +
-	"\btop_hits\x18\x06 \x01(\x03R\atopHits\x12\x19\n" +
-	"\x05floor\x18\a \x01(\x02H\x00R\x05floor\x88\x01\x01\x12\x16\n" +
-	"\x06fields\x18\b \x03(\tR\x06fieldsB\b\n" +
-	"\x06_floor\"\xa7\x03\n" +
-	"\x1dCalibrateVectorClauseResponse\x12!\n" +
-	"\fwindow_start\x18\x01 \x01(\tR\vwindowStart\x12\x1d\n" +
-	"\n" +
-	"window_end\x18\x02 \x01(\tR\twindowEnd\x12\x1f\n" +
-	"\vwindow_days\x18\x03 \x01(\x03R\n" +
-	"windowDays\x12)\n" +
-	"\x10scored_documents\x18\x04 \x01(\x03R\x0fscoredDocuments\x12\x14\n" +
-	"\x05floor\x18\x05 \x01(\x02R\x05floor\x12P\n" +
-	"\vpercentiles\x18\x06 \x03(\v2..elephant.distribution.v1.SimilarityPercentileR\vpercentiles\x12C\n" +
-	"\btop_hits\x18\a \x03(\v2(.elephant.distribution.v1.CalibrationHitR\atopHits\x12K\n" +
-	"\n" +
-	"thresholds\x18\b \x03(\v2+.elephant.distribution.v1.ThresholdEstimateR\n" +
-	"thresholds\"V\n" +
-	"\x14SimilarityPercentile\x12\x1e\n" +
-	"\n" +
-	"percentile\x18\x01 \x01(\x01R\n" +
-	"percentile\x12\x1e\n" +
-	"\n" +
-	"similarity\x18\x02 \x01(\x02R\n" +
-	"similarity\"\xeb\x02\n" +
-	"\x0eCalibrationHit\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1e\n" +
-	"\n" +
-	"similarity\x18\x03 \x01(\x02R\n" +
-	"similarity\x12'\n" +
-	"\x0ffirst_published\x18\x04 \x01(\tR\x0efirstPublished\x12!\n" +
-	"\fmember_index\x18\x05 \x01(\x03R\vmemberIndex\x12\x14\n" +
-	"\x05title\x18\x06 \x01(\tR\x05title\x12L\n" +
-	"\x06fields\x18\a \x03(\v24.elephant.distribution.v1.CalibrationHit.FieldsEntryR\x06fields\x1aa\n" +
-	"\vFieldsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.elephant.distribution.v1.StringValuesR\x05value:\x028\x01\"\x8f\x01\n" +
-	"\x11ThresholdEstimate\x12%\n" +
-	"\x0emin_similarity\x18\x01 \x01(\x02R\rminSimilarity\x12+\n" +
-	"\x11matched_documents\x18\x02 \x01(\x03R\x10matchedDocuments\x12&\n" +
-	"\x0fmatches_per_day\x18\x03 \x01(\x01R\rmatchesPerDay\"\xb9\x01\n" +
+	"\x06passed\x18\x03 \x01(\bR\x06passed\"\xb9\x01\n" +
 	"\x1aPreviewSubscriptionRequest\x12N\n" +
 	"\fsubscription\x18\x01 \x01(\v2*.elephant.distribution.v1.SubscriptionSpecR\fsubscription\x12\x1f\n" +
 	"\vwindow_days\x18\x02 \x01(\x03R\n" +
@@ -3986,8 +3451,7 @@ const file_elephant_distribution_v1_subscriptions_proto_rawDesc = "" +
 	"\x1bTEXT_MATCH_MODE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18TEXT_MATCH_MODE_CONTAINS\x10\x01\x12\x1a\n" +
 	"\x16TEXT_MATCH_MODE_PHRASE\x10\x02\x12\x1a\n" +
-	"\x16TEXT_MATCH_MODE_PREFIX\x10\x032\x87\n" +
-	"\n" +
+	"\x16TEXT_MATCH_MODE_PREFIX\x10\x032\xfc\b\n" +
 	"\x14SubscriptionsService\x12\x7f\n" +
 	"\x12CreateSubscription\x123.elephant.distribution.v1.CreateSubscriptionRequest\x1a4.elephant.distribution.v1.CreateSubscriptionResponse\x12\x7f\n" +
 	"\x12UpdateSubscription\x123.elephant.distribution.v1.UpdateSubscriptionRequest\x1a4.elephant.distribution.v1.UpdateSubscriptionResponse\x12\x7f\n" +
@@ -3996,8 +3460,7 @@ const file_elephant_distribution_v1_subscriptions_proto_rawDesc = "" +
 	"\x11ListSubscriptions\x122.elephant.distribution.v1.ListSubscriptionsRequest\x1a3.elephant.distribution.v1.ListSubscriptionsResponse\x12|\n" +
 	"\x11GetDeliveryFields\x122.elephant.distribution.v1.GetDeliveryFieldsRequest\x1a3.elephant.distribution.v1.GetDeliveryFieldsResponse\x12|\n" +
 	"\x11TouchSubscription\x122.elephant.distribution.v1.TouchSubscriptionRequest\x1a3.elephant.distribution.v1.TouchSubscriptionResponse\x12j\n" +
-	"\vPollMatches\x12,.elephant.distribution.v1.PollMatchesRequest\x1a-.elephant.distribution.v1.PollMatchesResponse\x12\x88\x01\n" +
-	"\x15CalibrateVectorClause\x126.elephant.distribution.v1.CalibrateVectorClauseRequest\x1a7.elephant.distribution.v1.CalibrateVectorClauseResponse\x12\x82\x01\n" +
+	"\vPollMatches\x12,.elephant.distribution.v1.PollMatchesRequest\x1a-.elephant.distribution.v1.PollMatchesResponse\x12\x82\x01\n" +
 	"\x13PreviewSubscription\x124.elephant.distribution.v1.PreviewSubscriptionRequest\x1a5.elephant.distribution.v1.PreviewSubscriptionResponseBMZKgithub.com/ttab/elephant-public-api/elephant/distribution/v1;distributionv1b\x06proto3"
 
 var (
@@ -4013,64 +3476,58 @@ func file_elephant_distribution_v1_subscriptions_proto_rawDescGZIP() []byte {
 }
 
 var file_elephant_distribution_v1_subscriptions_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_elephant_distribution_v1_subscriptions_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_elephant_distribution_v1_subscriptions_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_elephant_distribution_v1_subscriptions_proto_goTypes = []any{
-	(SubscriptionClass)(0),                // 0: elephant.distribution.v1.SubscriptionClass
-	(MatchRequirement)(0),                 // 1: elephant.distribution.v1.MatchRequirement
-	(FieldMatch)(0),                       // 2: elephant.distribution.v1.FieldMatch
-	(TextMatchMode)(0),                    // 3: elephant.distribution.v1.TextMatchMode
-	(*SubscriptionSpec)(nil),              // 4: elephant.distribution.v1.SubscriptionSpec
-	(*RuleSet)(nil),                       // 5: elephant.distribution.v1.RuleSet
-	(*RuleTree)(nil),                      // 6: elephant.distribution.v1.RuleTree
-	(*Rule)(nil),                          // 7: elephant.distribution.v1.Rule
-	(*MatchGroup)(nil),                    // 8: elephant.distribution.v1.MatchGroup
-	(*FieldCondition)(nil),                // 9: elephant.distribution.v1.FieldCondition
-	(*RangeCondition)(nil),                // 10: elephant.distribution.v1.RangeCondition
-	(*GeoCondition)(nil),                  // 11: elephant.distribution.v1.GeoCondition
-	(*TextCondition)(nil),                 // 12: elephant.distribution.v1.TextCondition
-	(*VectorCondition)(nil),               // 13: elephant.distribution.v1.VectorCondition
-	(*VectorClause)(nil),                  // 14: elephant.distribution.v1.VectorClause
-	(*VectorClauseMember)(nil),            // 15: elephant.distribution.v1.VectorClauseMember
-	(*ExemplarDocuments)(nil),             // 16: elephant.distribution.v1.ExemplarDocuments
-	(*RawVector)(nil),                     // 17: elephant.distribution.v1.RawVector
-	(*Subscription)(nil),                  // 18: elephant.distribution.v1.Subscription
-	(*CreateSubscriptionRequest)(nil),     // 19: elephant.distribution.v1.CreateSubscriptionRequest
-	(*CreateSubscriptionResponse)(nil),    // 20: elephant.distribution.v1.CreateSubscriptionResponse
-	(*UpdateSubscriptionRequest)(nil),     // 21: elephant.distribution.v1.UpdateSubscriptionRequest
-	(*UpdateSubscriptionResponse)(nil),    // 22: elephant.distribution.v1.UpdateSubscriptionResponse
-	(*DeleteSubscriptionRequest)(nil),     // 23: elephant.distribution.v1.DeleteSubscriptionRequest
-	(*DeleteSubscriptionResponse)(nil),    // 24: elephant.distribution.v1.DeleteSubscriptionResponse
-	(*GetSubscriptionRequest)(nil),        // 25: elephant.distribution.v1.GetSubscriptionRequest
-	(*GetSubscriptionResponse)(nil),       // 26: elephant.distribution.v1.GetSubscriptionResponse
-	(*ListSubscriptionsRequest)(nil),      // 27: elephant.distribution.v1.ListSubscriptionsRequest
-	(*ListSubscriptionsResponse)(nil),     // 28: elephant.distribution.v1.ListSubscriptionsResponse
-	(*TouchSubscriptionRequest)(nil),      // 29: elephant.distribution.v1.TouchSubscriptionRequest
-	(*TouchSubscriptionResponse)(nil),     // 30: elephant.distribution.v1.TouchSubscriptionResponse
-	(*PollMatchesRequest)(nil),            // 31: elephant.distribution.v1.PollMatchesRequest
-	(*PollMatchesResponse)(nil),           // 32: elephant.distribution.v1.PollMatchesResponse
-	(*SubscriptionMatch)(nil),             // 33: elephant.distribution.v1.SubscriptionMatch
-	(*MatchProvenance)(nil),               // 34: elephant.distribution.v1.MatchProvenance
-	(*ClauseProvenance)(nil),              // 35: elephant.distribution.v1.ClauseProvenance
-	(*MemberProvenance)(nil),              // 36: elephant.distribution.v1.MemberProvenance
-	(*CalibrateVectorClauseRequest)(nil),  // 37: elephant.distribution.v1.CalibrateVectorClauseRequest
-	(*CalibrateVectorClauseResponse)(nil), // 38: elephant.distribution.v1.CalibrateVectorClauseResponse
-	(*SimilarityPercentile)(nil),          // 39: elephant.distribution.v1.SimilarityPercentile
-	(*CalibrationHit)(nil),                // 40: elephant.distribution.v1.CalibrationHit
-	(*ThresholdEstimate)(nil),             // 41: elephant.distribution.v1.ThresholdEstimate
-	(*PreviewSubscriptionRequest)(nil),    // 42: elephant.distribution.v1.PreviewSubscriptionRequest
-	(*PreviewSubscriptionResponse)(nil),   // 43: elephant.distribution.v1.PreviewSubscriptionResponse
-	(*PreviewMatch)(nil),                  // 44: elephant.distribution.v1.PreviewMatch
-	(*GetDeliveryFieldsRequest)(nil),      // 45: elephant.distribution.v1.GetDeliveryFieldsRequest
-	(*GetDeliveryFieldsResponse)(nil),     // 46: elephant.distribution.v1.GetDeliveryFieldsResponse
-	(*DeliveryField)(nil),                 // 47: elephant.distribution.v1.DeliveryField
-	nil,                                   // 48: elephant.distribution.v1.CalibrationHit.FieldsEntry
-	nil,                                   // 49: elephant.distribution.v1.PreviewMatch.FieldsEntry
-	(*Query)(nil),                         // 50: elephant.distribution.v1.Query
-	(*HitsTotal)(nil),                     // 51: elephant.distribution.v1.HitsTotal
-	(*StringValues)(nil),                  // 52: elephant.distribution.v1.StringValues
+	(SubscriptionClass)(0),              // 0: elephant.distribution.v1.SubscriptionClass
+	(MatchRequirement)(0),               // 1: elephant.distribution.v1.MatchRequirement
+	(FieldMatch)(0),                     // 2: elephant.distribution.v1.FieldMatch
+	(TextMatchMode)(0),                  // 3: elephant.distribution.v1.TextMatchMode
+	(*SubscriptionSpec)(nil),            // 4: elephant.distribution.v1.SubscriptionSpec
+	(*RuleSet)(nil),                     // 5: elephant.distribution.v1.RuleSet
+	(*RuleTree)(nil),                    // 6: elephant.distribution.v1.RuleTree
+	(*Rule)(nil),                        // 7: elephant.distribution.v1.Rule
+	(*MatchGroup)(nil),                  // 8: elephant.distribution.v1.MatchGroup
+	(*FieldCondition)(nil),              // 9: elephant.distribution.v1.FieldCondition
+	(*RangeCondition)(nil),              // 10: elephant.distribution.v1.RangeCondition
+	(*GeoCondition)(nil),                // 11: elephant.distribution.v1.GeoCondition
+	(*TextCondition)(nil),               // 12: elephant.distribution.v1.TextCondition
+	(*VectorCondition)(nil),             // 13: elephant.distribution.v1.VectorCondition
+	(*VectorClause)(nil),                // 14: elephant.distribution.v1.VectorClause
+	(*VectorClauseMember)(nil),          // 15: elephant.distribution.v1.VectorClauseMember
+	(*ExemplarDocuments)(nil),           // 16: elephant.distribution.v1.ExemplarDocuments
+	(*RawVector)(nil),                   // 17: elephant.distribution.v1.RawVector
+	(*Subscription)(nil),                // 18: elephant.distribution.v1.Subscription
+	(*CreateSubscriptionRequest)(nil),   // 19: elephant.distribution.v1.CreateSubscriptionRequest
+	(*CreateSubscriptionResponse)(nil),  // 20: elephant.distribution.v1.CreateSubscriptionResponse
+	(*UpdateSubscriptionRequest)(nil),   // 21: elephant.distribution.v1.UpdateSubscriptionRequest
+	(*UpdateSubscriptionResponse)(nil),  // 22: elephant.distribution.v1.UpdateSubscriptionResponse
+	(*DeleteSubscriptionRequest)(nil),   // 23: elephant.distribution.v1.DeleteSubscriptionRequest
+	(*DeleteSubscriptionResponse)(nil),  // 24: elephant.distribution.v1.DeleteSubscriptionResponse
+	(*GetSubscriptionRequest)(nil),      // 25: elephant.distribution.v1.GetSubscriptionRequest
+	(*GetSubscriptionResponse)(nil),     // 26: elephant.distribution.v1.GetSubscriptionResponse
+	(*ListSubscriptionsRequest)(nil),    // 27: elephant.distribution.v1.ListSubscriptionsRequest
+	(*ListSubscriptionsResponse)(nil),   // 28: elephant.distribution.v1.ListSubscriptionsResponse
+	(*TouchSubscriptionRequest)(nil),    // 29: elephant.distribution.v1.TouchSubscriptionRequest
+	(*TouchSubscriptionResponse)(nil),   // 30: elephant.distribution.v1.TouchSubscriptionResponse
+	(*PollMatchesRequest)(nil),          // 31: elephant.distribution.v1.PollMatchesRequest
+	(*PollMatchesResponse)(nil),         // 32: elephant.distribution.v1.PollMatchesResponse
+	(*SubscriptionMatch)(nil),           // 33: elephant.distribution.v1.SubscriptionMatch
+	(*MatchProvenance)(nil),             // 34: elephant.distribution.v1.MatchProvenance
+	(*ClauseProvenance)(nil),            // 35: elephant.distribution.v1.ClauseProvenance
+	(*MemberProvenance)(nil),            // 36: elephant.distribution.v1.MemberProvenance
+	(*PreviewSubscriptionRequest)(nil),  // 37: elephant.distribution.v1.PreviewSubscriptionRequest
+	(*PreviewSubscriptionResponse)(nil), // 38: elephant.distribution.v1.PreviewSubscriptionResponse
+	(*PreviewMatch)(nil),                // 39: elephant.distribution.v1.PreviewMatch
+	(*GetDeliveryFieldsRequest)(nil),    // 40: elephant.distribution.v1.GetDeliveryFieldsRequest
+	(*GetDeliveryFieldsResponse)(nil),   // 41: elephant.distribution.v1.GetDeliveryFieldsResponse
+	(*DeliveryField)(nil),               // 42: elephant.distribution.v1.DeliveryField
+	nil,                                 // 43: elephant.distribution.v1.PreviewMatch.FieldsEntry
+	(*Query)(nil),                       // 44: elephant.distribution.v1.Query
+	(*HitsTotal)(nil),                   // 45: elephant.distribution.v1.HitsTotal
+	(*StringValues)(nil),                // 46: elephant.distribution.v1.StringValues
 }
 var file_elephant_distribution_v1_subscriptions_proto_depIdxs = []int32{
-	50, // 0: elephant.distribution.v1.SubscriptionSpec.query:type_name -> elephant.distribution.v1.Query
+	44, // 0: elephant.distribution.v1.SubscriptionSpec.query:type_name -> elephant.distribution.v1.Query
 	14, // 1: elephant.distribution.v1.SubscriptionSpec.vector_clauses:type_name -> elephant.distribution.v1.VectorClause
 	5,  // 2: elephant.distribution.v1.SubscriptionSpec.rules:type_name -> elephant.distribution.v1.RuleSet
 	0,  // 3: elephant.distribution.v1.SubscriptionSpec.class:type_name -> elephant.distribution.v1.SubscriptionClass
@@ -4102,44 +3559,36 @@ var file_elephant_distribution_v1_subscriptions_proto_depIdxs = []int32{
 	34, // 29: elephant.distribution.v1.SubscriptionMatch.provenance:type_name -> elephant.distribution.v1.MatchProvenance
 	35, // 30: elephant.distribution.v1.MatchProvenance.clauses:type_name -> elephant.distribution.v1.ClauseProvenance
 	36, // 31: elephant.distribution.v1.ClauseProvenance.members:type_name -> elephant.distribution.v1.MemberProvenance
-	15, // 32: elephant.distribution.v1.CalibrateVectorClauseRequest.members:type_name -> elephant.distribution.v1.VectorClauseMember
-	39, // 33: elephant.distribution.v1.CalibrateVectorClauseResponse.percentiles:type_name -> elephant.distribution.v1.SimilarityPercentile
-	40, // 34: elephant.distribution.v1.CalibrateVectorClauseResponse.top_hits:type_name -> elephant.distribution.v1.CalibrationHit
-	41, // 35: elephant.distribution.v1.CalibrateVectorClauseResponse.thresholds:type_name -> elephant.distribution.v1.ThresholdEstimate
-	48, // 36: elephant.distribution.v1.CalibrationHit.fields:type_name -> elephant.distribution.v1.CalibrationHit.FieldsEntry
-	4,  // 37: elephant.distribution.v1.PreviewSubscriptionRequest.subscription:type_name -> elephant.distribution.v1.SubscriptionSpec
-	51, // 38: elephant.distribution.v1.PreviewSubscriptionResponse.total:type_name -> elephant.distribution.v1.HitsTotal
-	44, // 39: elephant.distribution.v1.PreviewSubscriptionResponse.matches:type_name -> elephant.distribution.v1.PreviewMatch
-	34, // 40: elephant.distribution.v1.PreviewMatch.provenance:type_name -> elephant.distribution.v1.MatchProvenance
-	49, // 41: elephant.distribution.v1.PreviewMatch.fields:type_name -> elephant.distribution.v1.PreviewMatch.FieldsEntry
-	47, // 42: elephant.distribution.v1.GetDeliveryFieldsResponse.fields:type_name -> elephant.distribution.v1.DeliveryField
-	52, // 43: elephant.distribution.v1.CalibrationHit.FieldsEntry.value:type_name -> elephant.distribution.v1.StringValues
-	52, // 44: elephant.distribution.v1.PreviewMatch.FieldsEntry.value:type_name -> elephant.distribution.v1.StringValues
-	19, // 45: elephant.distribution.v1.SubscriptionsService.CreateSubscription:input_type -> elephant.distribution.v1.CreateSubscriptionRequest
-	21, // 46: elephant.distribution.v1.SubscriptionsService.UpdateSubscription:input_type -> elephant.distribution.v1.UpdateSubscriptionRequest
-	23, // 47: elephant.distribution.v1.SubscriptionsService.DeleteSubscription:input_type -> elephant.distribution.v1.DeleteSubscriptionRequest
-	25, // 48: elephant.distribution.v1.SubscriptionsService.GetSubscription:input_type -> elephant.distribution.v1.GetSubscriptionRequest
-	27, // 49: elephant.distribution.v1.SubscriptionsService.ListSubscriptions:input_type -> elephant.distribution.v1.ListSubscriptionsRequest
-	45, // 50: elephant.distribution.v1.SubscriptionsService.GetDeliveryFields:input_type -> elephant.distribution.v1.GetDeliveryFieldsRequest
-	29, // 51: elephant.distribution.v1.SubscriptionsService.TouchSubscription:input_type -> elephant.distribution.v1.TouchSubscriptionRequest
-	31, // 52: elephant.distribution.v1.SubscriptionsService.PollMatches:input_type -> elephant.distribution.v1.PollMatchesRequest
-	37, // 53: elephant.distribution.v1.SubscriptionsService.CalibrateVectorClause:input_type -> elephant.distribution.v1.CalibrateVectorClauseRequest
-	42, // 54: elephant.distribution.v1.SubscriptionsService.PreviewSubscription:input_type -> elephant.distribution.v1.PreviewSubscriptionRequest
-	20, // 55: elephant.distribution.v1.SubscriptionsService.CreateSubscription:output_type -> elephant.distribution.v1.CreateSubscriptionResponse
-	22, // 56: elephant.distribution.v1.SubscriptionsService.UpdateSubscription:output_type -> elephant.distribution.v1.UpdateSubscriptionResponse
-	24, // 57: elephant.distribution.v1.SubscriptionsService.DeleteSubscription:output_type -> elephant.distribution.v1.DeleteSubscriptionResponse
-	26, // 58: elephant.distribution.v1.SubscriptionsService.GetSubscription:output_type -> elephant.distribution.v1.GetSubscriptionResponse
-	28, // 59: elephant.distribution.v1.SubscriptionsService.ListSubscriptions:output_type -> elephant.distribution.v1.ListSubscriptionsResponse
-	46, // 60: elephant.distribution.v1.SubscriptionsService.GetDeliveryFields:output_type -> elephant.distribution.v1.GetDeliveryFieldsResponse
-	30, // 61: elephant.distribution.v1.SubscriptionsService.TouchSubscription:output_type -> elephant.distribution.v1.TouchSubscriptionResponse
-	32, // 62: elephant.distribution.v1.SubscriptionsService.PollMatches:output_type -> elephant.distribution.v1.PollMatchesResponse
-	38, // 63: elephant.distribution.v1.SubscriptionsService.CalibrateVectorClause:output_type -> elephant.distribution.v1.CalibrateVectorClauseResponse
-	43, // 64: elephant.distribution.v1.SubscriptionsService.PreviewSubscription:output_type -> elephant.distribution.v1.PreviewSubscriptionResponse
-	55, // [55:65] is the sub-list for method output_type
-	45, // [45:55] is the sub-list for method input_type
-	45, // [45:45] is the sub-list for extension type_name
-	45, // [45:45] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	4,  // 32: elephant.distribution.v1.PreviewSubscriptionRequest.subscription:type_name -> elephant.distribution.v1.SubscriptionSpec
+	45, // 33: elephant.distribution.v1.PreviewSubscriptionResponse.total:type_name -> elephant.distribution.v1.HitsTotal
+	39, // 34: elephant.distribution.v1.PreviewSubscriptionResponse.matches:type_name -> elephant.distribution.v1.PreviewMatch
+	34, // 35: elephant.distribution.v1.PreviewMatch.provenance:type_name -> elephant.distribution.v1.MatchProvenance
+	43, // 36: elephant.distribution.v1.PreviewMatch.fields:type_name -> elephant.distribution.v1.PreviewMatch.FieldsEntry
+	42, // 37: elephant.distribution.v1.GetDeliveryFieldsResponse.fields:type_name -> elephant.distribution.v1.DeliveryField
+	46, // 38: elephant.distribution.v1.PreviewMatch.FieldsEntry.value:type_name -> elephant.distribution.v1.StringValues
+	19, // 39: elephant.distribution.v1.SubscriptionsService.CreateSubscription:input_type -> elephant.distribution.v1.CreateSubscriptionRequest
+	21, // 40: elephant.distribution.v1.SubscriptionsService.UpdateSubscription:input_type -> elephant.distribution.v1.UpdateSubscriptionRequest
+	23, // 41: elephant.distribution.v1.SubscriptionsService.DeleteSubscription:input_type -> elephant.distribution.v1.DeleteSubscriptionRequest
+	25, // 42: elephant.distribution.v1.SubscriptionsService.GetSubscription:input_type -> elephant.distribution.v1.GetSubscriptionRequest
+	27, // 43: elephant.distribution.v1.SubscriptionsService.ListSubscriptions:input_type -> elephant.distribution.v1.ListSubscriptionsRequest
+	40, // 44: elephant.distribution.v1.SubscriptionsService.GetDeliveryFields:input_type -> elephant.distribution.v1.GetDeliveryFieldsRequest
+	29, // 45: elephant.distribution.v1.SubscriptionsService.TouchSubscription:input_type -> elephant.distribution.v1.TouchSubscriptionRequest
+	31, // 46: elephant.distribution.v1.SubscriptionsService.PollMatches:input_type -> elephant.distribution.v1.PollMatchesRequest
+	37, // 47: elephant.distribution.v1.SubscriptionsService.PreviewSubscription:input_type -> elephant.distribution.v1.PreviewSubscriptionRequest
+	20, // 48: elephant.distribution.v1.SubscriptionsService.CreateSubscription:output_type -> elephant.distribution.v1.CreateSubscriptionResponse
+	22, // 49: elephant.distribution.v1.SubscriptionsService.UpdateSubscription:output_type -> elephant.distribution.v1.UpdateSubscriptionResponse
+	24, // 50: elephant.distribution.v1.SubscriptionsService.DeleteSubscription:output_type -> elephant.distribution.v1.DeleteSubscriptionResponse
+	26, // 51: elephant.distribution.v1.SubscriptionsService.GetSubscription:output_type -> elephant.distribution.v1.GetSubscriptionResponse
+	28, // 52: elephant.distribution.v1.SubscriptionsService.ListSubscriptions:output_type -> elephant.distribution.v1.ListSubscriptionsResponse
+	41, // 53: elephant.distribution.v1.SubscriptionsService.GetDeliveryFields:output_type -> elephant.distribution.v1.GetDeliveryFieldsResponse
+	30, // 54: elephant.distribution.v1.SubscriptionsService.TouchSubscription:output_type -> elephant.distribution.v1.TouchSubscriptionResponse
+	32, // 55: elephant.distribution.v1.SubscriptionsService.PollMatches:output_type -> elephant.distribution.v1.PollMatchesResponse
+	38, // 56: elephant.distribution.v1.SubscriptionsService.PreviewSubscription:output_type -> elephant.distribution.v1.PreviewSubscriptionResponse
+	48, // [48:57] is the sub-list for method output_type
+	39, // [39:48] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_elephant_distribution_v1_subscriptions_proto_init() }
@@ -4169,14 +3618,13 @@ func file_elephant_distribution_v1_subscriptions_proto_init() {
 	}
 	file_elephant_distribution_v1_subscriptions_proto_msgTypes[14].OneofWrappers = []any{}
 	file_elephant_distribution_v1_subscriptions_proto_msgTypes[17].OneofWrappers = []any{}
-	file_elephant_distribution_v1_subscriptions_proto_msgTypes[33].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_elephant_distribution_v1_subscriptions_proto_rawDesc), len(file_elephant_distribution_v1_subscriptions_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   46,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

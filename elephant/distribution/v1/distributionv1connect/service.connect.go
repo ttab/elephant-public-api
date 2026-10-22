@@ -347,7 +347,7 @@ type ConfigurationServiceClient interface {
 	// has come down to a handful of events.
 	ListIndexGenerations(context.Context, *connect.Request[v1.ListIndexGenerationsRequest]) (*connect.Response[v1.ListIndexGenerationsResponse], error)
 	// ActivateIndexGeneration makes a generation the one that search,
-	// threshold calibration and subscription matching read. The switch is
+	// subscription previews and subscription matching read. The switch is
 	// atomic and exactly one generation is active at a time.
 	//
 	// Activation is refused when the candidate lags the head of the eventlog
@@ -883,7 +883,7 @@ type ConfigurationServiceHandler interface {
 	// has come down to a handful of events.
 	ListIndexGenerations(context.Context, *connect.Request[v1.ListIndexGenerationsRequest]) (*connect.Response[v1.ListIndexGenerationsResponse], error)
 	// ActivateIndexGeneration makes a generation the one that search,
-	// threshold calibration and subscription matching read. The switch is
+	// subscription previews and subscription matching read. The switch is
 	// atomic and exactly one generation is active at a time.
 	//
 	// Activation is refused when the candidate lags the head of the eventlog

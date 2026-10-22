@@ -96,15 +96,6 @@ service SubscriptionsService {
   // it wants to. Counts as a touch, so a client that keeps polling never
   // expires.
   rpc PollMatches(PollMatchesRequest) returns (PollMatchesResponse);
-  // CalibrateVectorClause is how a min_similarity gets chosen. It scores
-  // the given clause members against the documents of a recent window and
-  // returns the similarity distribution, the top hits to eyeball, and -
-  // the number the decision is actually made on - the estimated matches
-  // per day at a ladder of candidate thresholds. "At 0.62 this clause
-  // alone would have matched about 14 documents a day last week" is what
-  // a threshold means in practice; a suggested threshold is a volume
-  // target, never a claim about relevance.
-  rpc CalibrateVectorClause(CalibrateVectorClauseRequest) returns (CalibrateVectorClauseResponse);
   // PreviewSubscription is the dry run of a complete subscription
   // definition against a recent window: what would have matched, with the
   // same provenance the match log carries. It is the acceptance test for
@@ -442,8 +433,12 @@ message VectorClauseMember {
   // direction. The embeddings are normalized, so this is the same dial as
   // a maximum inner product distance, and it is the same number as
   // Hit.score for a knn query and KnnQuery.min_similarity - which is
-  // how a threshold is found without guessing, see CalibrateVectorClause
-  // and SearchService.Query.
+  // how a threshold is found without guessing: run the member as a knn
+  // query with k, read where the hits stop being relevant, and check the
+  // volume at that threshold with a radial query over a recent date
+  // range, whose total is the count; see KnnQuery and
+  // SearchService.Query. If no clean cut shows, rephrase the source and
+  // try again.
   //
   // Required: absent is an invalid argument. The field is optional so
   // that a threshold of 0 - close to anything that isn't pointing away -
@@ -760,134 +755,6 @@ message MemberProvenance {
   // In a negated clause a passing member is what would have excluded the
   // document, so all of them are false on a match.
   bool passed = 3;
-}
-
-message CalibrateVectorClauseRequest {
-  // Members to calibrate, scored the way a clause scores them: each
-  // document gets the highest similarity any of the members reaches. Pass
-  // the members of one clause to calibrate it as a whole, or a single
-  // member to calibrate it on its own. At least one is required.
-  //
-  // The min_similarity of a member is not used for scoring. When it is
-  // set it is added to the threshold ladder, so an existing threshold can
-  // be compared against the alternatives.
-  repeated VectorClauseMember members = 1;
-  // DocumentTypes to score against. Empty scores against every indexed
-  // type the caller can read. Use the types the subscription is going to
-  // name, the volume estimate is only about the documents it will see.
-  repeated string document_types = 2;
-  // Language to score against, as the language tag documents are indexed
-  // under. Empty scores against every language, matching a subscription
-  // that leaves the language out.
-  string language = 3;
-  // WindowDays is the number of days back to score. Defaults to 7 and is
-  // capped by what the recent tier holds. A window shorter than a week
-  // will mistake the weekly publishing rhythm for a trend.
-  int64 window_days = 4;
-  // Thresholds is an explicit ladder of candidate thresholds to estimate
-  // volume at. Empty lets the server pick a ladder from the observed
-  // distribution, which is the normal way to use this.
-  repeated float thresholds = 5;
-  // TopHits is the number of highest-scoring documents to return for
-  // eyeballing. Defaults to 10, and is capped by the server.
-  int64 top_hits = 6;
-  // Floor is the similarity below which documents are not scored at all,
-  // which bounds the work the call does. Documents below it are counted
-  // as non-matches at every rung of the ladder, so a floor above a
-  // candidate threshold would understate its volume and is an invalid
-  // argument. Absent uses a server-chosen floor.
-  optional float floor = 7;
-  // Fields to return with each top hit, named as flat index fields (e.g.
-  // "document.rel.section.uuid"), as in SearchService.Query. Only the top hits
-  // carry them - they are for reading the results, and the rest of the
-  // response is counts.
-  //
-  // The title is returned whether or not it is selected, so eyeballing
-  // the top hits needs nothing here; this is for the other things that
-  // say what a document is.
-  repeated string fields = 8;
-}
-
-message CalibrateVectorClauseResponse {
-  // WindowStart is the beginning of the scored window, RFC3339.
-  string window_start = 1;
-  // WindowEnd is the end of the scored window, RFC3339.
-  string window_end = 2;
-  // WindowDays is the window that was actually scored, which can be
-  // shorter than the requested one.
-  int64 window_days = 3;
-  // ScoredDocuments is the number of documents in the window that scored
-  // at or above the floor. The percentiles are over these, not over every
-  // document in the window: the distribution of things that are at least
-  // vaguely related is what a threshold is chosen within.
-  int64 scored_documents = 4;
-  // Floor that was applied.
-  float floor = 5;
-  // Percentiles of the similarity distribution over the window, in
-  // ascending order of percentile.
-  repeated SimilarityPercentile percentiles = 6;
-  // TopHits are the highest-scoring documents of the window, most similar
-  // first. Read them to find where the results stop being about what the
-  // clause is about; the similarity there is the threshold worth
-  // estimating volume at.
-  repeated CalibrationHit top_hits = 7;
-  // Thresholds is the ladder: what each candidate threshold would have
-  // matched over the window. This is the number a threshold is chosen on
-  // - a threshold is a volume decision, and matches per day is the volume
-  // it produces. Nothing here says anything about whether the matches are
-  // the right ones; that is what the top hits and PreviewSubscription are
-  // for.
-  repeated ThresholdEstimate thresholds = 8;
-}
-
-// SimilarityPercentile is one point of the similarity distribution.
-message SimilarityPercentile {
-  // Percentile the value is for, e.g. 50, 99 or 99.9.
-  double percentile = 1;
-  // Similarity at that percentile, on the same scale as
-  // VectorClauseMember.min_similarity.
-  float similarity = 2;
-}
-
-// CalibrationHit is one of the documents a calibration scored highest.
-message CalibrationHit {
-  // UUID of the document. Pass it to ContentService.GetDocument to read it.
-  string uuid = 1;
-  // Type of the document.
-  string type = 2;
-  // Similarity the document scored, i.e. the highest similarity any of
-  // the calibrated members reached against any of its chunks.
-  float similarity = 3;
-  // FirstPublished is when the document was first published, RFC3339.
-  string first_published = 4;
-  // MemberIndex is the position in the calibrated members of the member
-  // that scored highest against this document.
-  int64 member_index = 5;
-  // Title of the document, always returned. Choosing a threshold means
-  // reading down the top hits until they stop being about what the
-  // clause is about, and a list of UUIDs cannot be read that way.
-  //
-  // Empty for a document the index holds no title for, which is not the
-  // same as a document that isn't there.
-  string title = 6;
-  // Fields are the values the request's field selection asked for. The
-  // title is not among them unless the selection named it too.
-  map<string, StringValues> fields = 7;
-}
-
-// ThresholdEstimate is what one candidate threshold would have cost in
-// volume over the calibration window.
-message ThresholdEstimate {
-  // MinSimilarity is the candidate threshold.
-  float min_similarity = 1;
-  // MatchedDocuments is the number of documents in the window that
-  // reached it.
-  int64 matched_documents = 2;
-  // MatchesPerDay is matched_documents spread over the window. It is a
-  // rate over past traffic, not a forecast, and it is per clause: a
-  // subscription that ANDs this clause with a query or another clause
-  // will see fewer.
-  double matches_per_day = 3;
 }
 
 message PreviewSubscriptionRequest {

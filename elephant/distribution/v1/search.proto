@@ -13,7 +13,9 @@ option go_package = "github.com/ttab/elephant-public-api/elephant/distribution/v
 //
 // Access requires the "dist_search" scope, which is granted by "dist_read"
 // (search is a view of what the caller can already fetch) and by
-// "dist_admin".
+// "dist_admin". Query also accepts "dist_subscribe", because a semantic
+// query is how a subscription's similarity threshold is chosen; see
+// KnnQuery.
 //
 // Search sees what the caller's organisation is entitled to, as Content
 // does, and fails closed the same way: a token without an "org" claim
@@ -473,7 +475,10 @@ message FuzzinessAuto {
 // Hit.score for a knn hit is therefore directly comparable to
 // min_similarity, which is how a threshold is found: run a k query, look
 // at where the results stop being relevant, and read the threshold off the
-// scores.
+// scores. A radial query at that threshold over a recent date_from and
+// date_to then gives the volume it would have matched as the total, which
+// is what a subscription threshold costs. When the scores show no clean
+// cut, rephrase the text and look again.
 //
 // Thresholds are model-dependent and are not portable between deployments
 // or across an embedding model upgrade. Treat a min_similarity value as

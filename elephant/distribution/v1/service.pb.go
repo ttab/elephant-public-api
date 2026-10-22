@@ -8186,8 +8186,8 @@ type IndexGeneration struct {
 	// generation keeps its indexes but stops consuming the eventlog, and
 	// falls behind for as long as it stays that way.
 	Enabled bool `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// Active is whether this is the generation that search, calibration and
-	// subscription matching use.
+	// Active is whether this is the generation that search, subscription
+	// previews and subscription matching use.
 	Active bool `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
 	// CreatedAt is when the generation was registered, RFC3339.
 	CreatedAt string `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`

@@ -57,9 +57,6 @@ const (
 	// SubscriptionsServicePollMatchesProcedure is the fully-qualified name of the
 	// SubscriptionsService's PollMatches RPC.
 	SubscriptionsServicePollMatchesProcedure = "/elephant.distribution.v1.SubscriptionsService/PollMatches"
-	// SubscriptionsServiceCalibrateVectorClauseProcedure is the fully-qualified name of the
-	// SubscriptionsService's CalibrateVectorClause RPC.
-	SubscriptionsServiceCalibrateVectorClauseProcedure = "/elephant.distribution.v1.SubscriptionsService/CalibrateVectorClause"
 	// SubscriptionsServicePreviewSubscriptionProcedure is the fully-qualified name of the
 	// SubscriptionsService's PreviewSubscription RPC.
 	SubscriptionsServicePreviewSubscriptionProcedure = "/elephant.distribution.v1.SubscriptionsService/PreviewSubscription"
@@ -125,15 +122,6 @@ type SubscriptionsServiceClient interface {
 	// it wants to. Counts as a touch, so a client that keeps polling never
 	// expires.
 	PollMatches(context.Context, *connect.Request[v1.PollMatchesRequest]) (*connect.Response[v1.PollMatchesResponse], error)
-	// CalibrateVectorClause is how a min_similarity gets chosen. It scores
-	// the given clause members against the documents of a recent window and
-	// returns the similarity distribution, the top hits to eyeball, and -
-	// the number the decision is actually made on - the estimated matches
-	// per day at a ladder of candidate thresholds. "At 0.62 this clause
-	// alone would have matched about 14 documents a day last week" is what
-	// a threshold means in practice; a suggested threshold is a volume
-	// target, never a claim about relevance.
-	CalibrateVectorClause(context.Context, *connect.Request[v1.CalibrateVectorClauseRequest]) (*connect.Response[v1.CalibrateVectorClauseResponse], error)
 	// PreviewSubscription is the dry run of a complete subscription
 	// definition against a recent window: what would have matched, with the
 	// same provenance the match log carries. It is the acceptance test for
@@ -203,12 +191,6 @@ func NewSubscriptionsServiceClient(httpClient connect.HTTPClient, baseURL string
 			connect.WithSchema(subscriptionsServiceMethods.ByName("PollMatches")),
 			connect.WithClientOptions(opts...),
 		),
-		calibrateVectorClause: connect.NewClient[v1.CalibrateVectorClauseRequest, v1.CalibrateVectorClauseResponse](
-			httpClient,
-			baseURL+SubscriptionsServiceCalibrateVectorClauseProcedure,
-			connect.WithSchema(subscriptionsServiceMethods.ByName("CalibrateVectorClause")),
-			connect.WithClientOptions(opts...),
-		),
 		previewSubscription: connect.NewClient[v1.PreviewSubscriptionRequest, v1.PreviewSubscriptionResponse](
 			httpClient,
 			baseURL+SubscriptionsServicePreviewSubscriptionProcedure,
@@ -220,16 +202,15 @@ func NewSubscriptionsServiceClient(httpClient connect.HTTPClient, baseURL string
 
 // subscriptionsServiceClient implements SubscriptionsServiceClient.
 type subscriptionsServiceClient struct {
-	createSubscription    *connect.Client[v1.CreateSubscriptionRequest, v1.CreateSubscriptionResponse]
-	updateSubscription    *connect.Client[v1.UpdateSubscriptionRequest, v1.UpdateSubscriptionResponse]
-	deleteSubscription    *connect.Client[v1.DeleteSubscriptionRequest, v1.DeleteSubscriptionResponse]
-	getSubscription       *connect.Client[v1.GetSubscriptionRequest, v1.GetSubscriptionResponse]
-	listSubscriptions     *connect.Client[v1.ListSubscriptionsRequest, v1.ListSubscriptionsResponse]
-	getDeliveryFields     *connect.Client[v1.GetDeliveryFieldsRequest, v1.GetDeliveryFieldsResponse]
-	touchSubscription     *connect.Client[v1.TouchSubscriptionRequest, v1.TouchSubscriptionResponse]
-	pollMatches           *connect.Client[v1.PollMatchesRequest, v1.PollMatchesResponse]
-	calibrateVectorClause *connect.Client[v1.CalibrateVectorClauseRequest, v1.CalibrateVectorClauseResponse]
-	previewSubscription   *connect.Client[v1.PreviewSubscriptionRequest, v1.PreviewSubscriptionResponse]
+	createSubscription  *connect.Client[v1.CreateSubscriptionRequest, v1.CreateSubscriptionResponse]
+	updateSubscription  *connect.Client[v1.UpdateSubscriptionRequest, v1.UpdateSubscriptionResponse]
+	deleteSubscription  *connect.Client[v1.DeleteSubscriptionRequest, v1.DeleteSubscriptionResponse]
+	getSubscription     *connect.Client[v1.GetSubscriptionRequest, v1.GetSubscriptionResponse]
+	listSubscriptions   *connect.Client[v1.ListSubscriptionsRequest, v1.ListSubscriptionsResponse]
+	getDeliveryFields   *connect.Client[v1.GetDeliveryFieldsRequest, v1.GetDeliveryFieldsResponse]
+	touchSubscription   *connect.Client[v1.TouchSubscriptionRequest, v1.TouchSubscriptionResponse]
+	pollMatches         *connect.Client[v1.PollMatchesRequest, v1.PollMatchesResponse]
+	previewSubscription *connect.Client[v1.PreviewSubscriptionRequest, v1.PreviewSubscriptionResponse]
 }
 
 // CreateSubscription calls elephant.distribution.v1.SubscriptionsService.CreateSubscription.
@@ -270,11 +251,6 @@ func (c *subscriptionsServiceClient) TouchSubscription(ctx context.Context, req 
 // PollMatches calls elephant.distribution.v1.SubscriptionsService.PollMatches.
 func (c *subscriptionsServiceClient) PollMatches(ctx context.Context, req *connect.Request[v1.PollMatchesRequest]) (*connect.Response[v1.PollMatchesResponse], error) {
 	return c.pollMatches.CallUnary(ctx, req)
-}
-
-// CalibrateVectorClause calls elephant.distribution.v1.SubscriptionsService.CalibrateVectorClause.
-func (c *subscriptionsServiceClient) CalibrateVectorClause(ctx context.Context, req *connect.Request[v1.CalibrateVectorClauseRequest]) (*connect.Response[v1.CalibrateVectorClauseResponse], error) {
-	return c.calibrateVectorClause.CallUnary(ctx, req)
 }
 
 // PreviewSubscription calls elephant.distribution.v1.SubscriptionsService.PreviewSubscription.
@@ -342,15 +318,6 @@ type SubscriptionsServiceHandler interface {
 	// it wants to. Counts as a touch, so a client that keeps polling never
 	// expires.
 	PollMatches(context.Context, *connect.Request[v1.PollMatchesRequest]) (*connect.Response[v1.PollMatchesResponse], error)
-	// CalibrateVectorClause is how a min_similarity gets chosen. It scores
-	// the given clause members against the documents of a recent window and
-	// returns the similarity distribution, the top hits to eyeball, and -
-	// the number the decision is actually made on - the estimated matches
-	// per day at a ladder of candidate thresholds. "At 0.62 this clause
-	// alone would have matched about 14 documents a day last week" is what
-	// a threshold means in practice; a suggested threshold is a volume
-	// target, never a claim about relevance.
-	CalibrateVectorClause(context.Context, *connect.Request[v1.CalibrateVectorClauseRequest]) (*connect.Response[v1.CalibrateVectorClauseResponse], error)
 	// PreviewSubscription is the dry run of a complete subscription
 	// definition against a recent window: what would have matched, with the
 	// same provenance the match log carries. It is the acceptance test for
@@ -415,12 +382,6 @@ func NewSubscriptionsServiceHandler(svc SubscriptionsServiceHandler, opts ...con
 		connect.WithSchema(subscriptionsServiceMethods.ByName("PollMatches")),
 		connect.WithHandlerOptions(opts...),
 	)
-	subscriptionsServiceCalibrateVectorClauseHandler := connect.NewUnaryHandler(
-		SubscriptionsServiceCalibrateVectorClauseProcedure,
-		svc.CalibrateVectorClause,
-		connect.WithSchema(subscriptionsServiceMethods.ByName("CalibrateVectorClause")),
-		connect.WithHandlerOptions(opts...),
-	)
 	subscriptionsServicePreviewSubscriptionHandler := connect.NewUnaryHandler(
 		SubscriptionsServicePreviewSubscriptionProcedure,
 		svc.PreviewSubscription,
@@ -445,8 +406,6 @@ func NewSubscriptionsServiceHandler(svc SubscriptionsServiceHandler, opts ...con
 			subscriptionsServiceTouchSubscriptionHandler.ServeHTTP(w, r)
 		case SubscriptionsServicePollMatchesProcedure:
 			subscriptionsServicePollMatchesHandler.ServeHTTP(w, r)
-		case SubscriptionsServiceCalibrateVectorClauseProcedure:
-			subscriptionsServiceCalibrateVectorClauseHandler.ServeHTTP(w, r)
 		case SubscriptionsServicePreviewSubscriptionProcedure:
 			subscriptionsServicePreviewSubscriptionHandler.ServeHTTP(w, r)
 		default:
@@ -488,10 +447,6 @@ func (UnimplementedSubscriptionsServiceHandler) TouchSubscription(context.Contex
 
 func (UnimplementedSubscriptionsServiceHandler) PollMatches(context.Context, *connect.Request[v1.PollMatchesRequest]) (*connect.Response[v1.PollMatchesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.SubscriptionsService.PollMatches is not implemented"))
-}
-
-func (UnimplementedSubscriptionsServiceHandler) CalibrateVectorClause(context.Context, *connect.Request[v1.CalibrateVectorClauseRequest]) (*connect.Response[v1.CalibrateVectorClauseResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.distribution.v1.SubscriptionsService.CalibrateVectorClause is not implemented"))
 }
 
 func (UnimplementedSubscriptionsServiceHandler) PreviewSubscription(context.Context, *connect.Request[v1.PreviewSubscriptionRequest]) (*connect.Response[v1.PreviewSubscriptionResponse], error) {

@@ -4,6 +4,22 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
+## [v0.3.1] - Unreleased
+
+**Breaking:** distribution's `SubscriptionsService.CalibrateVectorClause`
+is removed, with `CalibrateVectorClauseRequest`, `CalibrateVectorClauseResponse`,
+`SimilarityPercentile`, `CalibrationHit` and `ThresholdEstimate`. A
+subscription threshold is chosen with `SearchService.Query` instead: a `knn`
+query with `k` shows where the scores stop being relevant, and a radial query
+at that `min_similarity` over a recent `date_from`/`date_to` gives the volume
+as its total. `PreviewSubscription` stays as the dry run of a whole
+subscription. Released as a patch because nothing consumes the API yet.
+
+Changes:
+
+- Distribution's `SearchService.Query` also accepts the `dist_subscribe`
+  scope, so a client that can subscribe can calibrate a threshold.
+
 ## [v0.3.0] - 2026-10-22
 
 Changes:
