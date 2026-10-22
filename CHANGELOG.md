@@ -4,7 +4,7 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
-## [v0.3.1] - Unreleased
+## [v0.3.1] - 2026-10-22
 
 **Breaking:** distribution's `SubscriptionsService.CalibrateVectorClause`
 is removed, with `CalibrateVectorClauseRequest`, `CalibrateVectorClauseResponse`,
