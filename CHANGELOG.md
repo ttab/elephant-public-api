@@ -27,6 +27,10 @@ Changes:
 - Hub's `ClientService.GetGeneration` returns the schema set of a generation
   any client of the caller's organisation registered, under
   `hub_generations`.
+- Hub's `ClientService` gains `ListGenerations`, the generations every client
+  of the caller's organisation registered, newest first and paginated by a
+  cursor, as `GenerationInfo` (client id, number, registration time), under
+  `hub_generations`.
 - Hub's `HubService` gains `AddArtifactGrant`, `RemoveArtifactGrant` and
   `ListArtifactGrants`, by which an organisation gives another read access to
   an artifact.

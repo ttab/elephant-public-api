@@ -118,6 +118,9 @@ const (
 	// ClientServiceGetGenerationProcedure is the fully-qualified name of the ClientService's
 	// GetGeneration RPC.
 	ClientServiceGetGenerationProcedure = "/elephant.hub.v1.ClientService/GetGeneration"
+	// ClientServiceListGenerationsProcedure is the fully-qualified name of the ClientService's
+	// ListGenerations RPC.
+	ClientServiceListGenerationsProcedure = "/elephant.hub.v1.ClientService/ListGenerations"
 	// ClientServiceGetManifestsProcedure is the fully-qualified name of the ClientService's
 	// GetManifests RPC.
 	ClientServiceGetManifestsProcedure = "/elephant.hub.v1.ClientService/GetManifests"
@@ -911,6 +914,11 @@ type ClientServiceClient interface {
 	// client of the caller's organisation, so that a plugin's schemas can be
 	// checked against what a repository activated. Scope: hub_generations.
 	GetGeneration(context.Context, *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error)
+	// ListGenerations lists the generations every client of the caller's
+	// organisation registered, newest first and without their schema sets,
+	// so that a caller can find a repository's client id and read its
+	// generation with GetGeneration. Scope: hub_generations.
+	ListGenerations(context.Context, *connect.Request[v1.ListGenerationsRequest]) (*connect.Response[v1.ListGenerationsResponse], error)
 	// GetManifests resolves named artifact versions to their manifests, with
 	// what a consumer needs to verify them: the signature, the signing key
 	// and its status, and the version's status. Access is decided per
@@ -964,6 +972,12 @@ func NewClientServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(clientServiceMethods.ByName("GetGeneration")),
 			connect.WithClientOptions(opts...),
 		),
+		listGenerations: connect.NewClient[v1.ListGenerationsRequest, v1.ListGenerationsResponse](
+			httpClient,
+			baseURL+ClientServiceListGenerationsProcedure,
+			connect.WithSchema(clientServiceMethods.ByName("ListGenerations")),
+			connect.WithClientOptions(opts...),
+		),
 		getManifests: connect.NewClient[v1.GetManifestsRequest, v1.GetManifestsResponse](
 			httpClient,
 			baseURL+ClientServiceGetManifestsProcedure,
@@ -990,6 +1004,7 @@ type clientServiceClient struct {
 	registerGeneration  *connect.Client[v1.RegisterGenerationRequest, v1.RegisterGenerationResponse]
 	getLatestGeneration *connect.Client[v1.GetLatestGenerationRequest, v1.GetLatestGenerationResponse]
 	getGeneration       *connect.Client[v1.GetGenerationRequest, v1.GetGenerationResponse]
+	listGenerations     *connect.Client[v1.ListGenerationsRequest, v1.ListGenerationsResponse]
 	getManifests        *connect.Client[v1.GetManifestsRequest, v1.GetManifestsResponse]
 	getAsset            *connect.Client[v1.GetAssetRequest, v1.GetAssetResponse]
 	getAccessChanges    *connect.Client[v1.GetAccessChangesRequest, v1.GetAccessChangesResponse]
@@ -1008,6 +1023,11 @@ func (c *clientServiceClient) GetLatestGeneration(ctx context.Context, req *conn
 // GetGeneration calls elephant.hub.v1.ClientService.GetGeneration.
 func (c *clientServiceClient) GetGeneration(ctx context.Context, req *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error) {
 	return c.getGeneration.CallUnary(ctx, req)
+}
+
+// ListGenerations calls elephant.hub.v1.ClientService.ListGenerations.
+func (c *clientServiceClient) ListGenerations(ctx context.Context, req *connect.Request[v1.ListGenerationsRequest]) (*connect.Response[v1.ListGenerationsResponse], error) {
+	return c.listGenerations.CallUnary(ctx, req)
 }
 
 // GetManifests calls elephant.hub.v1.ClientService.GetManifests.
@@ -1040,6 +1060,11 @@ type ClientServiceHandler interface {
 	// client of the caller's organisation, so that a plugin's schemas can be
 	// checked against what a repository activated. Scope: hub_generations.
 	GetGeneration(context.Context, *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error)
+	// ListGenerations lists the generations every client of the caller's
+	// organisation registered, newest first and without their schema sets,
+	// so that a caller can find a repository's client id and read its
+	// generation with GetGeneration. Scope: hub_generations.
+	ListGenerations(context.Context, *connect.Request[v1.ListGenerationsRequest]) (*connect.Response[v1.ListGenerationsResponse], error)
 	// GetManifests resolves named artifact versions to their manifests, with
 	// what a consumer needs to verify them: the signature, the signing key
 	// and its status, and the version's status. Access is decided per
@@ -1089,6 +1114,12 @@ func NewClientServiceHandler(svc ClientServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(clientServiceMethods.ByName("GetGeneration")),
 		connect.WithHandlerOptions(opts...),
 	)
+	clientServiceListGenerationsHandler := connect.NewUnaryHandler(
+		ClientServiceListGenerationsProcedure,
+		svc.ListGenerations,
+		connect.WithSchema(clientServiceMethods.ByName("ListGenerations")),
+		connect.WithHandlerOptions(opts...),
+	)
 	clientServiceGetManifestsHandler := connect.NewUnaryHandler(
 		ClientServiceGetManifestsProcedure,
 		svc.GetManifests,
@@ -1115,6 +1146,8 @@ func NewClientServiceHandler(svc ClientServiceHandler, opts ...connect.HandlerOp
 			clientServiceGetLatestGenerationHandler.ServeHTTP(w, r)
 		case ClientServiceGetGenerationProcedure:
 			clientServiceGetGenerationHandler.ServeHTTP(w, r)
+		case ClientServiceListGenerationsProcedure:
+			clientServiceListGenerationsHandler.ServeHTTP(w, r)
 		case ClientServiceGetManifestsProcedure:
 			clientServiceGetManifestsHandler.ServeHTTP(w, r)
 		case ClientServiceGetAssetProcedure:
@@ -1140,6 +1173,10 @@ func (UnimplementedClientServiceHandler) GetLatestGeneration(context.Context, *c
 
 func (UnimplementedClientServiceHandler) GetGeneration(context.Context, *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetGeneration is not implemented"))
+}
+
+func (UnimplementedClientServiceHandler) ListGenerations(context.Context, *connect.Request[v1.ListGenerationsRequest]) (*connect.Response[v1.ListGenerationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.ListGenerations is not implemented"))
 }
 
 func (UnimplementedClientServiceHandler) GetManifests(context.Context, *connect.Request[v1.GetManifestsRequest]) (*connect.Response[v1.GetManifestsResponse], error) {

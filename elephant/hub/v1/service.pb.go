@@ -4179,6 +4179,176 @@ func (x *GetGenerationResponse) GetSchemas() []*SchemaRef {
 	return nil
 }
 
+type ListGenerationsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Cursor from a previous response; empty for the newest.
+	Cursor string `protobuf:"bytes,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// PageSize defaults to 100, max 500.
+	PageSize      int64 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGenerationsRequest) Reset() {
+	*x = ListGenerationsRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGenerationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGenerationsRequest) ProtoMessage() {}
+
+func (x *ListGenerationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGenerationsRequest.ProtoReflect.Descriptor instead.
+func (*ListGenerationsRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *ListGenerationsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *ListGenerationsRequest) GetPageSize() int64 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListGenerationsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Newest first, by registration.
+	Generations []*GenerationInfo `protobuf:"bytes,1,rep,name=generations,proto3" json:"generations,omitempty"`
+	// NextCursor is empty when there are no older generations.
+	NextCursor    string `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGenerationsResponse) Reset() {
+	*x = ListGenerationsResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGenerationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGenerationsResponse) ProtoMessage() {}
+
+func (x *ListGenerationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGenerationsResponse.ProtoReflect.Descriptor instead.
+func (*ListGenerationsResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *ListGenerationsResponse) GetGenerations() []*GenerationInfo {
+	if x != nil {
+		return x.Generations
+	}
+	return nil
+}
+
+func (x *ListGenerationsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
+type GenerationInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Client id (the azp claim) of the client that registered the generation.
+	ClientId string `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Number   int64  `protobuf:"varint,2,opt,name=number,proto3" json:"number,omitempty"`
+	// RFC 3339.
+	RegisteredAt  string `protobuf:"bytes,3,opt,name=registered_at,json=registeredAt,proto3" json:"registered_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GenerationInfo) Reset() {
+	*x = GenerationInfo{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerationInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerationInfo) ProtoMessage() {}
+
+func (x *GenerationInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerationInfo.ProtoReflect.Descriptor instead.
+func (*GenerationInfo) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *GenerationInfo) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *GenerationInfo) GetNumber() int64 {
+	if x != nil {
+		return x.Number
+	}
+	return 0
+}
+
+func (x *GenerationInfo) GetRegisteredAt() string {
+	if x != nil {
+		return x.RegisteredAt
+	}
+	return ""
+}
+
 type ManifestRef struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
@@ -4192,7 +4362,7 @@ type ManifestRef struct {
 
 func (x *ManifestRef) Reset() {
 	*x = ManifestRef{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[67]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4204,7 +4374,7 @@ func (x *ManifestRef) String() string {
 func (*ManifestRef) ProtoMessage() {}
 
 func (x *ManifestRef) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[67]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4217,7 +4387,7 @@ func (x *ManifestRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ManifestRef.ProtoReflect.Descriptor instead.
 func (*ManifestRef) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{67}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ManifestRef) GetKind() ArtifactKind {
@@ -4251,7 +4421,7 @@ type GetManifestsRequest struct {
 
 func (x *GetManifestsRequest) Reset() {
 	*x = GetManifestsRequest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[68]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4263,7 +4433,7 @@ func (x *GetManifestsRequest) String() string {
 func (*GetManifestsRequest) ProtoMessage() {}
 
 func (x *GetManifestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[68]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4276,7 +4446,7 @@ func (x *GetManifestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetManifestsRequest.ProtoReflect.Descriptor instead.
 func (*GetManifestsRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{68}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *GetManifestsRequest) GetArtifacts() []*ManifestRef {
@@ -4324,7 +4494,7 @@ type ArtifactManifest struct {
 
 func (x *ArtifactManifest) Reset() {
 	*x = ArtifactManifest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[69]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4336,7 +4506,7 @@ func (x *ArtifactManifest) String() string {
 func (*ArtifactManifest) ProtoMessage() {}
 
 func (x *ArtifactManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[69]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4349,7 +4519,7 @@ func (x *ArtifactManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactManifest.ProtoReflect.Descriptor instead.
 func (*ArtifactManifest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{69}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ArtifactManifest) GetKind() ArtifactKind {
@@ -4449,7 +4619,7 @@ type GetManifestsResponse struct {
 
 func (x *GetManifestsResponse) Reset() {
 	*x = GetManifestsResponse{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[70]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4461,7 +4631,7 @@ func (x *GetManifestsResponse) String() string {
 func (*GetManifestsResponse) ProtoMessage() {}
 
 func (x *GetManifestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[70]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4474,7 +4644,7 @@ func (x *GetManifestsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetManifestsResponse.ProtoReflect.Descriptor instead.
 func (*GetManifestsResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{70}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetManifestsResponse) GetArtifacts() []*ArtifactManifest {
@@ -4509,7 +4679,7 @@ type GetAssetRequest struct {
 
 func (x *GetAssetRequest) Reset() {
 	*x = GetAssetRequest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[71]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4521,7 +4691,7 @@ func (x *GetAssetRequest) String() string {
 func (*GetAssetRequest) ProtoMessage() {}
 
 func (x *GetAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[71]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4534,7 +4704,7 @@ func (x *GetAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAssetRequest.ProtoReflect.Descriptor instead.
 func (*GetAssetRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{71}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *GetAssetRequest) GetKind() ArtifactKind {
@@ -4589,7 +4759,7 @@ type GetAssetResponse struct {
 
 func (x *GetAssetResponse) Reset() {
 	*x = GetAssetResponse{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[72]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4601,7 +4771,7 @@ func (x *GetAssetResponse) String() string {
 func (*GetAssetResponse) ProtoMessage() {}
 
 func (x *GetAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[72]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4614,7 +4784,7 @@ func (x *GetAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAssetResponse.ProtoReflect.Descriptor instead.
 func (*GetAssetResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{72}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *GetAssetResponse) GetFile() string {
@@ -4666,7 +4836,7 @@ type GetAccessChangesRequest struct {
 
 func (x *GetAccessChangesRequest) Reset() {
 	*x = GetAccessChangesRequest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[73]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4678,7 +4848,7 @@ func (x *GetAccessChangesRequest) String() string {
 func (*GetAccessChangesRequest) ProtoMessage() {}
 
 func (x *GetAccessChangesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[73]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4691,7 +4861,7 @@ func (x *GetAccessChangesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccessChangesRequest.ProtoReflect.Descriptor instead.
 func (*GetAccessChangesRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{73}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *GetAccessChangesRequest) GetAfter() int64 {
@@ -4728,7 +4898,7 @@ type AccessChange struct {
 
 func (x *AccessChange) Reset() {
 	*x = AccessChange{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[74]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4740,7 +4910,7 @@ func (x *AccessChange) String() string {
 func (*AccessChange) ProtoMessage() {}
 
 func (x *AccessChange) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[74]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4753,7 +4923,7 @@ func (x *AccessChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessChange.ProtoReflect.Descriptor instead.
 func (*AccessChange) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{74}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *AccessChange) GetId() int64 {
@@ -4819,7 +4989,7 @@ type GetAccessChangesResponse struct {
 
 func (x *GetAccessChangesResponse) Reset() {
 	*x = GetAccessChangesResponse{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[75]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4831,7 +5001,7 @@ func (x *GetAccessChangesResponse) String() string {
 func (*GetAccessChangesResponse) ProtoMessage() {}
 
 func (x *GetAccessChangesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[75]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4844,7 +5014,7 @@ func (x *GetAccessChangesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccessChangesResponse.ProtoReflect.Descriptor instead.
 func (*GetAccessChangesResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{75}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *GetAccessChangesResponse) GetChanges() []*AccessChange {
@@ -5112,7 +5282,18 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x16\n" +
 	"\x06number\x18\x02 \x01(\x03R\x06number\x12#\n" +
 	"\rregistered_at\x18\x03 \x01(\tR\fregisteredAt\x124\n" +
-	"\aschemas\x18\x04 \x03(\v2\x1a.elephant.hub.v1.SchemaRefR\aschemas\"n\n" +
+	"\aschemas\x18\x04 \x03(\v2\x1a.elephant.hub.v1.SchemaRefR\aschemas\"M\n" +
+	"\x16ListGenerationsRequest\x12\x16\n" +
+	"\x06cursor\x18\x01 \x01(\tR\x06cursor\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x03R\bpageSize\"}\n" +
+	"\x17ListGenerationsResponse\x12A\n" +
+	"\vgenerations\x18\x01 \x03(\v2\x1f.elephant.hub.v1.GenerationInfoR\vgenerations\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"j\n" +
+	"\x0eGenerationInfo\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x16\n" +
+	"\x06number\x18\x02 \x01(\x03R\x06number\x12#\n" +
+	"\rregistered_at\x18\x03 \x01(\tR\fregisteredAt\"n\n" +
 	"\vManifestRef\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -5232,11 +5413,12 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x15SetArtifactVisibility\x12-.elephant.hub.v1.SetArtifactVisibilityRequest\x1a..elephant.hub.v1.SetArtifactVisibilityResponse\x12g\n" +
 	"\x10AddArtifactGrant\x12(.elephant.hub.v1.AddArtifactGrantRequest\x1a).elephant.hub.v1.AddArtifactGrantResponse\x12p\n" +
 	"\x13RemoveArtifactGrant\x12+.elephant.hub.v1.RemoveArtifactGrantRequest\x1a,.elephant.hub.v1.RemoveArtifactGrantResponse\x12m\n" +
-	"\x12ListArtifactGrants\x12*.elephant.hub.v1.ListArtifactGrantsRequest\x1a+.elephant.hub.v1.ListArtifactGrantsResponse2\xe9\x04\n" +
+	"\x12ListArtifactGrants\x12*.elephant.hub.v1.ListArtifactGrantsRequest\x1a+.elephant.hub.v1.ListArtifactGrantsResponse2\xcf\x05\n" +
 	"\rClientService\x12m\n" +
 	"\x12RegisterGeneration\x12*.elephant.hub.v1.RegisterGenerationRequest\x1a+.elephant.hub.v1.RegisterGenerationResponse\x12p\n" +
 	"\x13GetLatestGeneration\x12+.elephant.hub.v1.GetLatestGenerationRequest\x1a,.elephant.hub.v1.GetLatestGenerationResponse\x12^\n" +
-	"\rGetGeneration\x12%.elephant.hub.v1.GetGenerationRequest\x1a&.elephant.hub.v1.GetGenerationResponse\x12[\n" +
+	"\rGetGeneration\x12%.elephant.hub.v1.GetGenerationRequest\x1a&.elephant.hub.v1.GetGenerationResponse\x12d\n" +
+	"\x0fListGenerations\x12'.elephant.hub.v1.ListGenerationsRequest\x1a(.elephant.hub.v1.ListGenerationsResponse\x12[\n" +
 	"\fGetManifests\x12$.elephant.hub.v1.GetManifestsRequest\x1a%.elephant.hub.v1.GetManifestsResponse\x12Q\n" +
 	"\bGetAsset\x12 .elephant.hub.v1.GetAssetRequest\x1a!.elephant.hub.v1.GetAssetResponse0\x01\x12g\n" +
 	"\x10GetAccessChanges\x12(.elephant.hub.v1.GetAccessChangesRequest\x1a).elephant.hub.v1.GetAccessChangesResponseB;Z9github.com/ttab/elephant-public-api/elephant/hub/v1;hubv1b\x06proto3"
@@ -5254,7 +5436,7 @@ func file_elephant_hub_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_elephant_hub_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_elephant_hub_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 76)
+var file_elephant_hub_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
 var file_elephant_hub_v1_service_proto_goTypes = []any{
 	(ArtifactKind)(0),                          // 0: elephant.hub.v1.ArtifactKind
 	(SignatureType)(0),                         // 1: elephant.hub.v1.SignatureType
@@ -5330,15 +5512,18 @@ var file_elephant_hub_v1_service_proto_goTypes = []any{
 	(*GetLatestGenerationResponse)(nil),        // 71: elephant.hub.v1.GetLatestGenerationResponse
 	(*GetGenerationRequest)(nil),               // 72: elephant.hub.v1.GetGenerationRequest
 	(*GetGenerationResponse)(nil),              // 73: elephant.hub.v1.GetGenerationResponse
-	(*ManifestRef)(nil),                        // 74: elephant.hub.v1.ManifestRef
-	(*GetManifestsRequest)(nil),                // 75: elephant.hub.v1.GetManifestsRequest
-	(*ArtifactManifest)(nil),                   // 76: elephant.hub.v1.ArtifactManifest
-	(*GetManifestsResponse)(nil),               // 77: elephant.hub.v1.GetManifestsResponse
-	(*GetAssetRequest)(nil),                    // 78: elephant.hub.v1.GetAssetRequest
-	(*GetAssetResponse)(nil),                   // 79: elephant.hub.v1.GetAssetResponse
-	(*GetAccessChangesRequest)(nil),            // 80: elephant.hub.v1.GetAccessChangesRequest
-	(*AccessChange)(nil),                       // 81: elephant.hub.v1.AccessChange
-	(*GetAccessChangesResponse)(nil),           // 82: elephant.hub.v1.GetAccessChangesResponse
+	(*ListGenerationsRequest)(nil),             // 74: elephant.hub.v1.ListGenerationsRequest
+	(*ListGenerationsResponse)(nil),            // 75: elephant.hub.v1.ListGenerationsResponse
+	(*GenerationInfo)(nil),                     // 76: elephant.hub.v1.GenerationInfo
+	(*ManifestRef)(nil),                        // 77: elephant.hub.v1.ManifestRef
+	(*GetManifestsRequest)(nil),                // 78: elephant.hub.v1.GetManifestsRequest
+	(*ArtifactManifest)(nil),                   // 79: elephant.hub.v1.ArtifactManifest
+	(*GetManifestsResponse)(nil),               // 80: elephant.hub.v1.GetManifestsResponse
+	(*GetAssetRequest)(nil),                    // 81: elephant.hub.v1.GetAssetRequest
+	(*GetAssetResponse)(nil),                   // 82: elephant.hub.v1.GetAssetResponse
+	(*GetAccessChangesRequest)(nil),            // 83: elephant.hub.v1.GetAccessChangesRequest
+	(*AccessChange)(nil),                       // 84: elephant.hub.v1.AccessChange
+	(*GetAccessChangesResponse)(nil),           // 85: elephant.hub.v1.GetAccessChangesResponse
 }
 var file_elephant_hub_v1_service_proto_depIdxs = []int32{
 	0,  // 0: elephant.hub.v1.ArtifactInfo.kind:type_name -> elephant.hub.v1.ArtifactKind
@@ -5383,84 +5568,87 @@ var file_elephant_hub_v1_service_proto_depIdxs = []int32{
 	2,  // 39: elephant.hub.v1.OIDCProviderInfo.forge_type:type_name -> elephant.hub.v1.ForgeType
 	67, // 40: elephant.hub.v1.RegisterGenerationRequest.schemas:type_name -> elephant.hub.v1.SchemaRef
 	67, // 41: elephant.hub.v1.GetGenerationResponse.schemas:type_name -> elephant.hub.v1.SchemaRef
-	0,  // 42: elephant.hub.v1.ManifestRef.kind:type_name -> elephant.hub.v1.ArtifactKind
-	74, // 43: elephant.hub.v1.GetManifestsRequest.artifacts:type_name -> elephant.hub.v1.ManifestRef
-	0,  // 44: elephant.hub.v1.ArtifactManifest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	3,  // 45: elephant.hub.v1.ArtifactManifest.key_status:type_name -> elephant.hub.v1.PublishingKeyStatus
-	10, // 46: elephant.hub.v1.ArtifactManifest.assets:type_name -> elephant.hub.v1.AssetInfo
-	5,  // 47: elephant.hub.v1.ArtifactManifest.error:type_name -> elephant.hub.v1.ManifestError
-	76, // 48: elephant.hub.v1.GetManifestsResponse.artifacts:type_name -> elephant.hub.v1.ArtifactManifest
-	0,  // 49: elephant.hub.v1.GetAssetRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	6,  // 50: elephant.hub.v1.AccessChange.type:type_name -> elephant.hub.v1.AccessChangeType
-	0,  // 51: elephant.hub.v1.AccessChange.kind:type_name -> elephant.hub.v1.ArtifactKind
-	81, // 52: elephant.hub.v1.GetAccessChangesResponse.changes:type_name -> elephant.hub.v1.AccessChange
-	13, // 53: elephant.hub.v1.HubService.ListOrganisations:input_type -> elephant.hub.v1.ListOrganisationsRequest
-	15, // 54: elephant.hub.v1.HubService.ApproveOrganisation:input_type -> elephant.hub.v1.ApproveOrganisationRequest
-	17, // 55: elephant.hub.v1.HubService.ListArtifacts:input_type -> elephant.hub.v1.ListArtifactsRequest
-	19, // 56: elephant.hub.v1.HubService.GetArtifact:input_type -> elephant.hub.v1.GetArtifactRequest
-	21, // 57: elephant.hub.v1.HubService.GetArtifactVersion:input_type -> elephant.hub.v1.GetArtifactVersionRequest
-	23, // 58: elephant.hub.v1.HubService.GetArtifactAsset:input_type -> elephant.hub.v1.GetArtifactAssetRequest
-	25, // 59: elephant.hub.v1.HubService.ListDocumentation:input_type -> elephant.hub.v1.ListDocumentationRequest
-	27, // 60: elephant.hub.v1.HubService.GetDocumentation:input_type -> elephant.hub.v1.GetDocumentationRequest
-	29, // 61: elephant.hub.v1.HubService.PublishVersion:input_type -> elephant.hub.v1.PublishVersionRequest
-	32, // 62: elephant.hub.v1.HubService.BulkPublishVersion:input_type -> elephant.hub.v1.BulkPublishVersionRequest
-	34, // 63: elephant.hub.v1.HubService.RevokeVersion:input_type -> elephant.hub.v1.RevokeVersionRequest
-	36, // 64: elephant.hub.v1.HubService.RegisterPublishingKey:input_type -> elephant.hub.v1.RegisterPublishingKeyRequest
-	38, // 65: elephant.hub.v1.HubService.RegisterOrgPublishingKey:input_type -> elephant.hub.v1.RegisterOrgPublishingKeyRequest
-	40, // 66: elephant.hub.v1.HubService.ListPublishingKeys:input_type -> elephant.hub.v1.ListPublishingKeysRequest
-	42, // 67: elephant.hub.v1.HubService.GetPublishingKey:input_type -> elephant.hub.v1.GetPublishingKeyRequest
-	44, // 68: elephant.hub.v1.HubService.DeactivatePublishingKey:input_type -> elephant.hub.v1.DeactivatePublishingKeyRequest
-	46, // 69: elephant.hub.v1.HubService.ActivatePublishingKey:input_type -> elephant.hub.v1.ActivatePublishingKeyRequest
-	48, // 70: elephant.hub.v1.HubService.RevokePublishingKey:input_type -> elephant.hub.v1.RevokePublishingKeyRequest
-	50, // 71: elephant.hub.v1.HubService.AddAllowedPublishingKey:input_type -> elephant.hub.v1.AddAllowedPublishingKeyRequest
-	52, // 72: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:input_type -> elephant.hub.v1.RemoveAllowedPublishingKeyRequest
-	54, // 73: elephant.hub.v1.HubService.ListArtifactPermissions:input_type -> elephant.hub.v1.ListArtifactPermissionsRequest
-	56, // 74: elephant.hub.v1.HubService.SetArtifactVisibility:input_type -> elephant.hub.v1.SetArtifactVisibilityRequest
-	59, // 75: elephant.hub.v1.HubService.AddArtifactGrant:input_type -> elephant.hub.v1.AddArtifactGrantRequest
-	61, // 76: elephant.hub.v1.HubService.RemoveArtifactGrant:input_type -> elephant.hub.v1.RemoveArtifactGrantRequest
-	63, // 77: elephant.hub.v1.HubService.ListArtifactGrants:input_type -> elephant.hub.v1.ListArtifactGrantsRequest
-	68, // 78: elephant.hub.v1.ClientService.RegisterGeneration:input_type -> elephant.hub.v1.RegisterGenerationRequest
-	70, // 79: elephant.hub.v1.ClientService.GetLatestGeneration:input_type -> elephant.hub.v1.GetLatestGenerationRequest
-	72, // 80: elephant.hub.v1.ClientService.GetGeneration:input_type -> elephant.hub.v1.GetGenerationRequest
-	75, // 81: elephant.hub.v1.ClientService.GetManifests:input_type -> elephant.hub.v1.GetManifestsRequest
-	78, // 82: elephant.hub.v1.ClientService.GetAsset:input_type -> elephant.hub.v1.GetAssetRequest
-	80, // 83: elephant.hub.v1.ClientService.GetAccessChanges:input_type -> elephant.hub.v1.GetAccessChangesRequest
-	14, // 84: elephant.hub.v1.HubService.ListOrganisations:output_type -> elephant.hub.v1.ListOrganisationsResponse
-	16, // 85: elephant.hub.v1.HubService.ApproveOrganisation:output_type -> elephant.hub.v1.ApproveOrganisationResponse
-	18, // 86: elephant.hub.v1.HubService.ListArtifacts:output_type -> elephant.hub.v1.ListArtifactsResponse
-	20, // 87: elephant.hub.v1.HubService.GetArtifact:output_type -> elephant.hub.v1.GetArtifactResponse
-	22, // 88: elephant.hub.v1.HubService.GetArtifactVersion:output_type -> elephant.hub.v1.GetArtifactVersionResponse
-	24, // 89: elephant.hub.v1.HubService.GetArtifactAsset:output_type -> elephant.hub.v1.GetArtifactAssetResponse
-	26, // 90: elephant.hub.v1.HubService.ListDocumentation:output_type -> elephant.hub.v1.ListDocumentationResponse
-	28, // 91: elephant.hub.v1.HubService.GetDocumentation:output_type -> elephant.hub.v1.GetDocumentationResponse
-	30, // 92: elephant.hub.v1.HubService.PublishVersion:output_type -> elephant.hub.v1.PublishVersionResponse
-	33, // 93: elephant.hub.v1.HubService.BulkPublishVersion:output_type -> elephant.hub.v1.BulkPublishVersionResponse
-	35, // 94: elephant.hub.v1.HubService.RevokeVersion:output_type -> elephant.hub.v1.RevokeVersionResponse
-	37, // 95: elephant.hub.v1.HubService.RegisterPublishingKey:output_type -> elephant.hub.v1.RegisterPublishingKeyResponse
-	39, // 96: elephant.hub.v1.HubService.RegisterOrgPublishingKey:output_type -> elephant.hub.v1.RegisterOrgPublishingKeyResponse
-	41, // 97: elephant.hub.v1.HubService.ListPublishingKeys:output_type -> elephant.hub.v1.ListPublishingKeysResponse
-	43, // 98: elephant.hub.v1.HubService.GetPublishingKey:output_type -> elephant.hub.v1.GetPublishingKeyResponse
-	45, // 99: elephant.hub.v1.HubService.DeactivatePublishingKey:output_type -> elephant.hub.v1.DeactivatePublishingKeyResponse
-	47, // 100: elephant.hub.v1.HubService.ActivatePublishingKey:output_type -> elephant.hub.v1.ActivatePublishingKeyResponse
-	49, // 101: elephant.hub.v1.HubService.RevokePublishingKey:output_type -> elephant.hub.v1.RevokePublishingKeyResponse
-	51, // 102: elephant.hub.v1.HubService.AddAllowedPublishingKey:output_type -> elephant.hub.v1.AddAllowedPublishingKeyResponse
-	53, // 103: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:output_type -> elephant.hub.v1.RemoveAllowedPublishingKeyResponse
-	55, // 104: elephant.hub.v1.HubService.ListArtifactPermissions:output_type -> elephant.hub.v1.ListArtifactPermissionsResponse
-	57, // 105: elephant.hub.v1.HubService.SetArtifactVisibility:output_type -> elephant.hub.v1.SetArtifactVisibilityResponse
-	60, // 106: elephant.hub.v1.HubService.AddArtifactGrant:output_type -> elephant.hub.v1.AddArtifactGrantResponse
-	62, // 107: elephant.hub.v1.HubService.RemoveArtifactGrant:output_type -> elephant.hub.v1.RemoveArtifactGrantResponse
-	64, // 108: elephant.hub.v1.HubService.ListArtifactGrants:output_type -> elephant.hub.v1.ListArtifactGrantsResponse
-	69, // 109: elephant.hub.v1.ClientService.RegisterGeneration:output_type -> elephant.hub.v1.RegisterGenerationResponse
-	71, // 110: elephant.hub.v1.ClientService.GetLatestGeneration:output_type -> elephant.hub.v1.GetLatestGenerationResponse
-	73, // 111: elephant.hub.v1.ClientService.GetGeneration:output_type -> elephant.hub.v1.GetGenerationResponse
-	77, // 112: elephant.hub.v1.ClientService.GetManifests:output_type -> elephant.hub.v1.GetManifestsResponse
-	79, // 113: elephant.hub.v1.ClientService.GetAsset:output_type -> elephant.hub.v1.GetAssetResponse
-	82, // 114: elephant.hub.v1.ClientService.GetAccessChanges:output_type -> elephant.hub.v1.GetAccessChangesResponse
-	84, // [84:115] is the sub-list for method output_type
-	53, // [53:84] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	76, // 42: elephant.hub.v1.ListGenerationsResponse.generations:type_name -> elephant.hub.v1.GenerationInfo
+	0,  // 43: elephant.hub.v1.ManifestRef.kind:type_name -> elephant.hub.v1.ArtifactKind
+	77, // 44: elephant.hub.v1.GetManifestsRequest.artifacts:type_name -> elephant.hub.v1.ManifestRef
+	0,  // 45: elephant.hub.v1.ArtifactManifest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	3,  // 46: elephant.hub.v1.ArtifactManifest.key_status:type_name -> elephant.hub.v1.PublishingKeyStatus
+	10, // 47: elephant.hub.v1.ArtifactManifest.assets:type_name -> elephant.hub.v1.AssetInfo
+	5,  // 48: elephant.hub.v1.ArtifactManifest.error:type_name -> elephant.hub.v1.ManifestError
+	79, // 49: elephant.hub.v1.GetManifestsResponse.artifacts:type_name -> elephant.hub.v1.ArtifactManifest
+	0,  // 50: elephant.hub.v1.GetAssetRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	6,  // 51: elephant.hub.v1.AccessChange.type:type_name -> elephant.hub.v1.AccessChangeType
+	0,  // 52: elephant.hub.v1.AccessChange.kind:type_name -> elephant.hub.v1.ArtifactKind
+	84, // 53: elephant.hub.v1.GetAccessChangesResponse.changes:type_name -> elephant.hub.v1.AccessChange
+	13, // 54: elephant.hub.v1.HubService.ListOrganisations:input_type -> elephant.hub.v1.ListOrganisationsRequest
+	15, // 55: elephant.hub.v1.HubService.ApproveOrganisation:input_type -> elephant.hub.v1.ApproveOrganisationRequest
+	17, // 56: elephant.hub.v1.HubService.ListArtifacts:input_type -> elephant.hub.v1.ListArtifactsRequest
+	19, // 57: elephant.hub.v1.HubService.GetArtifact:input_type -> elephant.hub.v1.GetArtifactRequest
+	21, // 58: elephant.hub.v1.HubService.GetArtifactVersion:input_type -> elephant.hub.v1.GetArtifactVersionRequest
+	23, // 59: elephant.hub.v1.HubService.GetArtifactAsset:input_type -> elephant.hub.v1.GetArtifactAssetRequest
+	25, // 60: elephant.hub.v1.HubService.ListDocumentation:input_type -> elephant.hub.v1.ListDocumentationRequest
+	27, // 61: elephant.hub.v1.HubService.GetDocumentation:input_type -> elephant.hub.v1.GetDocumentationRequest
+	29, // 62: elephant.hub.v1.HubService.PublishVersion:input_type -> elephant.hub.v1.PublishVersionRequest
+	32, // 63: elephant.hub.v1.HubService.BulkPublishVersion:input_type -> elephant.hub.v1.BulkPublishVersionRequest
+	34, // 64: elephant.hub.v1.HubService.RevokeVersion:input_type -> elephant.hub.v1.RevokeVersionRequest
+	36, // 65: elephant.hub.v1.HubService.RegisterPublishingKey:input_type -> elephant.hub.v1.RegisterPublishingKeyRequest
+	38, // 66: elephant.hub.v1.HubService.RegisterOrgPublishingKey:input_type -> elephant.hub.v1.RegisterOrgPublishingKeyRequest
+	40, // 67: elephant.hub.v1.HubService.ListPublishingKeys:input_type -> elephant.hub.v1.ListPublishingKeysRequest
+	42, // 68: elephant.hub.v1.HubService.GetPublishingKey:input_type -> elephant.hub.v1.GetPublishingKeyRequest
+	44, // 69: elephant.hub.v1.HubService.DeactivatePublishingKey:input_type -> elephant.hub.v1.DeactivatePublishingKeyRequest
+	46, // 70: elephant.hub.v1.HubService.ActivatePublishingKey:input_type -> elephant.hub.v1.ActivatePublishingKeyRequest
+	48, // 71: elephant.hub.v1.HubService.RevokePublishingKey:input_type -> elephant.hub.v1.RevokePublishingKeyRequest
+	50, // 72: elephant.hub.v1.HubService.AddAllowedPublishingKey:input_type -> elephant.hub.v1.AddAllowedPublishingKeyRequest
+	52, // 73: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:input_type -> elephant.hub.v1.RemoveAllowedPublishingKeyRequest
+	54, // 74: elephant.hub.v1.HubService.ListArtifactPermissions:input_type -> elephant.hub.v1.ListArtifactPermissionsRequest
+	56, // 75: elephant.hub.v1.HubService.SetArtifactVisibility:input_type -> elephant.hub.v1.SetArtifactVisibilityRequest
+	59, // 76: elephant.hub.v1.HubService.AddArtifactGrant:input_type -> elephant.hub.v1.AddArtifactGrantRequest
+	61, // 77: elephant.hub.v1.HubService.RemoveArtifactGrant:input_type -> elephant.hub.v1.RemoveArtifactGrantRequest
+	63, // 78: elephant.hub.v1.HubService.ListArtifactGrants:input_type -> elephant.hub.v1.ListArtifactGrantsRequest
+	68, // 79: elephant.hub.v1.ClientService.RegisterGeneration:input_type -> elephant.hub.v1.RegisterGenerationRequest
+	70, // 80: elephant.hub.v1.ClientService.GetLatestGeneration:input_type -> elephant.hub.v1.GetLatestGenerationRequest
+	72, // 81: elephant.hub.v1.ClientService.GetGeneration:input_type -> elephant.hub.v1.GetGenerationRequest
+	74, // 82: elephant.hub.v1.ClientService.ListGenerations:input_type -> elephant.hub.v1.ListGenerationsRequest
+	78, // 83: elephant.hub.v1.ClientService.GetManifests:input_type -> elephant.hub.v1.GetManifestsRequest
+	81, // 84: elephant.hub.v1.ClientService.GetAsset:input_type -> elephant.hub.v1.GetAssetRequest
+	83, // 85: elephant.hub.v1.ClientService.GetAccessChanges:input_type -> elephant.hub.v1.GetAccessChangesRequest
+	14, // 86: elephant.hub.v1.HubService.ListOrganisations:output_type -> elephant.hub.v1.ListOrganisationsResponse
+	16, // 87: elephant.hub.v1.HubService.ApproveOrganisation:output_type -> elephant.hub.v1.ApproveOrganisationResponse
+	18, // 88: elephant.hub.v1.HubService.ListArtifacts:output_type -> elephant.hub.v1.ListArtifactsResponse
+	20, // 89: elephant.hub.v1.HubService.GetArtifact:output_type -> elephant.hub.v1.GetArtifactResponse
+	22, // 90: elephant.hub.v1.HubService.GetArtifactVersion:output_type -> elephant.hub.v1.GetArtifactVersionResponse
+	24, // 91: elephant.hub.v1.HubService.GetArtifactAsset:output_type -> elephant.hub.v1.GetArtifactAssetResponse
+	26, // 92: elephant.hub.v1.HubService.ListDocumentation:output_type -> elephant.hub.v1.ListDocumentationResponse
+	28, // 93: elephant.hub.v1.HubService.GetDocumentation:output_type -> elephant.hub.v1.GetDocumentationResponse
+	30, // 94: elephant.hub.v1.HubService.PublishVersion:output_type -> elephant.hub.v1.PublishVersionResponse
+	33, // 95: elephant.hub.v1.HubService.BulkPublishVersion:output_type -> elephant.hub.v1.BulkPublishVersionResponse
+	35, // 96: elephant.hub.v1.HubService.RevokeVersion:output_type -> elephant.hub.v1.RevokeVersionResponse
+	37, // 97: elephant.hub.v1.HubService.RegisterPublishingKey:output_type -> elephant.hub.v1.RegisterPublishingKeyResponse
+	39, // 98: elephant.hub.v1.HubService.RegisterOrgPublishingKey:output_type -> elephant.hub.v1.RegisterOrgPublishingKeyResponse
+	41, // 99: elephant.hub.v1.HubService.ListPublishingKeys:output_type -> elephant.hub.v1.ListPublishingKeysResponse
+	43, // 100: elephant.hub.v1.HubService.GetPublishingKey:output_type -> elephant.hub.v1.GetPublishingKeyResponse
+	45, // 101: elephant.hub.v1.HubService.DeactivatePublishingKey:output_type -> elephant.hub.v1.DeactivatePublishingKeyResponse
+	47, // 102: elephant.hub.v1.HubService.ActivatePublishingKey:output_type -> elephant.hub.v1.ActivatePublishingKeyResponse
+	49, // 103: elephant.hub.v1.HubService.RevokePublishingKey:output_type -> elephant.hub.v1.RevokePublishingKeyResponse
+	51, // 104: elephant.hub.v1.HubService.AddAllowedPublishingKey:output_type -> elephant.hub.v1.AddAllowedPublishingKeyResponse
+	53, // 105: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:output_type -> elephant.hub.v1.RemoveAllowedPublishingKeyResponse
+	55, // 106: elephant.hub.v1.HubService.ListArtifactPermissions:output_type -> elephant.hub.v1.ListArtifactPermissionsResponse
+	57, // 107: elephant.hub.v1.HubService.SetArtifactVisibility:output_type -> elephant.hub.v1.SetArtifactVisibilityResponse
+	60, // 108: elephant.hub.v1.HubService.AddArtifactGrant:output_type -> elephant.hub.v1.AddArtifactGrantResponse
+	62, // 109: elephant.hub.v1.HubService.RemoveArtifactGrant:output_type -> elephant.hub.v1.RemoveArtifactGrantResponse
+	64, // 110: elephant.hub.v1.HubService.ListArtifactGrants:output_type -> elephant.hub.v1.ListArtifactGrantsResponse
+	69, // 111: elephant.hub.v1.ClientService.RegisterGeneration:output_type -> elephant.hub.v1.RegisterGenerationResponse
+	71, // 112: elephant.hub.v1.ClientService.GetLatestGeneration:output_type -> elephant.hub.v1.GetLatestGenerationResponse
+	73, // 113: elephant.hub.v1.ClientService.GetGeneration:output_type -> elephant.hub.v1.GetGenerationResponse
+	75, // 114: elephant.hub.v1.ClientService.ListGenerations:output_type -> elephant.hub.v1.ListGenerationsResponse
+	80, // 115: elephant.hub.v1.ClientService.GetManifests:output_type -> elephant.hub.v1.GetManifestsResponse
+	82, // 116: elephant.hub.v1.ClientService.GetAsset:output_type -> elephant.hub.v1.GetAssetResponse
+	85, // 117: elephant.hub.v1.ClientService.GetAccessChanges:output_type -> elephant.hub.v1.GetAccessChangesResponse
+	86, // [86:118] is the sub-list for method output_type
+	54, // [54:86] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_elephant_hub_v1_service_proto_init() }
@@ -5474,7 +5662,7 @@ func file_elephant_hub_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_elephant_hub_v1_service_proto_rawDesc), len(file_elephant_hub_v1_service_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   76,
+			NumMessages:   79,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

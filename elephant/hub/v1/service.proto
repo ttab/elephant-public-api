@@ -115,6 +115,11 @@ service ClientService {
   // client of the caller's organisation, so that a plugin's schemas can be
   // checked against what a repository activated. Scope: hub_generations.
   rpc GetGeneration(GetGenerationRequest) returns (GetGenerationResponse);
+  // ListGenerations lists the generations every client of the caller's
+  // organisation registered, newest first and without their schema sets,
+  // so that a caller can find a repository's client id and read its
+  // generation with GetGeneration. Scope: hub_generations.
+  rpc ListGenerations(ListGenerationsRequest) returns (ListGenerationsResponse);
 
   // --- Plugin and schema loading ---
 
@@ -648,6 +653,27 @@ message GetGenerationResponse {
   // RFC 3339.
   string registered_at = 3;
   repeated SchemaRef schemas = 4;
+}
+
+message ListGenerationsRequest {
+  // Cursor from a previous response; empty for the newest.
+  string cursor = 1;
+  // PageSize defaults to 100, max 500.
+  int64 page_size = 2;
+}
+message ListGenerationsResponse {
+  // Newest first, by registration.
+  repeated GenerationInfo generations = 1;
+  // NextCursor is empty when there are no older generations.
+  string next_cursor = 2;
+}
+
+message GenerationInfo {
+  // Client id (the azp claim) of the client that registered the generation.
+  string client_id = 1;
+  int64 number = 2;
+  // RFC 3339.
+  string registered_at = 3;
 }
 
 // --- Plugin and schema loading requests/responses ---
