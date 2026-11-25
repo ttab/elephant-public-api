@@ -407,8 +407,9 @@ message PublishVersionRequest {
   repeated PublishAsset assets = 8;
   // The contract document of a plugin version that ships a contract (an
   // asset with the role "contract"): JSON naming the contract package's
-  // name and version and the tarball's SHA-256 and SHA-512. Public
-  // whatever the plugin's visibility. Empty when the version has no
+  // name and version and the tarball's hex SHA-256, as
+  // {"name": "@elephant-hub/<plugin>", "version": "1.2.0", "sha256": "..."}.
+  // Public whatever the plugin's visibility. Empty when the version has no
   // contract.
   bytes contract_document = 9;
   // Ed25519 signature over the exact contract_document bytes, made with the
@@ -431,6 +432,10 @@ message BulkPublishItem {
   // Ed25519 signature bytes for this manifest.
   bytes signature = 4;
   repeated PublishAsset assets = 5;
+  // The item's contract document and its signature, as in
+  // PublishVersionRequest.
+  bytes contract_document = 6;
+  bytes contract_signature = 7;
 }
 
 message BulkPublishVersionRequest {

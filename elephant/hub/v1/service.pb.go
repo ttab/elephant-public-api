@@ -1818,8 +1818,9 @@ type PublishVersionRequest struct {
 	Assets          []*PublishAsset `protobuf:"bytes,8,rep,name=assets,proto3" json:"assets,omitempty"`
 	// The contract document of a plugin version that ships a contract (an
 	// asset with the role "contract"): JSON naming the contract package's
-	// name and version and the tarball's SHA-256 and SHA-512. Public
-	// whatever the plugin's visibility. Empty when the version has no
+	// name and version and the tarball's hex SHA-256, as
+	// {"name": "@elephant-hub/<plugin>", "version": "1.2.0", "sha256": "..."}.
+	// Public whatever the plugin's visibility. Empty when the version has no
 	// contract.
 	ContractDocument []byte `protobuf:"bytes,9,opt,name=contract_document,json=contractDocument,proto3" json:"contract_document,omitempty"`
 	// Ed25519 signature over the exact contract_document bytes, made with the
@@ -1984,10 +1985,14 @@ type BulkPublishItem struct {
 	// Raw manifest bytes.
 	Manifest []byte `protobuf:"bytes,3,opt,name=manifest,proto3" json:"manifest,omitempty"`
 	// Ed25519 signature bytes for this manifest.
-	Signature     []byte          `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
-	Assets        []*PublishAsset `protobuf:"bytes,5,rep,name=assets,proto3" json:"assets,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Signature []byte          `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
+	Assets    []*PublishAsset `protobuf:"bytes,5,rep,name=assets,proto3" json:"assets,omitempty"`
+	// The item's contract document and its signature, as in
+	// PublishVersionRequest.
+	ContractDocument  []byte `protobuf:"bytes,6,opt,name=contract_document,json=contractDocument,proto3" json:"contract_document,omitempty"`
+	ContractSignature []byte `protobuf:"bytes,7,opt,name=contract_signature,json=contractSignature,proto3" json:"contract_signature,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *BulkPublishItem) Reset() {
@@ -2051,6 +2056,20 @@ func (x *BulkPublishItem) GetSignature() []byte {
 func (x *BulkPublishItem) GetAssets() []*PublishAsset {
 	if x != nil {
 		return x.Assets
+	}
+	return nil
+}
+
+func (x *BulkPublishItem) GetContractDocument() []byte {
+	if x != nil {
+		return x.ContractDocument
+	}
+	return nil
+}
+
+func (x *BulkPublishItem) GetContractSignature() []byte {
+	if x != nil {
+		return x.ContractSignature
 	}
 	return nil
 }
@@ -4959,13 +4978,15 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	" \x01(\fR\x11contractSignature\"7\n" +
 	"\x16PublishVersionResponse\x12\x1d\n" +
 	"\n" +
-	"version_id\x18\x01 \x01(\x03R\tversionId\"\xc9\x01\n" +
+	"version_id\x18\x01 \x01(\x03R\tversionId\"\xa5\x02\n" +
 	"\x0fBulkPublishItem\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\bmanifest\x18\x03 \x01(\fR\bmanifest\x12\x1c\n" +
 	"\tsignature\x18\x04 \x01(\fR\tsignature\x125\n" +
-	"\x06assets\x18\x05 \x03(\v2\x1d.elephant.hub.v1.PublishAssetR\x06assets\"\xdf\x01\n" +
+	"\x06assets\x18\x05 \x03(\v2\x1d.elephant.hub.v1.PublishAssetR\x06assets\x12+\n" +
+	"\x11contract_document\x18\x06 \x01(\fR\x10contractDocument\x12-\n" +
+	"\x12contract_signature\x18\a \x01(\fR\x11contractSignature\"\xdf\x01\n" +
 	"\x19BulkPublishVersionRequest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12E\n" +
 	"\x0esignature_type\x18\x02 \x01(\x0e2\x1e.elephant.hub.v1.SignatureTypeR\rsignatureType\x12)\n" +
