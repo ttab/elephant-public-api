@@ -100,15 +100,32 @@ const (
 	// HubServiceSetArtifactVisibilityProcedure is the fully-qualified name of the HubService's
 	// SetArtifactVisibility RPC.
 	HubServiceSetArtifactVisibilityProcedure = "/elephant.hub.v1.HubService/SetArtifactVisibility"
+	// HubServiceAddArtifactGrantProcedure is the fully-qualified name of the HubService's
+	// AddArtifactGrant RPC.
+	HubServiceAddArtifactGrantProcedure = "/elephant.hub.v1.HubService/AddArtifactGrant"
+	// HubServiceRemoveArtifactGrantProcedure is the fully-qualified name of the HubService's
+	// RemoveArtifactGrant RPC.
+	HubServiceRemoveArtifactGrantProcedure = "/elephant.hub.v1.HubService/RemoveArtifactGrant"
+	// HubServiceListArtifactGrantsProcedure is the fully-qualified name of the HubService's
+	// ListArtifactGrants RPC.
+	HubServiceListArtifactGrantsProcedure = "/elephant.hub.v1.HubService/ListArtifactGrants"
 	// ClientServiceRegisterGenerationProcedure is the fully-qualified name of the ClientService's
 	// RegisterGeneration RPC.
 	ClientServiceRegisterGenerationProcedure = "/elephant.hub.v1.ClientService/RegisterGeneration"
 	// ClientServiceGetLatestGenerationProcedure is the fully-qualified name of the ClientService's
 	// GetLatestGeneration RPC.
 	ClientServiceGetLatestGenerationProcedure = "/elephant.hub.v1.ClientService/GetLatestGeneration"
-	// ClientServiceGetAssetURLsProcedure is the fully-qualified name of the ClientService's
-	// GetAssetURLs RPC.
-	ClientServiceGetAssetURLsProcedure = "/elephant.hub.v1.ClientService/GetAssetURLs"
+	// ClientServiceGetGenerationProcedure is the fully-qualified name of the ClientService's
+	// GetGeneration RPC.
+	ClientServiceGetGenerationProcedure = "/elephant.hub.v1.ClientService/GetGeneration"
+	// ClientServiceGetManifestsProcedure is the fully-qualified name of the ClientService's
+	// GetManifests RPC.
+	ClientServiceGetManifestsProcedure = "/elephant.hub.v1.ClientService/GetManifests"
+	// ClientServiceGetAssetProcedure is the fully-qualified name of the ClientService's GetAsset RPC.
+	ClientServiceGetAssetProcedure = "/elephant.hub.v1.ClientService/GetAsset"
+	// ClientServiceGetAccessChangesProcedure is the fully-qualified name of the ClientService's
+	// GetAccessChanges RPC.
+	ClientServiceGetAccessChangesProcedure = "/elephant.hub.v1.ClientService/GetAccessChanges"
 )
 
 // HubServiceClient is a client for the elephant.hub.v1.HubService service.
@@ -162,6 +179,19 @@ type HubServiceClient interface {
 	ListArtifactPermissions(context.Context, *connect.Request[v1.ListArtifactPermissionsRequest]) (*connect.Response[v1.ListArtifactPermissionsResponse], error)
 	// SetArtifactVisibility sets whether an artifact is publicly visible.
 	SetArtifactVisibility(context.Context, *connect.Request[v1.SetArtifactVisibilityRequest]) (*connect.Response[v1.SetArtifactVisibilityResponse], error)
+	// AddArtifactGrant gives another organisation read access to an artifact,
+	// all its versions: its manifests, assets and documentation, through this
+	// service and through ClientService, as if the artifact were its own to
+	// read. Requires the caller to administer the artifact's organisation.
+	// Idempotent. The grantee's ClientService callers see the grant on
+	// GetAccessChanges.
+	AddArtifactGrant(context.Context, *connect.Request[v1.AddArtifactGrantRequest]) (*connect.Response[v1.AddArtifactGrantResponse], error)
+	// RemoveArtifactGrant withdraws a grant. The withdrawal reaches the
+	// grantee on GetAccessChanges. Idempotent.
+	RemoveArtifactGrant(context.Context, *connect.Request[v1.RemoveArtifactGrantRequest]) (*connect.Response[v1.RemoveArtifactGrantResponse], error)
+	// ListArtifactGrants lists the organisations an artifact is granted to.
+	// Requires the caller to administer the artifact's organisation.
+	ListArtifactGrants(context.Context, *connect.Request[v1.ListArtifactGrantsRequest]) (*connect.Response[v1.ListArtifactGrantsResponse], error)
 }
 
 // NewHubServiceClient constructs a client for the elephant.hub.v1.HubService service. By default,
@@ -307,6 +337,24 @@ func NewHubServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(hubServiceMethods.ByName("SetArtifactVisibility")),
 			connect.WithClientOptions(opts...),
 		),
+		addArtifactGrant: connect.NewClient[v1.AddArtifactGrantRequest, v1.AddArtifactGrantResponse](
+			httpClient,
+			baseURL+HubServiceAddArtifactGrantProcedure,
+			connect.WithSchema(hubServiceMethods.ByName("AddArtifactGrant")),
+			connect.WithClientOptions(opts...),
+		),
+		removeArtifactGrant: connect.NewClient[v1.RemoveArtifactGrantRequest, v1.RemoveArtifactGrantResponse](
+			httpClient,
+			baseURL+HubServiceRemoveArtifactGrantProcedure,
+			connect.WithSchema(hubServiceMethods.ByName("RemoveArtifactGrant")),
+			connect.WithClientOptions(opts...),
+		),
+		listArtifactGrants: connect.NewClient[v1.ListArtifactGrantsRequest, v1.ListArtifactGrantsResponse](
+			httpClient,
+			baseURL+HubServiceListArtifactGrantsProcedure,
+			connect.WithSchema(hubServiceMethods.ByName("ListArtifactGrants")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -334,6 +382,9 @@ type hubServiceClient struct {
 	removeAllowedPublishingKey *connect.Client[v1.RemoveAllowedPublishingKeyRequest, v1.RemoveAllowedPublishingKeyResponse]
 	listArtifactPermissions    *connect.Client[v1.ListArtifactPermissionsRequest, v1.ListArtifactPermissionsResponse]
 	setArtifactVisibility      *connect.Client[v1.SetArtifactVisibilityRequest, v1.SetArtifactVisibilityResponse]
+	addArtifactGrant           *connect.Client[v1.AddArtifactGrantRequest, v1.AddArtifactGrantResponse]
+	removeArtifactGrant        *connect.Client[v1.RemoveArtifactGrantRequest, v1.RemoveArtifactGrantResponse]
+	listArtifactGrants         *connect.Client[v1.ListArtifactGrantsRequest, v1.ListArtifactGrantsResponse]
 }
 
 // ListOrganisations calls elephant.hub.v1.HubService.ListOrganisations.
@@ -446,6 +497,21 @@ func (c *hubServiceClient) SetArtifactVisibility(ctx context.Context, req *conne
 	return c.setArtifactVisibility.CallUnary(ctx, req)
 }
 
+// AddArtifactGrant calls elephant.hub.v1.HubService.AddArtifactGrant.
+func (c *hubServiceClient) AddArtifactGrant(ctx context.Context, req *connect.Request[v1.AddArtifactGrantRequest]) (*connect.Response[v1.AddArtifactGrantResponse], error) {
+	return c.addArtifactGrant.CallUnary(ctx, req)
+}
+
+// RemoveArtifactGrant calls elephant.hub.v1.HubService.RemoveArtifactGrant.
+func (c *hubServiceClient) RemoveArtifactGrant(ctx context.Context, req *connect.Request[v1.RemoveArtifactGrantRequest]) (*connect.Response[v1.RemoveArtifactGrantResponse], error) {
+	return c.removeArtifactGrant.CallUnary(ctx, req)
+}
+
+// ListArtifactGrants calls elephant.hub.v1.HubService.ListArtifactGrants.
+func (c *hubServiceClient) ListArtifactGrants(ctx context.Context, req *connect.Request[v1.ListArtifactGrantsRequest]) (*connect.Response[v1.ListArtifactGrantsResponse], error) {
+	return c.listArtifactGrants.CallUnary(ctx, req)
+}
+
 // HubServiceHandler is an implementation of the elephant.hub.v1.HubService service.
 type HubServiceHandler interface {
 	// ListOrganisations returns all registered organisations.
@@ -497,6 +563,19 @@ type HubServiceHandler interface {
 	ListArtifactPermissions(context.Context, *connect.Request[v1.ListArtifactPermissionsRequest]) (*connect.Response[v1.ListArtifactPermissionsResponse], error)
 	// SetArtifactVisibility sets whether an artifact is publicly visible.
 	SetArtifactVisibility(context.Context, *connect.Request[v1.SetArtifactVisibilityRequest]) (*connect.Response[v1.SetArtifactVisibilityResponse], error)
+	// AddArtifactGrant gives another organisation read access to an artifact,
+	// all its versions: its manifests, assets and documentation, through this
+	// service and through ClientService, as if the artifact were its own to
+	// read. Requires the caller to administer the artifact's organisation.
+	// Idempotent. The grantee's ClientService callers see the grant on
+	// GetAccessChanges.
+	AddArtifactGrant(context.Context, *connect.Request[v1.AddArtifactGrantRequest]) (*connect.Response[v1.AddArtifactGrantResponse], error)
+	// RemoveArtifactGrant withdraws a grant. The withdrawal reaches the
+	// grantee on GetAccessChanges. Idempotent.
+	RemoveArtifactGrant(context.Context, *connect.Request[v1.RemoveArtifactGrantRequest]) (*connect.Response[v1.RemoveArtifactGrantResponse], error)
+	// ListArtifactGrants lists the organisations an artifact is granted to.
+	// Requires the caller to administer the artifact's organisation.
+	ListArtifactGrants(context.Context, *connect.Request[v1.ListArtifactGrantsRequest]) (*connect.Response[v1.ListArtifactGrantsResponse], error)
 }
 
 // NewHubServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -638,6 +717,24 @@ func NewHubServiceHandler(svc HubServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(hubServiceMethods.ByName("SetArtifactVisibility")),
 		connect.WithHandlerOptions(opts...),
 	)
+	hubServiceAddArtifactGrantHandler := connect.NewUnaryHandler(
+		HubServiceAddArtifactGrantProcedure,
+		svc.AddArtifactGrant,
+		connect.WithSchema(hubServiceMethods.ByName("AddArtifactGrant")),
+		connect.WithHandlerOptions(opts...),
+	)
+	hubServiceRemoveArtifactGrantHandler := connect.NewUnaryHandler(
+		HubServiceRemoveArtifactGrantProcedure,
+		svc.RemoveArtifactGrant,
+		connect.WithSchema(hubServiceMethods.ByName("RemoveArtifactGrant")),
+		connect.WithHandlerOptions(opts...),
+	)
+	hubServiceListArtifactGrantsHandler := connect.NewUnaryHandler(
+		HubServiceListArtifactGrantsProcedure,
+		svc.ListArtifactGrants,
+		connect.WithSchema(hubServiceMethods.ByName("ListArtifactGrants")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/elephant.hub.v1.HubService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case HubServiceListOrganisationsProcedure:
@@ -684,6 +781,12 @@ func NewHubServiceHandler(svc HubServiceHandler, opts ...connect.HandlerOption) 
 			hubServiceListArtifactPermissionsHandler.ServeHTTP(w, r)
 		case HubServiceSetArtifactVisibilityProcedure:
 			hubServiceSetArtifactVisibilityHandler.ServeHTTP(w, r)
+		case HubServiceAddArtifactGrantProcedure:
+			hubServiceAddArtifactGrantHandler.ServeHTTP(w, r)
+		case HubServiceRemoveArtifactGrantProcedure:
+			hubServiceRemoveArtifactGrantHandler.ServeHTTP(w, r)
+		case HubServiceListArtifactGrantsProcedure:
+			hubServiceListArtifactGrantsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -781,6 +884,18 @@ func (UnimplementedHubServiceHandler) SetArtifactVisibility(context.Context, *co
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.HubService.SetArtifactVisibility is not implemented"))
 }
 
+func (UnimplementedHubServiceHandler) AddArtifactGrant(context.Context, *connect.Request[v1.AddArtifactGrantRequest]) (*connect.Response[v1.AddArtifactGrantResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.HubService.AddArtifactGrant is not implemented"))
+}
+
+func (UnimplementedHubServiceHandler) RemoveArtifactGrant(context.Context, *connect.Request[v1.RemoveArtifactGrantRequest]) (*connect.Response[v1.RemoveArtifactGrantResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.HubService.RemoveArtifactGrant is not implemented"))
+}
+
+func (UnimplementedHubServiceHandler) ListArtifactGrants(context.Context, *connect.Request[v1.ListArtifactGrantsRequest]) (*connect.Response[v1.ListArtifactGrantsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.HubService.ListArtifactGrants is not implemented"))
+}
+
 // ClientServiceClient is a client for the elephant.hub.v1.ClientService service.
 type ClientServiceClient interface {
 	// RegisterGeneration records the schema set an elephant-repository
@@ -792,10 +907,32 @@ type ClientServiceClient interface {
 	// has registered, so a repository can resume after a restart.
 	// Scope: hub_generations.
 	GetLatestGeneration(context.Context, *connect.Request[v1.GetLatestGenerationRequest]) (*connect.Response[v1.GetLatestGenerationResponse], error)
-	// GetAssetURLs resolves artifacts to their manifests, signatures and
-	// signed CDN asset URLs. Access is decided per artifact: public, or
-	// owned by the caller's organisation. Scope: hub_assets.
-	GetAssetURLs(context.Context, *connect.Request[v1.GetAssetURLsRequest]) (*connect.Response[v1.GetAssetURLsResponse], error)
+	// GetGeneration returns the schema set of a generation registered by any
+	// client of the caller's organisation, so that a plugin's schemas can be
+	// checked against what a repository activated. Scope: hub_generations.
+	GetGeneration(context.Context, *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error)
+	// GetManifests resolves named artifact versions to their manifests, with
+	// what a consumer needs to verify them: the signature, the signing key
+	// and its status, and the version's status. Access is decided per
+	// artifact: public, owned by the caller's organisation, or granted to
+	// it. The response carries the GetAccessChanges position read in the
+	// same snapshot, from which a consumer follows the feed to keep what it
+	// cached correct. Scope: hub_assets.
+	GetManifests(context.Context, *connect.Request[v1.GetManifestsRequest]) (*connect.Response[v1.GetManifestsResponse], error)
+	// GetAsset streams one asset of an artifact version, named by its role,
+	// in chunks. It refuses a revoked version and one the caller cannot see.
+	// The consumer checks the bytes against the SHA-256 the signed manifest
+	// declares. Scope: hub_assets.
+	GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.ServerStreamForClient[v1.GetAssetResponse], error)
+	// GetAccessChanges is a long-poll feed of the access changes the
+	// caller's organisation can see, in both directions, in order from a
+	// cursor: a version revoked; a publishing key deactivated, reactivated
+	// or revoked; an artifact made private or public; a grant to the
+	// caller's organisation added or withdrawn. It answers at once when
+	// there are changes past the cursor, and otherwise waits for one or for
+	// the call's deadline, answering with no changes. Events are kept
+	// forever, so every cursor stays valid. Scope: hub_assets.
+	GetAccessChanges(context.Context, *connect.Request[v1.GetAccessChangesRequest]) (*connect.Response[v1.GetAccessChangesResponse], error)
 }
 
 // NewClientServiceClient constructs a client for the elephant.hub.v1.ClientService service. By
@@ -821,10 +958,28 @@ func NewClientServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(clientServiceMethods.ByName("GetLatestGeneration")),
 			connect.WithClientOptions(opts...),
 		),
-		getAssetURLs: connect.NewClient[v1.GetAssetURLsRequest, v1.GetAssetURLsResponse](
+		getGeneration: connect.NewClient[v1.GetGenerationRequest, v1.GetGenerationResponse](
 			httpClient,
-			baseURL+ClientServiceGetAssetURLsProcedure,
-			connect.WithSchema(clientServiceMethods.ByName("GetAssetURLs")),
+			baseURL+ClientServiceGetGenerationProcedure,
+			connect.WithSchema(clientServiceMethods.ByName("GetGeneration")),
+			connect.WithClientOptions(opts...),
+		),
+		getManifests: connect.NewClient[v1.GetManifestsRequest, v1.GetManifestsResponse](
+			httpClient,
+			baseURL+ClientServiceGetManifestsProcedure,
+			connect.WithSchema(clientServiceMethods.ByName("GetManifests")),
+			connect.WithClientOptions(opts...),
+		),
+		getAsset: connect.NewClient[v1.GetAssetRequest, v1.GetAssetResponse](
+			httpClient,
+			baseURL+ClientServiceGetAssetProcedure,
+			connect.WithSchema(clientServiceMethods.ByName("GetAsset")),
+			connect.WithClientOptions(opts...),
+		),
+		getAccessChanges: connect.NewClient[v1.GetAccessChangesRequest, v1.GetAccessChangesResponse](
+			httpClient,
+			baseURL+ClientServiceGetAccessChangesProcedure,
+			connect.WithSchema(clientServiceMethods.ByName("GetAccessChanges")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -834,7 +989,10 @@ func NewClientServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 type clientServiceClient struct {
 	registerGeneration  *connect.Client[v1.RegisterGenerationRequest, v1.RegisterGenerationResponse]
 	getLatestGeneration *connect.Client[v1.GetLatestGenerationRequest, v1.GetLatestGenerationResponse]
-	getAssetURLs        *connect.Client[v1.GetAssetURLsRequest, v1.GetAssetURLsResponse]
+	getGeneration       *connect.Client[v1.GetGenerationRequest, v1.GetGenerationResponse]
+	getManifests        *connect.Client[v1.GetManifestsRequest, v1.GetManifestsResponse]
+	getAsset            *connect.Client[v1.GetAssetRequest, v1.GetAssetResponse]
+	getAccessChanges    *connect.Client[v1.GetAccessChangesRequest, v1.GetAccessChangesResponse]
 }
 
 // RegisterGeneration calls elephant.hub.v1.ClientService.RegisterGeneration.
@@ -847,9 +1005,24 @@ func (c *clientServiceClient) GetLatestGeneration(ctx context.Context, req *conn
 	return c.getLatestGeneration.CallUnary(ctx, req)
 }
 
-// GetAssetURLs calls elephant.hub.v1.ClientService.GetAssetURLs.
-func (c *clientServiceClient) GetAssetURLs(ctx context.Context, req *connect.Request[v1.GetAssetURLsRequest]) (*connect.Response[v1.GetAssetURLsResponse], error) {
-	return c.getAssetURLs.CallUnary(ctx, req)
+// GetGeneration calls elephant.hub.v1.ClientService.GetGeneration.
+func (c *clientServiceClient) GetGeneration(ctx context.Context, req *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error) {
+	return c.getGeneration.CallUnary(ctx, req)
+}
+
+// GetManifests calls elephant.hub.v1.ClientService.GetManifests.
+func (c *clientServiceClient) GetManifests(ctx context.Context, req *connect.Request[v1.GetManifestsRequest]) (*connect.Response[v1.GetManifestsResponse], error) {
+	return c.getManifests.CallUnary(ctx, req)
+}
+
+// GetAsset calls elephant.hub.v1.ClientService.GetAsset.
+func (c *clientServiceClient) GetAsset(ctx context.Context, req *connect.Request[v1.GetAssetRequest]) (*connect.ServerStreamForClient[v1.GetAssetResponse], error) {
+	return c.getAsset.CallServerStream(ctx, req)
+}
+
+// GetAccessChanges calls elephant.hub.v1.ClientService.GetAccessChanges.
+func (c *clientServiceClient) GetAccessChanges(ctx context.Context, req *connect.Request[v1.GetAccessChangesRequest]) (*connect.Response[v1.GetAccessChangesResponse], error) {
+	return c.getAccessChanges.CallUnary(ctx, req)
 }
 
 // ClientServiceHandler is an implementation of the elephant.hub.v1.ClientService service.
@@ -863,10 +1036,32 @@ type ClientServiceHandler interface {
 	// has registered, so a repository can resume after a restart.
 	// Scope: hub_generations.
 	GetLatestGeneration(context.Context, *connect.Request[v1.GetLatestGenerationRequest]) (*connect.Response[v1.GetLatestGenerationResponse], error)
-	// GetAssetURLs resolves artifacts to their manifests, signatures and
-	// signed CDN asset URLs. Access is decided per artifact: public, or
-	// owned by the caller's organisation. Scope: hub_assets.
-	GetAssetURLs(context.Context, *connect.Request[v1.GetAssetURLsRequest]) (*connect.Response[v1.GetAssetURLsResponse], error)
+	// GetGeneration returns the schema set of a generation registered by any
+	// client of the caller's organisation, so that a plugin's schemas can be
+	// checked against what a repository activated. Scope: hub_generations.
+	GetGeneration(context.Context, *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error)
+	// GetManifests resolves named artifact versions to their manifests, with
+	// what a consumer needs to verify them: the signature, the signing key
+	// and its status, and the version's status. Access is decided per
+	// artifact: public, owned by the caller's organisation, or granted to
+	// it. The response carries the GetAccessChanges position read in the
+	// same snapshot, from which a consumer follows the feed to keep what it
+	// cached correct. Scope: hub_assets.
+	GetManifests(context.Context, *connect.Request[v1.GetManifestsRequest]) (*connect.Response[v1.GetManifestsResponse], error)
+	// GetAsset streams one asset of an artifact version, named by its role,
+	// in chunks. It refuses a revoked version and one the caller cannot see.
+	// The consumer checks the bytes against the SHA-256 the signed manifest
+	// declares. Scope: hub_assets.
+	GetAsset(context.Context, *connect.Request[v1.GetAssetRequest], *connect.ServerStream[v1.GetAssetResponse]) error
+	// GetAccessChanges is a long-poll feed of the access changes the
+	// caller's organisation can see, in both directions, in order from a
+	// cursor: a version revoked; a publishing key deactivated, reactivated
+	// or revoked; an artifact made private or public; a grant to the
+	// caller's organisation added or withdrawn. It answers at once when
+	// there are changes past the cursor, and otherwise waits for one or for
+	// the call's deadline, answering with no changes. Events are kept
+	// forever, so every cursor stays valid. Scope: hub_assets.
+	GetAccessChanges(context.Context, *connect.Request[v1.GetAccessChangesRequest]) (*connect.Response[v1.GetAccessChangesResponse], error)
 }
 
 // NewClientServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -888,10 +1083,28 @@ func NewClientServiceHandler(svc ClientServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(clientServiceMethods.ByName("GetLatestGeneration")),
 		connect.WithHandlerOptions(opts...),
 	)
-	clientServiceGetAssetURLsHandler := connect.NewUnaryHandler(
-		ClientServiceGetAssetURLsProcedure,
-		svc.GetAssetURLs,
-		connect.WithSchema(clientServiceMethods.ByName("GetAssetURLs")),
+	clientServiceGetGenerationHandler := connect.NewUnaryHandler(
+		ClientServiceGetGenerationProcedure,
+		svc.GetGeneration,
+		connect.WithSchema(clientServiceMethods.ByName("GetGeneration")),
+		connect.WithHandlerOptions(opts...),
+	)
+	clientServiceGetManifestsHandler := connect.NewUnaryHandler(
+		ClientServiceGetManifestsProcedure,
+		svc.GetManifests,
+		connect.WithSchema(clientServiceMethods.ByName("GetManifests")),
+		connect.WithHandlerOptions(opts...),
+	)
+	clientServiceGetAssetHandler := connect.NewServerStreamHandler(
+		ClientServiceGetAssetProcedure,
+		svc.GetAsset,
+		connect.WithSchema(clientServiceMethods.ByName("GetAsset")),
+		connect.WithHandlerOptions(opts...),
+	)
+	clientServiceGetAccessChangesHandler := connect.NewUnaryHandler(
+		ClientServiceGetAccessChangesProcedure,
+		svc.GetAccessChanges,
+		connect.WithSchema(clientServiceMethods.ByName("GetAccessChanges")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/elephant.hub.v1.ClientService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -900,8 +1113,14 @@ func NewClientServiceHandler(svc ClientServiceHandler, opts ...connect.HandlerOp
 			clientServiceRegisterGenerationHandler.ServeHTTP(w, r)
 		case ClientServiceGetLatestGenerationProcedure:
 			clientServiceGetLatestGenerationHandler.ServeHTTP(w, r)
-		case ClientServiceGetAssetURLsProcedure:
-			clientServiceGetAssetURLsHandler.ServeHTTP(w, r)
+		case ClientServiceGetGenerationProcedure:
+			clientServiceGetGenerationHandler.ServeHTTP(w, r)
+		case ClientServiceGetManifestsProcedure:
+			clientServiceGetManifestsHandler.ServeHTTP(w, r)
+		case ClientServiceGetAssetProcedure:
+			clientServiceGetAssetHandler.ServeHTTP(w, r)
+		case ClientServiceGetAccessChangesProcedure:
+			clientServiceGetAccessChangesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -919,6 +1138,18 @@ func (UnimplementedClientServiceHandler) GetLatestGeneration(context.Context, *c
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetLatestGeneration is not implemented"))
 }
 
-func (UnimplementedClientServiceHandler) GetAssetURLs(context.Context, *connect.Request[v1.GetAssetURLsRequest]) (*connect.Response[v1.GetAssetURLsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetAssetURLs is not implemented"))
+func (UnimplementedClientServiceHandler) GetGeneration(context.Context, *connect.Request[v1.GetGenerationRequest]) (*connect.Response[v1.GetGenerationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetGeneration is not implemented"))
+}
+
+func (UnimplementedClientServiceHandler) GetManifests(context.Context, *connect.Request[v1.GetManifestsRequest]) (*connect.Response[v1.GetManifestsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetManifests is not implemented"))
+}
+
+func (UnimplementedClientServiceHandler) GetAsset(context.Context, *connect.Request[v1.GetAssetRequest], *connect.ServerStream[v1.GetAssetResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetAsset is not implemented"))
+}
+
+func (UnimplementedClientServiceHandler) GetAccessChanges(context.Context, *connect.Request[v1.GetAccessChangesRequest]) (*connect.Response[v1.GetAccessChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("elephant.hub.v1.ClientService.GetAccessChanges is not implemented"))
 }

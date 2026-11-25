@@ -75,9 +75,6 @@ type SignatureType int32
 const (
 	SignatureType_SIGNATURE_TYPE_UNSPECIFIED    SignatureType = 0
 	SignatureType_SIGNATURE_TYPE_PUBLISHING_KEY SignatureType = 1
-	// Deprecated: sigstore signing is no longer supported for new publishes.
-	// Kept for reading historical versions.
-	SignatureType_SIGNATURE_TYPE_SIGSTORE SignatureType = 2
 )
 
 // Enum value maps for SignatureType.
@@ -85,12 +82,10 @@ var (
 	SignatureType_name = map[int32]string{
 		0: "SIGNATURE_TYPE_UNSPECIFIED",
 		1: "SIGNATURE_TYPE_PUBLISHING_KEY",
-		2: "SIGNATURE_TYPE_SIGSTORE",
 	}
 	SignatureType_value = map[string]int32{
 		"SIGNATURE_TYPE_UNSPECIFIED":    0,
 		"SIGNATURE_TYPE_PUBLISHING_KEY": 1,
-		"SIGNATURE_TYPE_SIGSTORE":       2,
 	}
 )
 
@@ -289,61 +284,145 @@ func (SchemaUsage) EnumDescriptor() ([]byte, []int) {
 	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{4}
 }
 
-// Reason an artifact in a GetAssetURLs request could not be resolved to
-// asset URLs.
-type AssetURLError int32
+// Reason an artifact version in a GetManifests request could not be
+// resolved. A revoked version is not an error: it is returned with revoked
+// set, so that a consumer learns of the revocation.
+type ManifestError int32
 
 const (
-	AssetURLError_ASSET_URL_ERROR_UNSPECIFIED AssetURLError = 0
-	AssetURLError_ASSET_URL_ERROR_NOT_FOUND   AssetURLError = 1
-	AssetURLError_ASSET_URL_ERROR_FORBIDDEN   AssetURLError = 2
-	AssetURLError_ASSET_URL_ERROR_REVOKED     AssetURLError = 3
-	AssetURLError_ASSET_URL_ERROR_INVALID     AssetURLError = 4
+	ManifestError_MANIFEST_ERROR_UNSPECIFIED ManifestError = 0
+	// No such artifact, or no such version of it.
+	ManifestError_MANIFEST_ERROR_NOT_FOUND ManifestError = 1
+	// The artifact is private and neither owned by nor granted to the
+	// caller's organisation.
+	ManifestError_MANIFEST_ERROR_FORBIDDEN ManifestError = 2
+	// The reference is malformed: an unknown kind, an invalid name or
+	// version.
+	ManifestError_MANIFEST_ERROR_INVALID ManifestError = 3
 )
 
-// Enum value maps for AssetURLError.
+// Enum value maps for ManifestError.
 var (
-	AssetURLError_name = map[int32]string{
-		0: "ASSET_URL_ERROR_UNSPECIFIED",
-		1: "ASSET_URL_ERROR_NOT_FOUND",
-		2: "ASSET_URL_ERROR_FORBIDDEN",
-		3: "ASSET_URL_ERROR_REVOKED",
-		4: "ASSET_URL_ERROR_INVALID",
+	ManifestError_name = map[int32]string{
+		0: "MANIFEST_ERROR_UNSPECIFIED",
+		1: "MANIFEST_ERROR_NOT_FOUND",
+		2: "MANIFEST_ERROR_FORBIDDEN",
+		3: "MANIFEST_ERROR_INVALID",
 	}
-	AssetURLError_value = map[string]int32{
-		"ASSET_URL_ERROR_UNSPECIFIED": 0,
-		"ASSET_URL_ERROR_NOT_FOUND":   1,
-		"ASSET_URL_ERROR_FORBIDDEN":   2,
-		"ASSET_URL_ERROR_REVOKED":     3,
-		"ASSET_URL_ERROR_INVALID":     4,
+	ManifestError_value = map[string]int32{
+		"MANIFEST_ERROR_UNSPECIFIED": 0,
+		"MANIFEST_ERROR_NOT_FOUND":   1,
+		"MANIFEST_ERROR_FORBIDDEN":   2,
+		"MANIFEST_ERROR_INVALID":     3,
 	}
 )
 
-func (x AssetURLError) Enum() *AssetURLError {
-	p := new(AssetURLError)
+func (x ManifestError) Enum() *ManifestError {
+	p := new(ManifestError)
 	*p = x
 	return p
 }
 
-func (x AssetURLError) String() string {
+func (x ManifestError) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (AssetURLError) Descriptor() protoreflect.EnumDescriptor {
+func (ManifestError) Descriptor() protoreflect.EnumDescriptor {
 	return file_elephant_hub_v1_service_proto_enumTypes[5].Descriptor()
 }
 
-func (AssetURLError) Type() protoreflect.EnumType {
+func (ManifestError) Type() protoreflect.EnumType {
 	return &file_elephant_hub_v1_service_proto_enumTypes[5]
 }
 
-func (x AssetURLError) Number() protoreflect.EnumNumber {
+func (x ManifestError) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AssetURLError.Descriptor instead.
-func (AssetURLError) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use ManifestError.Descriptor instead.
+func (ManifestError) EnumDescriptor() ([]byte, []int) {
 	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{5}
+}
+
+// What an access change did. Each one carries the artifact or the
+// publishing key it concerns.
+type AccessChangeType int32
+
+const (
+	AccessChangeType_ACCESS_CHANGE_TYPE_UNSPECIFIED AccessChangeType = 0
+	// An artifact version was revoked. Its assets are no longer served.
+	AccessChangeType_ACCESS_CHANGE_TYPE_VERSION_REVOKED AccessChangeType = 1
+	// A publishing key was deactivated: the artifacts it signed are no
+	// longer to be picked up, until it is reactivated.
+	AccessChangeType_ACCESS_CHANGE_TYPE_KEY_DEACTIVATED AccessChangeType = 2
+	// A deactivated publishing key was activated again.
+	AccessChangeType_ACCESS_CHANGE_TYPE_KEY_REACTIVATED AccessChangeType = 3
+	// A publishing key was revoked: signatures made with it are to be
+	// treated as forgeries. Permanent.
+	AccessChangeType_ACCESS_CHANGE_TYPE_KEY_REVOKED AccessChangeType = 4
+	// An artifact was made private. Sent to the organisations that lost
+	// access by it.
+	AccessChangeType_ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PRIVATE AccessChangeType = 5
+	// An artifact was made public.
+	AccessChangeType_ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PUBLIC AccessChangeType = 6
+	// The artifact was granted to the caller's organisation.
+	AccessChangeType_ACCESS_CHANGE_TYPE_GRANT_ADDED AccessChangeType = 7
+	// A grant of the artifact to the caller's organisation was withdrawn.
+	// Sent only when the organisation lost access by it.
+	AccessChangeType_ACCESS_CHANGE_TYPE_GRANT_WITHDRAWN AccessChangeType = 8
+)
+
+// Enum value maps for AccessChangeType.
+var (
+	AccessChangeType_name = map[int32]string{
+		0: "ACCESS_CHANGE_TYPE_UNSPECIFIED",
+		1: "ACCESS_CHANGE_TYPE_VERSION_REVOKED",
+		2: "ACCESS_CHANGE_TYPE_KEY_DEACTIVATED",
+		3: "ACCESS_CHANGE_TYPE_KEY_REACTIVATED",
+		4: "ACCESS_CHANGE_TYPE_KEY_REVOKED",
+		5: "ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PRIVATE",
+		6: "ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PUBLIC",
+		7: "ACCESS_CHANGE_TYPE_GRANT_ADDED",
+		8: "ACCESS_CHANGE_TYPE_GRANT_WITHDRAWN",
+	}
+	AccessChangeType_value = map[string]int32{
+		"ACCESS_CHANGE_TYPE_UNSPECIFIED":           0,
+		"ACCESS_CHANGE_TYPE_VERSION_REVOKED":       1,
+		"ACCESS_CHANGE_TYPE_KEY_DEACTIVATED":       2,
+		"ACCESS_CHANGE_TYPE_KEY_REACTIVATED":       3,
+		"ACCESS_CHANGE_TYPE_KEY_REVOKED":           4,
+		"ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PRIVATE": 5,
+		"ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PUBLIC":  6,
+		"ACCESS_CHANGE_TYPE_GRANT_ADDED":           7,
+		"ACCESS_CHANGE_TYPE_GRANT_WITHDRAWN":       8,
+	}
+)
+
+func (x AccessChangeType) Enum() *AccessChangeType {
+	p := new(AccessChangeType)
+	*p = x
+	return p
+}
+
+func (x AccessChangeType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccessChangeType) Descriptor() protoreflect.EnumDescriptor {
+	return file_elephant_hub_v1_service_proto_enumTypes[6].Descriptor()
+}
+
+func (AccessChangeType) Type() protoreflect.EnumType {
+	return &file_elephant_hub_v1_service_proto_enumTypes[6]
+}
+
+func (x AccessChangeType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccessChangeType.Descriptor instead.
+func (AccessChangeType) EnumDescriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{6}
 }
 
 type Organisation struct {
@@ -621,9 +700,15 @@ func (x *VersionInfo) GetCreatedAt() string {
 }
 
 type AssetInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Filename      string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
-	Sha256        string                 `protobuf:"bytes,2,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Filename string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
+	Sha256   string                 `protobuf:"bytes,2,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	// The asset's role in the manifest's assets list: "js", "css",
+	// "documentation", "schema", "mirror", "contract", "settings" or one of
+	// the core module's roles.
+	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
+	// Size in bytes.
+	Size          int64 `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -670,6 +755,20 @@ func (x *AssetInfo) GetSha256() string {
 		return x.Sha256
 	}
 	return ""
+}
+
+func (x *AssetInfo) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *AssetInfo) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
 }
 
 type PublishingKeyInfo struct {
@@ -1244,14 +1343,13 @@ type GetArtifactVersionResponse struct {
 	// Signature over the exact manifest bytes returned in the manifest field,
 	// as stored at publish time. Verify it against those bytes as they are,
 	// without re-serialising, reformatting or otherwise normalising the
-	// manifest. Empty for versions signed with SIGNATURE_TYPE_SIGSTORE.
+	// manifest.
 	Signature []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
 	// Raw 32-byte Ed25519 public key of the publishing key identified by
 	// VersionInfo.signing_identity. A valid signature only shows which key
 	// signed the manifest, not that the key is still trusted, so a consumer
 	// should also check the key status through GetPublishingKey to honour
-	// deactivation and revocation. Empty for versions signed with
-	// SIGNATURE_TYPE_SIGSTORE.
+	// deactivation and revocation.
 	PublicKey     []byte `protobuf:"bytes,6,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1718,8 +1816,19 @@ type PublishVersionRequest struct {
 	// Publishing key fingerprint.
 	SigningIdentity string          `protobuf:"bytes,7,opt,name=signing_identity,json=signingIdentity,proto3" json:"signing_identity,omitempty"`
 	Assets          []*PublishAsset `protobuf:"bytes,8,rep,name=assets,proto3" json:"assets,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The contract document of a plugin version that ships a contract (an
+	// asset with the role "contract"): JSON naming the contract package's
+	// name and version and the tarball's SHA-256 and SHA-512. Public
+	// whatever the plugin's visibility. Empty when the version has no
+	// contract.
+	ContractDocument []byte `protobuf:"bytes,9,opt,name=contract_document,json=contractDocument,proto3" json:"contract_document,omitempty"`
+	// Ed25519 signature over the exact contract_document bytes, made with the
+	// same publishing key as the manifest signature, so that the contract
+	// verifies with the publisher's key alone. Required with a contract
+	// document.
+	ContractSignature []byte `protobuf:"bytes,10,opt,name=contract_signature,json=contractSignature,proto3" json:"contract_signature,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PublishVersionRequest) Reset() {
@@ -1804,6 +1913,20 @@ func (x *PublishVersionRequest) GetSigningIdentity() string {
 func (x *PublishVersionRequest) GetAssets() []*PublishAsset {
 	if x != nil {
 		return x.Assets
+	}
+	return nil
+}
+
+func (x *PublishVersionRequest) GetContractDocument() []byte {
+	if x != nil {
+		return x.ContractDocument
+	}
+	return nil
+}
+
+func (x *PublishVersionRequest) GetContractSignature() []byte {
+	if x != nil {
+		return x.ContractSignature
 	}
 	return nil
 }
@@ -3174,6 +3297,362 @@ func (*SetArtifactVisibilityResponse) Descriptor() ([]byte, []int) {
 	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{50}
 }
 
+type ArtifactGrant struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// URI of the organisation the artifact is granted to (e.g.
+	// core://org/tt).
+	Organisation string `protobuf:"bytes,1,opt,name=organisation,proto3" json:"organisation,omitempty"`
+	CreatedAt    string `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Email of the user who added the grant.
+	GrantedBy     string `protobuf:"bytes,3,opt,name=granted_by,json=grantedBy,proto3" json:"granted_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactGrant) Reset() {
+	*x = ArtifactGrant{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactGrant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactGrant) ProtoMessage() {}
+
+func (x *ArtifactGrant) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactGrant.ProtoReflect.Descriptor instead.
+func (*ArtifactGrant) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *ArtifactGrant) GetOrganisation() string {
+	if x != nil {
+		return x.Organisation
+	}
+	return ""
+}
+
+func (x *ArtifactGrant) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *ArtifactGrant) GetGrantedBy() string {
+	if x != nil {
+		return x.GrantedBy
+	}
+	return ""
+}
+
+type AddArtifactGrantRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
+	// Full artifact name in reverse-domain notation.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// URI of the organisation to grant the artifact to.
+	Organisation  string `protobuf:"bytes,3,opt,name=organisation,proto3" json:"organisation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddArtifactGrantRequest) Reset() {
+	*x = AddArtifactGrantRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddArtifactGrantRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddArtifactGrantRequest) ProtoMessage() {}
+
+func (x *AddArtifactGrantRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddArtifactGrantRequest.ProtoReflect.Descriptor instead.
+func (*AddArtifactGrantRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *AddArtifactGrantRequest) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *AddArtifactGrantRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AddArtifactGrantRequest) GetOrganisation() string {
+	if x != nil {
+		return x.Organisation
+	}
+	return ""
+}
+
+type AddArtifactGrantResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddArtifactGrantResponse) Reset() {
+	*x = AddArtifactGrantResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddArtifactGrantResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddArtifactGrantResponse) ProtoMessage() {}
+
+func (x *AddArtifactGrantResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddArtifactGrantResponse.ProtoReflect.Descriptor instead.
+func (*AddArtifactGrantResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{53}
+}
+
+type RemoveArtifactGrantRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
+	// Full artifact name in reverse-domain notation.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// URI of the organisation whose grant is withdrawn.
+	Organisation  string `protobuf:"bytes,3,opt,name=organisation,proto3" json:"organisation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveArtifactGrantRequest) Reset() {
+	*x = RemoveArtifactGrantRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveArtifactGrantRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveArtifactGrantRequest) ProtoMessage() {}
+
+func (x *RemoveArtifactGrantRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveArtifactGrantRequest.ProtoReflect.Descriptor instead.
+func (*RemoveArtifactGrantRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *RemoveArtifactGrantRequest) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *RemoveArtifactGrantRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RemoveArtifactGrantRequest) GetOrganisation() string {
+	if x != nil {
+		return x.Organisation
+	}
+	return ""
+}
+
+type RemoveArtifactGrantResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveArtifactGrantResponse) Reset() {
+	*x = RemoveArtifactGrantResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveArtifactGrantResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveArtifactGrantResponse) ProtoMessage() {}
+
+func (x *RemoveArtifactGrantResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveArtifactGrantResponse.ProtoReflect.Descriptor instead.
+func (*RemoveArtifactGrantResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{55}
+}
+
+type ListArtifactGrantsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
+	// Full artifact name in reverse-domain notation.
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactGrantsRequest) Reset() {
+	*x = ListArtifactGrantsRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactGrantsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactGrantsRequest) ProtoMessage() {}
+
+func (x *ListArtifactGrantsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactGrantsRequest.ProtoReflect.Descriptor instead.
+func (*ListArtifactGrantsRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *ListArtifactGrantsRequest) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *ListArtifactGrantsRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ListArtifactGrantsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Grants        []*ArtifactGrant       `protobuf:"bytes,1,rep,name=grants,proto3" json:"grants,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactGrantsResponse) Reset() {
+	*x = ListArtifactGrantsResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactGrantsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactGrantsResponse) ProtoMessage() {}
+
+func (x *ListArtifactGrantsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactGrantsResponse.ProtoReflect.Descriptor instead.
+func (*ListArtifactGrantsResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *ListArtifactGrantsResponse) GetGrants() []*ArtifactGrant {
+	if x != nil {
+		return x.Grants
+	}
+	return nil
+}
+
 type OIDCProviderInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -3186,7 +3665,7 @@ type OIDCProviderInfo struct {
 
 func (x *OIDCProviderInfo) Reset() {
 	*x = OIDCProviderInfo{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[51]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3198,7 +3677,7 @@ func (x *OIDCProviderInfo) String() string {
 func (*OIDCProviderInfo) ProtoMessage() {}
 
 func (x *OIDCProviderInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[51]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3211,7 +3690,7 @@ func (x *OIDCProviderInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OIDCProviderInfo.ProtoReflect.Descriptor instead.
 func (*OIDCProviderInfo) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{51}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *OIDCProviderInfo) GetId() int64 {
@@ -3254,7 +3733,7 @@ type ArtifactPublisherInfo struct {
 
 func (x *ArtifactPublisherInfo) Reset() {
 	*x = ArtifactPublisherInfo{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[52]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3266,7 +3745,7 @@ func (x *ArtifactPublisherInfo) String() string {
 func (*ArtifactPublisherInfo) ProtoMessage() {}
 
 func (x *ArtifactPublisherInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[52]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3279,7 +3758,7 @@ func (x *ArtifactPublisherInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactPublisherInfo.ProtoReflect.Descriptor instead.
 func (*ArtifactPublisherInfo) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{52}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *ArtifactPublisherInfo) GetId() int64 {
@@ -3321,7 +3800,7 @@ type SchemaRef struct {
 
 func (x *SchemaRef) Reset() {
 	*x = SchemaRef{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[53]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3333,7 +3812,7 @@ func (x *SchemaRef) String() string {
 func (*SchemaRef) ProtoMessage() {}
 
 func (x *SchemaRef) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[53]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3346,7 +3825,7 @@ func (x *SchemaRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SchemaRef.ProtoReflect.Descriptor instead.
 func (*SchemaRef) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{53}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *SchemaRef) GetName() string {
@@ -3373,7 +3852,7 @@ type RegisterGenerationRequest struct {
 
 func (x *RegisterGenerationRequest) Reset() {
 	*x = RegisterGenerationRequest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[54]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3385,7 +3864,7 @@ func (x *RegisterGenerationRequest) String() string {
 func (*RegisterGenerationRequest) ProtoMessage() {}
 
 func (x *RegisterGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[54]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3398,7 +3877,7 @@ func (x *RegisterGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterGenerationRequest.ProtoReflect.Descriptor instead.
 func (*RegisterGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{54}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *RegisterGenerationRequest) GetNumber() int64 {
@@ -3427,7 +3906,7 @@ type RegisterGenerationResponse struct {
 
 func (x *RegisterGenerationResponse) Reset() {
 	*x = RegisterGenerationResponse{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[55]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3439,7 +3918,7 @@ func (x *RegisterGenerationResponse) String() string {
 func (*RegisterGenerationResponse) ProtoMessage() {}
 
 func (x *RegisterGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[55]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3452,7 +3931,7 @@ func (x *RegisterGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterGenerationResponse.ProtoReflect.Descriptor instead.
 func (*RegisterGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{55}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *RegisterGenerationResponse) GetId() int64 {
@@ -3484,7 +3963,7 @@ type GetLatestGenerationRequest struct {
 
 func (x *GetLatestGenerationRequest) Reset() {
 	*x = GetLatestGenerationRequest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[56]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3496,7 +3975,7 @@ func (x *GetLatestGenerationRequest) String() string {
 func (*GetLatestGenerationRequest) ProtoMessage() {}
 
 func (x *GetLatestGenerationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[56]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3509,7 +3988,7 @@ func (x *GetLatestGenerationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLatestGenerationRequest.ProtoReflect.Descriptor instead.
 func (*GetLatestGenerationRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{56}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{63}
 }
 
 type GetLatestGenerationResponse struct {
@@ -3522,7 +4001,7 @@ type GetLatestGenerationResponse struct {
 
 func (x *GetLatestGenerationResponse) Reset() {
 	*x = GetLatestGenerationResponse{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[57]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3534,7 +4013,7 @@ func (x *GetLatestGenerationResponse) String() string {
 func (*GetLatestGenerationResponse) ProtoMessage() {}
 
 func (x *GetLatestGenerationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[57]
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3547,7 +4026,7 @@ func (x *GetLatestGenerationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLatestGenerationResponse.ProtoReflect.Descriptor instead.
 func (*GetLatestGenerationResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{57}
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *GetLatestGenerationResponse) GetNumber() int64 {
@@ -3557,36 +4036,32 @@ func (x *GetLatestGenerationResponse) GetNumber() int64 {
 	return 0
 }
 
-type ArtifactRef struct {
+type GetGenerationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
-	// Full artifact name in reverse-domain notation.
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Empty resolves to the latest non-revoked, non-prerelease version.
-	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Also mint URLs for the documentation assets (README.md, agents/*.md).
-	// Off by default: they are read by tooling, not by the editor at load
-	// time, and stay out of the hot path.
-	IncludeDocumentation bool `protobuf:"varint,4,opt,name=include_documentation,json=includeDocumentation,proto3" json:"include_documentation,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Client id (the azp claim) of the repository that registered the
+	// generation. Any client of the caller's organisation may be named.
+	ClientId string `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// Generation number. Zero for the latest that client registered.
+	Number        int64 `protobuf:"varint,2,opt,name=number,proto3" json:"number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ArtifactRef) Reset() {
-	*x = ArtifactRef{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[58]
+func (x *GetGenerationRequest) Reset() {
+	*x = GetGenerationRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ArtifactRef) String() string {
+func (x *GetGenerationRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ArtifactRef) ProtoMessage() {}
+func (*GetGenerationRequest) ProtoMessage() {}
 
-func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[58]
+func (x *GetGenerationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3597,62 +4072,179 @@ func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ArtifactRef.ProtoReflect.Descriptor instead.
-func (*ArtifactRef) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{58}
+// Deprecated: Use GetGenerationRequest.ProtoReflect.Descriptor instead.
+func (*GetGenerationRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{65}
 }
 
-func (x *ArtifactRef) GetKind() ArtifactKind {
+func (x *GetGenerationRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *GetGenerationRequest) GetNumber() int64 {
+	if x != nil {
+		return x.Number
+	}
+	return 0
+}
+
+type GetGenerationResponse struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ClientId string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Number   int64                  `protobuf:"varint,2,opt,name=number,proto3" json:"number,omitempty"`
+	// RFC 3339.
+	RegisteredAt  string       `protobuf:"bytes,3,opt,name=registered_at,json=registeredAt,proto3" json:"registered_at,omitempty"`
+	Schemas       []*SchemaRef `protobuf:"bytes,4,rep,name=schemas,proto3" json:"schemas,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGenerationResponse) Reset() {
+	*x = GetGenerationResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGenerationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGenerationResponse) ProtoMessage() {}
+
+func (x *GetGenerationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGenerationResponse.ProtoReflect.Descriptor instead.
+func (*GetGenerationResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *GetGenerationResponse) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *GetGenerationResponse) GetNumber() int64 {
+	if x != nil {
+		return x.Number
+	}
+	return 0
+}
+
+func (x *GetGenerationResponse) GetRegisteredAt() string {
+	if x != nil {
+		return x.RegisteredAt
+	}
+	return ""
+}
+
+func (x *GetGenerationResponse) GetSchemas() []*SchemaRef {
+	if x != nil {
+		return x.Schemas
+	}
+	return nil
+}
+
+type ManifestRef struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
+	// Full artifact name in reverse-domain notation.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The version, required: a consumer loads what it named.
+	Version       string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ManifestRef) Reset() {
+	*x = ManifestRef{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ManifestRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ManifestRef) ProtoMessage() {}
+
+func (x *ManifestRef) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ManifestRef.ProtoReflect.Descriptor instead.
+func (*ManifestRef) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *ManifestRef) GetKind() ArtifactKind {
 	if x != nil {
 		return x.Kind
 	}
 	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
 }
 
-func (x *ArtifactRef) GetName() string {
+func (x *ManifestRef) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *ArtifactRef) GetVersion() string {
+func (x *ManifestRef) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *ArtifactRef) GetIncludeDocumentation() bool {
-	if x != nil {
-		return x.IncludeDocumentation
-	}
-	return false
-}
-
-type GetAssetURLsRequest struct {
+type GetManifestsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// At most 100.
-	Artifacts     []*ArtifactRef `protobuf:"bytes,1,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	Artifacts     []*ManifestRef `protobuf:"bytes,1,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetAssetURLsRequest) Reset() {
-	*x = GetAssetURLsRequest{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[59]
+func (x *GetManifestsRequest) Reset() {
+	*x = GetManifestsRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetAssetURLsRequest) String() string {
+func (x *GetManifestsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetAssetURLsRequest) ProtoMessage() {}
+func (*GetManifestsRequest) ProtoMessage() {}
 
-func (x *GetAssetURLsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[59]
+func (x *GetManifestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3663,84 +4255,24 @@ func (x *GetAssetURLsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAssetURLsRequest.ProtoReflect.Descriptor instead.
-func (*GetAssetURLsRequest) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{59}
+// Deprecated: Use GetManifestsRequest.ProtoReflect.Descriptor instead.
+func (*GetManifestsRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{68}
 }
 
-func (x *GetAssetURLsRequest) GetArtifacts() []*ArtifactRef {
+func (x *GetManifestsRequest) GetArtifacts() []*ManifestRef {
 	if x != nil {
 		return x.Artifacts
 	}
 	return nil
 }
 
-type SignedAsset struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Filename      string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
-	Sha256        string                 `protobuf:"bytes,2,opt,name=sha256,proto3" json:"sha256,omitempty"`
-	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SignedAsset) Reset() {
-	*x = SignedAsset{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[60]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SignedAsset) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SignedAsset) ProtoMessage() {}
-
-func (x *SignedAsset) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[60]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SignedAsset.ProtoReflect.Descriptor instead.
-func (*SignedAsset) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{60}
-}
-
-func (x *SignedAsset) GetFilename() string {
-	if x != nil {
-		return x.Filename
-	}
-	return ""
-}
-
-func (x *SignedAsset) GetSha256() string {
-	if x != nil {
-		return x.Sha256
-	}
-	return ""
-}
-
-func (x *SignedAsset) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-type ArtifactAssetURLs struct {
+type ArtifactManifest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
 	// Full artifact name in reverse-domain notation.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// The resolved version.
+	// The version, normalised to the hub's v-prefixed form.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	// Raw manifest bytes.
 	Manifest []byte `protobuf:"bytes,4,opt,name=manifest,proto3" json:"manifest,omitempty"`
@@ -3753,34 +4285,39 @@ type ArtifactAssetURLs struct {
 	SigningIdentity string `protobuf:"bytes,6,opt,name=signing_identity,json=signingIdentity,proto3" json:"signing_identity,omitempty"`
 	// Raw 32-byte Ed25519 public key of the signing publishing key.
 	PublicKey []byte `protobuf:"bytes,7,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	// Current status of the signing key. A manifest signed by a key that is
-	// no longer PUBLISHING_KEY_STATUS_ACTIVE must not be trusted even if the
-	// signature verifies.
+	// Current status of the signing key. A manifest signed by a deactivated
+	// key is not to be picked up, and one signed by a revoked key is a
+	// forgery, even if the signature verifies.
 	KeyStatus PublishingKeyStatus `protobuf:"varint,8,opt,name=key_status,json=keyStatus,proto3,enum=elephant.hub.v1.PublishingKeyStatus" json:"key_status,omitempty"`
-	Assets    []*SignedAsset      `protobuf:"bytes,9,rep,name=assets,proto3" json:"assets,omitempty"`
+	// Whether the version has been revoked. A revoked version's assets are
+	// not served.
+	Revoked bool `protobuf:"varint,9,opt,name=revoked,proto3" json:"revoked,omitempty"`
+	// The version's stored assets, the manifest's assets list as the hub
+	// holds it.
+	Assets []*AssetInfo `protobuf:"bytes,10,rep,name=assets,proto3" json:"assets,omitempty"`
 	// Set instead of the fields above when this artifact could not be
 	// resolved; the other entries are unaffected.
-	Error         AssetURLError `protobuf:"varint,10,opt,name=error,proto3,enum=elephant.hub.v1.AssetURLError" json:"error,omitempty"`
-	ErrorMessage  string        `protobuf:"bytes,11,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	Error         ManifestError `protobuf:"varint,11,opt,name=error,proto3,enum=elephant.hub.v1.ManifestError" json:"error,omitempty"`
+	ErrorMessage  string        `protobuf:"bytes,12,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ArtifactAssetURLs) Reset() {
-	*x = ArtifactAssetURLs{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[61]
+func (x *ArtifactManifest) Reset() {
+	*x = ArtifactManifest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ArtifactAssetURLs) String() string {
+func (x *ArtifactManifest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ArtifactAssetURLs) ProtoMessage() {}
+func (*ArtifactManifest) ProtoMessage() {}
 
-func (x *ArtifactAssetURLs) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[61]
+func (x *ArtifactManifest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3791,115 +4328,121 @@ func (x *ArtifactAssetURLs) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ArtifactAssetURLs.ProtoReflect.Descriptor instead.
-func (*ArtifactAssetURLs) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{61}
+// Deprecated: Use ArtifactManifest.ProtoReflect.Descriptor instead.
+func (*ArtifactManifest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{69}
 }
 
-func (x *ArtifactAssetURLs) GetKind() ArtifactKind {
+func (x *ArtifactManifest) GetKind() ArtifactKind {
 	if x != nil {
 		return x.Kind
 	}
 	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
 }
 
-func (x *ArtifactAssetURLs) GetName() string {
+func (x *ArtifactManifest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *ArtifactAssetURLs) GetVersion() string {
+func (x *ArtifactManifest) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *ArtifactAssetURLs) GetManifest() []byte {
+func (x *ArtifactManifest) GetManifest() []byte {
 	if x != nil {
 		return x.Manifest
 	}
 	return nil
 }
 
-func (x *ArtifactAssetURLs) GetSignature() []byte {
+func (x *ArtifactManifest) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
 	}
 	return nil
 }
 
-func (x *ArtifactAssetURLs) GetSigningIdentity() string {
+func (x *ArtifactManifest) GetSigningIdentity() string {
 	if x != nil {
 		return x.SigningIdentity
 	}
 	return ""
 }
 
-func (x *ArtifactAssetURLs) GetPublicKey() []byte {
+func (x *ArtifactManifest) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
 	}
 	return nil
 }
 
-func (x *ArtifactAssetURLs) GetKeyStatus() PublishingKeyStatus {
+func (x *ArtifactManifest) GetKeyStatus() PublishingKeyStatus {
 	if x != nil {
 		return x.KeyStatus
 	}
 	return PublishingKeyStatus_PUBLISHING_KEY_STATUS_UNSPECIFIED
 }
 
-func (x *ArtifactAssetURLs) GetAssets() []*SignedAsset {
+func (x *ArtifactManifest) GetRevoked() bool {
+	if x != nil {
+		return x.Revoked
+	}
+	return false
+}
+
+func (x *ArtifactManifest) GetAssets() []*AssetInfo {
 	if x != nil {
 		return x.Assets
 	}
 	return nil
 }
 
-func (x *ArtifactAssetURLs) GetError() AssetURLError {
+func (x *ArtifactManifest) GetError() ManifestError {
 	if x != nil {
 		return x.Error
 	}
-	return AssetURLError_ASSET_URL_ERROR_UNSPECIFIED
+	return ManifestError_MANIFEST_ERROR_UNSPECIFIED
 }
 
-func (x *ArtifactAssetURLs) GetErrorMessage() string {
+func (x *ArtifactManifest) GetErrorMessage() string {
 	if x != nil {
 		return x.ErrorMessage
 	}
 	return ""
 }
 
-type GetAssetURLsResponse struct {
+type GetManifestsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// RFC 3339: the earliest expiry among the URLs in this response, so
-	// every URL in it is valid at least until then. Individual URLs may
-	// outlive it by the time the hub took to mint the set. Empty when
-	// nothing was minted, which is the case when every artifact failed.
-	ExpiresAt     string               `protobuf:"bytes,1,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	Artifacts     []*ArtifactAssetURLs `protobuf:"bytes,2,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	// In the order of the request.
+	Artifacts []*ArtifactManifest `protobuf:"bytes,1,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	// The GetAccessChanges cursor as of the snapshot the manifests were read
+	// in. Following the feed from it misses no change to them.
+	AccessCursor  int64 `protobuf:"varint,2,opt,name=access_cursor,json=accessCursor,proto3" json:"access_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetAssetURLsResponse) Reset() {
-	*x = GetAssetURLsResponse{}
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[62]
+func (x *GetManifestsResponse) Reset() {
+	*x = GetManifestsResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetAssetURLsResponse) String() string {
+func (x *GetManifestsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetAssetURLsResponse) ProtoMessage() {}
+func (*GetManifestsResponse) ProtoMessage() {}
 
-func (x *GetAssetURLsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_elephant_hub_v1_service_proto_msgTypes[62]
+func (x *GetManifestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3910,23 +4453,393 @@ func (x *GetAssetURLsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAssetURLsResponse.ProtoReflect.Descriptor instead.
-func (*GetAssetURLsResponse) Descriptor() ([]byte, []int) {
-	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{62}
+// Deprecated: Use GetManifestsResponse.ProtoReflect.Descriptor instead.
+func (*GetManifestsResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{70}
 }
 
-func (x *GetAssetURLsResponse) GetExpiresAt() string {
-	if x != nil {
-		return x.ExpiresAt
-	}
-	return ""
-}
-
-func (x *GetAssetURLsResponse) GetArtifacts() []*ArtifactAssetURLs {
+func (x *GetManifestsResponse) GetArtifacts() []*ArtifactManifest {
 	if x != nil {
 		return x.Artifacts
 	}
 	return nil
+}
+
+func (x *GetManifestsResponse) GetAccessCursor() int64 {
+	if x != nil {
+		return x.AccessCursor
+	}
+	return 0
+}
+
+type GetAssetRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  ArtifactKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
+	// Full artifact name in reverse-domain notation.
+	Name    string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	// The asset's role in the manifest, e.g. "js" or "mirror".
+	Role string `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	// The asset's file, as the manifest names it. Required for a role that
+	// repeats, such as "documentation"; optional otherwise, and checked
+	// against the asset when given.
+	File          string `protobuf:"bytes,5,opt,name=file,proto3" json:"file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssetRequest) Reset() {
+	*x = GetAssetRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssetRequest) ProtoMessage() {}
+
+func (x *GetAssetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssetRequest.ProtoReflect.Descriptor instead.
+func (*GetAssetRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *GetAssetRequest) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *GetAssetRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GetAssetRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *GetAssetRequest) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *GetAssetRequest) GetFile() string {
+	if x != nil {
+		return x.File
+	}
+	return ""
+}
+
+// One chunk of an asset. The first message carries the asset's metadata
+// as well as the first chunk of data; the others carry data only.
+type GetAssetResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	File  string                 `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
+	Role  string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	// Hex SHA-256 of the whole asset, as the manifest declares it.
+	Sha256 string `protobuf:"bytes,3,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	// Size of the whole asset in bytes.
+	Size          int64  `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
+	Data          []byte `protobuf:"bytes,5,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssetResponse) Reset() {
+	*x = GetAssetResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssetResponse) ProtoMessage() {}
+
+func (x *GetAssetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssetResponse.ProtoReflect.Descriptor instead.
+func (*GetAssetResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *GetAssetResponse) GetFile() string {
+	if x != nil {
+		return x.File
+	}
+	return ""
+}
+
+func (x *GetAssetResponse) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *GetAssetResponse) GetSha256() string {
+	if x != nil {
+		return x.Sha256
+	}
+	return ""
+}
+
+func (x *GetAssetResponse) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *GetAssetResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type GetAccessChangesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Return changes after this position: zero for the start of the feed, or
+	// the cursor of a previous response or of GetManifests.
+	After int64 `protobuf:"varint,1,opt,name=after,proto3" json:"after,omitempty"`
+	// At most this many changes. Zero, or more than the hub's limit, takes
+	// the hub's limit.
+	Limit         int32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAccessChangesRequest) Reset() {
+	*x = GetAccessChangesRequest{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAccessChangesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAccessChangesRequest) ProtoMessage() {}
+
+func (x *GetAccessChangesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAccessChangesRequest.ProtoReflect.Descriptor instead.
+func (*GetAccessChangesRequest) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *GetAccessChangesRequest) GetAfter() int64 {
+	if x != nil {
+		return x.After
+	}
+	return 0
+}
+
+func (x *GetAccessChangesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type AccessChange struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Position in the feed.
+	Id   int64            `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Type AccessChangeType `protobuf:"varint,2,opt,name=type,proto3,enum=elephant.hub.v1.AccessChangeType" json:"type,omitempty"`
+	// RFC 3339.
+	CreatedAt string `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// The artifact the change concerns. Unset for a publishing key change.
+	Kind ArtifactKind `protobuf:"varint,4,opt,name=kind,proto3,enum=elephant.hub.v1.ArtifactKind" json:"kind,omitempty"`
+	Name string       `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	// The revoked version, for ACCESS_CHANGE_TYPE_VERSION_REVOKED.
+	Version string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	// The key's fingerprint in SSH SHA256 form, for a publishing key change.
+	Fingerprint   string `protobuf:"bytes,7,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessChange) Reset() {
+	*x = AccessChange{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessChange) ProtoMessage() {}
+
+func (x *AccessChange) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessChange.ProtoReflect.Descriptor instead.
+func (*AccessChange) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *AccessChange) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *AccessChange) GetType() AccessChangeType {
+	if x != nil {
+		return x.Type
+	}
+	return AccessChangeType_ACCESS_CHANGE_TYPE_UNSPECIFIED
+}
+
+func (x *AccessChange) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *AccessChange) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *AccessChange) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AccessChange) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *AccessChange) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+type GetAccessChangesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// In feed order.
+	Changes []*AccessChange `protobuf:"bytes,1,rep,name=changes,proto3" json:"changes,omitempty"`
+	// Where to continue from. It may be past the last change returned, since
+	// changes the caller cannot see are skipped, and it is the request's
+	// cursor when nothing has happened.
+	Cursor        int64 `protobuf:"varint,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAccessChangesResponse) Reset() {
+	*x = GetAccessChangesResponse{}
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAccessChangesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAccessChangesResponse) ProtoMessage() {}
+
+func (x *GetAccessChangesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_elephant_hub_v1_service_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAccessChangesResponse.ProtoReflect.Descriptor instead.
+func (*GetAccessChangesResponse) Descriptor() ([]byte, []int) {
+	return file_elephant_hub_v1_service_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *GetAccessChangesResponse) GetChanges() []*AccessChange {
+	if x != nil {
+		return x.Changes
+	}
+	return nil
+}
+
+func (x *GetAccessChangesResponse) GetCursor() int64 {
+	if x != nil {
+		return x.Cursor
+	}
+	return 0
 }
 
 var File_elephant_hub_v1_service_proto protoreflect.FileDescriptor
@@ -3960,10 +4873,12 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x10signing_identity\x18\x04 \x01(\tR\x0fsigningIdentity\x12\x18\n" +
 	"\arevoked\x18\x05 \x01(\bR\arevoked\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\tR\tcreatedAt\"?\n" +
+	"created_at\x18\x06 \x01(\tR\tcreatedAt\"g\n" +
 	"\tAssetInfo\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x16\n" +
-	"\x06sha256\x18\x02 \x01(\tR\x06sha256\"\xc1\x01\n" +
+	"\x06sha256\x18\x02 \x01(\tR\x06sha256\x12\x12\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role\x12\x12\n" +
+	"\x04size\x18\x04 \x01(\x03R\x04size\"\xc1\x01\n" +
 	"\x11PublishingKeyInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12 \n" +
 	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12\x1d\n" +
@@ -4029,7 +4944,7 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x18GetDocumentationResponse\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x16\n" +
 	"\x06sha256\x18\x02 \x01(\tR\x06sha256\x12\x12\n" +
-	"\x04data\x18\x03 \x01(\fR\x04data\"\xdb\x02\n" +
+	"\x04data\x18\x03 \x01(\fR\x04data\"\xb7\x03\n" +
 	"\x15PublishVersionRequest\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -4038,7 +4953,10 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x0esignature_type\x18\x05 \x01(\x0e2\x1e.elephant.hub.v1.SignatureTypeR\rsignatureType\x12\x1c\n" +
 	"\tsignature\x18\x06 \x01(\fR\tsignature\x12)\n" +
 	"\x10signing_identity\x18\a \x01(\tR\x0fsigningIdentity\x125\n" +
-	"\x06assets\x18\b \x03(\v2\x1d.elephant.hub.v1.PublishAssetR\x06assets\"7\n" +
+	"\x06assets\x18\b \x03(\v2\x1d.elephant.hub.v1.PublishAssetR\x06assets\x12+\n" +
+	"\x11contract_document\x18\t \x01(\fR\x10contractDocument\x12-\n" +
+	"\x12contract_signature\x18\n" +
+	" \x01(\fR\x11contractSignature\"7\n" +
 	"\x16PublishVersionResponse\x12\x1d\n" +
 	"\n" +
 	"version_id\x18\x01 \x01(\x03R\tversionId\"\xc9\x01\n" +
@@ -4116,7 +5034,28 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06public\x18\x03 \x01(\bR\x06public\"\x1f\n" +
-	"\x1dSetArtifactVisibilityResponse\"\x90\x01\n" +
+	"\x1dSetArtifactVisibilityResponse\"q\n" +
+	"\rArtifactGrant\x12\"\n" +
+	"\forganisation\x18\x01 \x01(\tR\forganisation\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x02 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"granted_by\x18\x03 \x01(\tR\tgrantedBy\"\x84\x01\n" +
+	"\x17AddArtifactGrantRequest\x121\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\"\n" +
+	"\forganisation\x18\x03 \x01(\tR\forganisation\"\x1a\n" +
+	"\x18AddArtifactGrantResponse\"\x87\x01\n" +
+	"\x1aRemoveArtifactGrantRequest\x121\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\"\n" +
+	"\forganisation\x18\x03 \x01(\tR\forganisation\"\x1d\n" +
+	"\x1bRemoveArtifactGrantResponse\"b\n" +
+	"\x19ListArtifactGrantsRequest\x121\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"T\n" +
+	"\x1aListArtifactGrantsResponse\x126\n" +
+	"\x06grants\x18\x01 \x03(\v2\x1e.elephant.hub.v1.ArtifactGrantR\x06grants\"\x90\x01\n" +
 	"\x10OIDCProviderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x129\n" +
@@ -4144,19 +5083,22 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\aexisted\x18\x03 \x01(\bR\aexisted\"\x1c\n" +
 	"\x1aGetLatestGenerationRequest\"5\n" +
 	"\x1bGetLatestGenerationResponse\x12\x16\n" +
-	"\x06number\x18\x01 \x01(\x03R\x06number\"\xa3\x01\n" +
-	"\vArtifactRef\x121\n" +
+	"\x06number\x18\x01 \x01(\x03R\x06number\"K\n" +
+	"\x14GetGenerationRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x16\n" +
+	"\x06number\x18\x02 \x01(\x03R\x06number\"\xa7\x01\n" +
+	"\x15GetGenerationResponse\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x16\n" +
+	"\x06number\x18\x02 \x01(\x03R\x06number\x12#\n" +
+	"\rregistered_at\x18\x03 \x01(\tR\fregisteredAt\x124\n" +
+	"\aschemas\x18\x04 \x03(\v2\x1a.elephant.hub.v1.SchemaRefR\aschemas\"n\n" +
+	"\vManifestRef\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x123\n" +
-	"\x15include_documentation\x18\x04 \x01(\bR\x14includeDocumentation\"Q\n" +
-	"\x13GetAssetURLsRequest\x12:\n" +
-	"\tartifacts\x18\x01 \x03(\v2\x1c.elephant.hub.v1.ArtifactRefR\tartifacts\"S\n" +
-	"\vSignedAsset\x12\x1a\n" +
-	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x16\n" +
-	"\x06sha256\x18\x02 \x01(\tR\x06sha256\x12\x10\n" +
-	"\x03url\x18\x03 \x01(\tR\x03url\"\xce\x03\n" +
-	"\x11ArtifactAssetURLs\x121\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"Q\n" +
+	"\x13GetManifestsRequest\x12:\n" +
+	"\tartifacts\x18\x01 \x03(\v2\x1c.elephant.hub.v1.ManifestRefR\tartifacts\"\xe5\x03\n" +
+	"\x10ArtifactManifest\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1a\n" +
@@ -4166,23 +5108,49 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"public_key\x18\a \x01(\fR\tpublicKey\x12C\n" +
 	"\n" +
-	"key_status\x18\b \x01(\x0e2$.elephant.hub.v1.PublishingKeyStatusR\tkeyStatus\x124\n" +
-	"\x06assets\x18\t \x03(\v2\x1c.elephant.hub.v1.SignedAssetR\x06assets\x124\n" +
-	"\x05error\x18\n" +
-	" \x01(\x0e2\x1e.elephant.hub.v1.AssetURLErrorR\x05error\x12#\n" +
-	"\rerror_message\x18\v \x01(\tR\ferrorMessage\"w\n" +
-	"\x14GetAssetURLsResponse\x12\x1d\n" +
+	"key_status\x18\b \x01(\x0e2$.elephant.hub.v1.PublishingKeyStatusR\tkeyStatus\x12\x18\n" +
+	"\arevoked\x18\t \x01(\bR\arevoked\x122\n" +
+	"\x06assets\x18\n" +
+	" \x03(\v2\x1a.elephant.hub.v1.AssetInfoR\x06assets\x124\n" +
+	"\x05error\x18\v \x01(\x0e2\x1e.elephant.hub.v1.ManifestErrorR\x05error\x12#\n" +
+	"\rerror_message\x18\f \x01(\tR\ferrorMessage\"|\n" +
+	"\x14GetManifestsResponse\x12?\n" +
+	"\tartifacts\x18\x01 \x03(\v2!.elephant.hub.v1.ArtifactManifestR\tartifacts\x12#\n" +
+	"\raccess_cursor\x18\x02 \x01(\x03R\faccessCursor\"\x9a\x01\n" +
+	"\x0fGetAssetRequest\x121\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12\x12\n" +
+	"\x04file\x18\x05 \x01(\tR\x04file\"z\n" +
+	"\x10GetAssetResponse\x12\x12\n" +
+	"\x04file\x18\x01 \x01(\tR\x04file\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12\x16\n" +
+	"\x06sha256\x18\x03 \x01(\tR\x06sha256\x12\x12\n" +
+	"\x04size\x18\x04 \x01(\x03R\x04size\x12\x12\n" +
+	"\x04data\x18\x05 \x01(\fR\x04data\"E\n" +
+	"\x17GetAccessChangesRequest\x12\x14\n" +
+	"\x05after\x18\x01 \x01(\x03R\x05after\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\xf7\x01\n" +
+	"\fAccessChange\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x125\n" +
+	"\x04type\x18\x02 \x01(\x0e2!.elephant.hub.v1.AccessChangeTypeR\x04type\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\x01 \x01(\tR\texpiresAt\x12@\n" +
-	"\tartifacts\x18\x02 \x03(\v2\".elephant.hub.v1.ArtifactAssetURLsR\tartifacts*a\n" +
+	"created_at\x18\x03 \x01(\tR\tcreatedAt\x121\n" +
+	"\x04kind\x18\x04 \x01(\x0e2\x1d.elephant.hub.v1.ArtifactKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x06 \x01(\tR\aversion\x12 \n" +
+	"\vfingerprint\x18\a \x01(\tR\vfingerprint\"k\n" +
+	"\x18GetAccessChangesResponse\x127\n" +
+	"\achanges\x18\x01 \x03(\v2\x1d.elephant.hub.v1.AccessChangeR\achanges\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\x03R\x06cursor*a\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14ARTIFACT_KIND_SCHEMA\x10\x01\x12\x18\n" +
-	"\x14ARTIFACT_KIND_PLUGIN\x10\x02*o\n" +
+	"\x14ARTIFACT_KIND_PLUGIN\x10\x02*q\n" +
 	"\rSignatureType\x12\x1e\n" +
 	"\x1aSIGNATURE_TYPE_UNSPECIFIED\x10\x00\x12!\n" +
-	"\x1dSIGNATURE_TYPE_PUBLISHING_KEY\x10\x01\x12\x1b\n" +
-	"\x17SIGNATURE_TYPE_SIGSTORE\x10\x02*\x9e\x01\n" +
+	"\x1dSIGNATURE_TYPE_PUBLISHING_KEY\x10\x01\"\x04\b\x02\x10\x02*\x17SIGNATURE_TYPE_SIGSTORE*\x9e\x01\n" +
 	"\tForgeType\x12\x1a\n" +
 	"\x16FORGE_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11FORGE_TYPE_GITHUB\x10\x01\x12\x15\n" +
@@ -4201,13 +5169,22 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x16SCHEMA_USAGE_EDITORIAL\x10\x01\x12\x1d\n" +
 	"\x19SCHEMA_USAGE_DISTRIBUTION\x10\x02\x12\x19\n" +
 	"\x15SCHEMA_USAGE_SETTINGS\x10\x03\x12\x19\n" +
-	"\x15SCHEMA_USAGE_MESSAGES\x10\x04*\xa8\x01\n" +
-	"\rAssetURLError\x12\x1f\n" +
-	"\x1bASSET_URL_ERROR_UNSPECIFIED\x10\x00\x12\x1d\n" +
-	"\x19ASSET_URL_ERROR_NOT_FOUND\x10\x01\x12\x1d\n" +
-	"\x19ASSET_URL_ERROR_FORBIDDEN\x10\x02\x12\x1b\n" +
-	"\x17ASSET_URL_ERROR_REVOKED\x10\x03\x12\x1b\n" +
-	"\x17ASSET_URL_ERROR_INVALID\x10\x042\xb8\x13\n" +
+	"\x15SCHEMA_USAGE_MESSAGES\x10\x04*\x87\x01\n" +
+	"\rManifestError\x12\x1e\n" +
+	"\x1aMANIFEST_ERROR_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18MANIFEST_ERROR_NOT_FOUND\x10\x01\x12\x1c\n" +
+	"\x18MANIFEST_ERROR_FORBIDDEN\x10\x02\x12\x1a\n" +
+	"\x16MANIFEST_ERROR_INVALID\x10\x03*\xf9\x02\n" +
+	"\x10AccessChangeType\x12\"\n" +
+	"\x1eACCESS_CHANGE_TYPE_UNSPECIFIED\x10\x00\x12&\n" +
+	"\"ACCESS_CHANGE_TYPE_VERSION_REVOKED\x10\x01\x12&\n" +
+	"\"ACCESS_CHANGE_TYPE_KEY_DEACTIVATED\x10\x02\x12&\n" +
+	"\"ACCESS_CHANGE_TYPE_KEY_REACTIVATED\x10\x03\x12\"\n" +
+	"\x1eACCESS_CHANGE_TYPE_KEY_REVOKED\x10\x04\x12,\n" +
+	"(ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PRIVATE\x10\x05\x12+\n" +
+	"'ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PUBLIC\x10\x06\x12\"\n" +
+	"\x1eACCESS_CHANGE_TYPE_GRANT_ADDED\x10\a\x12&\n" +
+	"\"ACCESS_CHANGE_TYPE_GRANT_WITHDRAWN\x10\b2\x82\x16\n" +
 	"\n" +
 	"HubService\x12j\n" +
 	"\x11ListOrganisations\x12).elephant.hub.v1.ListOrganisationsRequest\x1a*.elephant.hub.v1.ListOrganisationsResponse\x12p\n" +
@@ -4231,11 +5208,17 @@ const file_elephant_hub_v1_service_proto_rawDesc = "" +
 	"\x17AddAllowedPublishingKey\x12/.elephant.hub.v1.AddAllowedPublishingKeyRequest\x1a0.elephant.hub.v1.AddAllowedPublishingKeyResponse\x12\x85\x01\n" +
 	"\x1aRemoveAllowedPublishingKey\x122.elephant.hub.v1.RemoveAllowedPublishingKeyRequest\x1a3.elephant.hub.v1.RemoveAllowedPublishingKeyResponse\x12|\n" +
 	"\x17ListArtifactPermissions\x12/.elephant.hub.v1.ListArtifactPermissionsRequest\x1a0.elephant.hub.v1.ListArtifactPermissionsResponse\x12v\n" +
-	"\x15SetArtifactVisibility\x12-.elephant.hub.v1.SetArtifactVisibilityRequest\x1a..elephant.hub.v1.SetArtifactVisibilityResponse2\xcd\x02\n" +
+	"\x15SetArtifactVisibility\x12-.elephant.hub.v1.SetArtifactVisibilityRequest\x1a..elephant.hub.v1.SetArtifactVisibilityResponse\x12g\n" +
+	"\x10AddArtifactGrant\x12(.elephant.hub.v1.AddArtifactGrantRequest\x1a).elephant.hub.v1.AddArtifactGrantResponse\x12p\n" +
+	"\x13RemoveArtifactGrant\x12+.elephant.hub.v1.RemoveArtifactGrantRequest\x1a,.elephant.hub.v1.RemoveArtifactGrantResponse\x12m\n" +
+	"\x12ListArtifactGrants\x12*.elephant.hub.v1.ListArtifactGrantsRequest\x1a+.elephant.hub.v1.ListArtifactGrantsResponse2\xe9\x04\n" +
 	"\rClientService\x12m\n" +
 	"\x12RegisterGeneration\x12*.elephant.hub.v1.RegisterGenerationRequest\x1a+.elephant.hub.v1.RegisterGenerationResponse\x12p\n" +
-	"\x13GetLatestGeneration\x12+.elephant.hub.v1.GetLatestGenerationRequest\x1a,.elephant.hub.v1.GetLatestGenerationResponse\x12[\n" +
-	"\fGetAssetURLs\x12$.elephant.hub.v1.GetAssetURLsRequest\x1a%.elephant.hub.v1.GetAssetURLsResponseB;Z9github.com/ttab/elephant-public-api/elephant/hub/v1;hubv1b\x06proto3"
+	"\x13GetLatestGeneration\x12+.elephant.hub.v1.GetLatestGenerationRequest\x1a,.elephant.hub.v1.GetLatestGenerationResponse\x12^\n" +
+	"\rGetGeneration\x12%.elephant.hub.v1.GetGenerationRequest\x1a&.elephant.hub.v1.GetGenerationResponse\x12[\n" +
+	"\fGetManifests\x12$.elephant.hub.v1.GetManifestsRequest\x1a%.elephant.hub.v1.GetManifestsResponse\x12Q\n" +
+	"\bGetAsset\x12 .elephant.hub.v1.GetAssetRequest\x1a!.elephant.hub.v1.GetAssetResponse0\x01\x12g\n" +
+	"\x10GetAccessChanges\x12(.elephant.hub.v1.GetAccessChangesRequest\x1a).elephant.hub.v1.GetAccessChangesResponseB;Z9github.com/ttab/elephant-public-api/elephant/hub/v1;hubv1b\x06proto3"
 
 var (
 	file_elephant_hub_v1_service_proto_rawDescOnce sync.Once
@@ -4249,179 +5232,214 @@ func file_elephant_hub_v1_service_proto_rawDescGZIP() []byte {
 	return file_elephant_hub_v1_service_proto_rawDescData
 }
 
-var file_elephant_hub_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_elephant_hub_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_elephant_hub_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_elephant_hub_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 76)
 var file_elephant_hub_v1_service_proto_goTypes = []any{
 	(ArtifactKind)(0),                          // 0: elephant.hub.v1.ArtifactKind
 	(SignatureType)(0),                         // 1: elephant.hub.v1.SignatureType
 	(ForgeType)(0),                             // 2: elephant.hub.v1.ForgeType
 	(PublishingKeyStatus)(0),                   // 3: elephant.hub.v1.PublishingKeyStatus
 	(SchemaUsage)(0),                           // 4: elephant.hub.v1.SchemaUsage
-	(AssetURLError)(0),                         // 5: elephant.hub.v1.AssetURLError
-	(*Organisation)(nil),                       // 6: elephant.hub.v1.Organisation
-	(*ArtifactInfo)(nil),                       // 7: elephant.hub.v1.ArtifactInfo
-	(*VersionInfo)(nil),                        // 8: elephant.hub.v1.VersionInfo
-	(*AssetInfo)(nil),                          // 9: elephant.hub.v1.AssetInfo
-	(*PublishingKeyInfo)(nil),                  // 10: elephant.hub.v1.PublishingKeyInfo
-	(*PublishAsset)(nil),                       // 11: elephant.hub.v1.PublishAsset
-	(*ListOrganisationsRequest)(nil),           // 12: elephant.hub.v1.ListOrganisationsRequest
-	(*ListOrganisationsResponse)(nil),          // 13: elephant.hub.v1.ListOrganisationsResponse
-	(*ApproveOrganisationRequest)(nil),         // 14: elephant.hub.v1.ApproveOrganisationRequest
-	(*ApproveOrganisationResponse)(nil),        // 15: elephant.hub.v1.ApproveOrganisationResponse
-	(*ListArtifactsRequest)(nil),               // 16: elephant.hub.v1.ListArtifactsRequest
-	(*ListArtifactsResponse)(nil),              // 17: elephant.hub.v1.ListArtifactsResponse
-	(*GetArtifactRequest)(nil),                 // 18: elephant.hub.v1.GetArtifactRequest
-	(*GetArtifactResponse)(nil),                // 19: elephant.hub.v1.GetArtifactResponse
-	(*GetArtifactVersionRequest)(nil),          // 20: elephant.hub.v1.GetArtifactVersionRequest
-	(*GetArtifactVersionResponse)(nil),         // 21: elephant.hub.v1.GetArtifactVersionResponse
-	(*GetArtifactAssetRequest)(nil),            // 22: elephant.hub.v1.GetArtifactAssetRequest
-	(*GetArtifactAssetResponse)(nil),           // 23: elephant.hub.v1.GetArtifactAssetResponse
-	(*ListDocumentationRequest)(nil),           // 24: elephant.hub.v1.ListDocumentationRequest
-	(*ListDocumentationResponse)(nil),          // 25: elephant.hub.v1.ListDocumentationResponse
-	(*GetDocumentationRequest)(nil),            // 26: elephant.hub.v1.GetDocumentationRequest
-	(*GetDocumentationResponse)(nil),           // 27: elephant.hub.v1.GetDocumentationResponse
-	(*PublishVersionRequest)(nil),              // 28: elephant.hub.v1.PublishVersionRequest
-	(*PublishVersionResponse)(nil),             // 29: elephant.hub.v1.PublishVersionResponse
-	(*BulkPublishItem)(nil),                    // 30: elephant.hub.v1.BulkPublishItem
-	(*BulkPublishVersionRequest)(nil),          // 31: elephant.hub.v1.BulkPublishVersionRequest
-	(*BulkPublishVersionResponse)(nil),         // 32: elephant.hub.v1.BulkPublishVersionResponse
-	(*RevokeVersionRequest)(nil),               // 33: elephant.hub.v1.RevokeVersionRequest
-	(*RevokeVersionResponse)(nil),              // 34: elephant.hub.v1.RevokeVersionResponse
-	(*RegisterPublishingKeyRequest)(nil),       // 35: elephant.hub.v1.RegisterPublishingKeyRequest
-	(*RegisterPublishingKeyResponse)(nil),      // 36: elephant.hub.v1.RegisterPublishingKeyResponse
-	(*RegisterOrgPublishingKeyRequest)(nil),    // 37: elephant.hub.v1.RegisterOrgPublishingKeyRequest
-	(*RegisterOrgPublishingKeyResponse)(nil),   // 38: elephant.hub.v1.RegisterOrgPublishingKeyResponse
-	(*ListPublishingKeysRequest)(nil),          // 39: elephant.hub.v1.ListPublishingKeysRequest
-	(*ListPublishingKeysResponse)(nil),         // 40: elephant.hub.v1.ListPublishingKeysResponse
-	(*GetPublishingKeyRequest)(nil),            // 41: elephant.hub.v1.GetPublishingKeyRequest
-	(*GetPublishingKeyResponse)(nil),           // 42: elephant.hub.v1.GetPublishingKeyResponse
-	(*DeactivatePublishingKeyRequest)(nil),     // 43: elephant.hub.v1.DeactivatePublishingKeyRequest
-	(*DeactivatePublishingKeyResponse)(nil),    // 44: elephant.hub.v1.DeactivatePublishingKeyResponse
-	(*ActivatePublishingKeyRequest)(nil),       // 45: elephant.hub.v1.ActivatePublishingKeyRequest
-	(*ActivatePublishingKeyResponse)(nil),      // 46: elephant.hub.v1.ActivatePublishingKeyResponse
-	(*RevokePublishingKeyRequest)(nil),         // 47: elephant.hub.v1.RevokePublishingKeyRequest
-	(*RevokePublishingKeyResponse)(nil),        // 48: elephant.hub.v1.RevokePublishingKeyResponse
-	(*AddAllowedPublishingKeyRequest)(nil),     // 49: elephant.hub.v1.AddAllowedPublishingKeyRequest
-	(*AddAllowedPublishingKeyResponse)(nil),    // 50: elephant.hub.v1.AddAllowedPublishingKeyResponse
-	(*RemoveAllowedPublishingKeyRequest)(nil),  // 51: elephant.hub.v1.RemoveAllowedPublishingKeyRequest
-	(*RemoveAllowedPublishingKeyResponse)(nil), // 52: elephant.hub.v1.RemoveAllowedPublishingKeyResponse
-	(*ListArtifactPermissionsRequest)(nil),     // 53: elephant.hub.v1.ListArtifactPermissionsRequest
-	(*ListArtifactPermissionsResponse)(nil),    // 54: elephant.hub.v1.ListArtifactPermissionsResponse
-	(*SetArtifactVisibilityRequest)(nil),       // 55: elephant.hub.v1.SetArtifactVisibilityRequest
-	(*SetArtifactVisibilityResponse)(nil),      // 56: elephant.hub.v1.SetArtifactVisibilityResponse
-	(*OIDCProviderInfo)(nil),                   // 57: elephant.hub.v1.OIDCProviderInfo
-	(*ArtifactPublisherInfo)(nil),              // 58: elephant.hub.v1.ArtifactPublisherInfo
-	(*SchemaRef)(nil),                          // 59: elephant.hub.v1.SchemaRef
-	(*RegisterGenerationRequest)(nil),          // 60: elephant.hub.v1.RegisterGenerationRequest
-	(*RegisterGenerationResponse)(nil),         // 61: elephant.hub.v1.RegisterGenerationResponse
-	(*GetLatestGenerationRequest)(nil),         // 62: elephant.hub.v1.GetLatestGenerationRequest
-	(*GetLatestGenerationResponse)(nil),        // 63: elephant.hub.v1.GetLatestGenerationResponse
-	(*ArtifactRef)(nil),                        // 64: elephant.hub.v1.ArtifactRef
-	(*GetAssetURLsRequest)(nil),                // 65: elephant.hub.v1.GetAssetURLsRequest
-	(*SignedAsset)(nil),                        // 66: elephant.hub.v1.SignedAsset
-	(*ArtifactAssetURLs)(nil),                  // 67: elephant.hub.v1.ArtifactAssetURLs
-	(*GetAssetURLsResponse)(nil),               // 68: elephant.hub.v1.GetAssetURLsResponse
+	(ManifestError)(0),                         // 5: elephant.hub.v1.ManifestError
+	(AccessChangeType)(0),                      // 6: elephant.hub.v1.AccessChangeType
+	(*Organisation)(nil),                       // 7: elephant.hub.v1.Organisation
+	(*ArtifactInfo)(nil),                       // 8: elephant.hub.v1.ArtifactInfo
+	(*VersionInfo)(nil),                        // 9: elephant.hub.v1.VersionInfo
+	(*AssetInfo)(nil),                          // 10: elephant.hub.v1.AssetInfo
+	(*PublishingKeyInfo)(nil),                  // 11: elephant.hub.v1.PublishingKeyInfo
+	(*PublishAsset)(nil),                       // 12: elephant.hub.v1.PublishAsset
+	(*ListOrganisationsRequest)(nil),           // 13: elephant.hub.v1.ListOrganisationsRequest
+	(*ListOrganisationsResponse)(nil),          // 14: elephant.hub.v1.ListOrganisationsResponse
+	(*ApproveOrganisationRequest)(nil),         // 15: elephant.hub.v1.ApproveOrganisationRequest
+	(*ApproveOrganisationResponse)(nil),        // 16: elephant.hub.v1.ApproveOrganisationResponse
+	(*ListArtifactsRequest)(nil),               // 17: elephant.hub.v1.ListArtifactsRequest
+	(*ListArtifactsResponse)(nil),              // 18: elephant.hub.v1.ListArtifactsResponse
+	(*GetArtifactRequest)(nil),                 // 19: elephant.hub.v1.GetArtifactRequest
+	(*GetArtifactResponse)(nil),                // 20: elephant.hub.v1.GetArtifactResponse
+	(*GetArtifactVersionRequest)(nil),          // 21: elephant.hub.v1.GetArtifactVersionRequest
+	(*GetArtifactVersionResponse)(nil),         // 22: elephant.hub.v1.GetArtifactVersionResponse
+	(*GetArtifactAssetRequest)(nil),            // 23: elephant.hub.v1.GetArtifactAssetRequest
+	(*GetArtifactAssetResponse)(nil),           // 24: elephant.hub.v1.GetArtifactAssetResponse
+	(*ListDocumentationRequest)(nil),           // 25: elephant.hub.v1.ListDocumentationRequest
+	(*ListDocumentationResponse)(nil),          // 26: elephant.hub.v1.ListDocumentationResponse
+	(*GetDocumentationRequest)(nil),            // 27: elephant.hub.v1.GetDocumentationRequest
+	(*GetDocumentationResponse)(nil),           // 28: elephant.hub.v1.GetDocumentationResponse
+	(*PublishVersionRequest)(nil),              // 29: elephant.hub.v1.PublishVersionRequest
+	(*PublishVersionResponse)(nil),             // 30: elephant.hub.v1.PublishVersionResponse
+	(*BulkPublishItem)(nil),                    // 31: elephant.hub.v1.BulkPublishItem
+	(*BulkPublishVersionRequest)(nil),          // 32: elephant.hub.v1.BulkPublishVersionRequest
+	(*BulkPublishVersionResponse)(nil),         // 33: elephant.hub.v1.BulkPublishVersionResponse
+	(*RevokeVersionRequest)(nil),               // 34: elephant.hub.v1.RevokeVersionRequest
+	(*RevokeVersionResponse)(nil),              // 35: elephant.hub.v1.RevokeVersionResponse
+	(*RegisterPublishingKeyRequest)(nil),       // 36: elephant.hub.v1.RegisterPublishingKeyRequest
+	(*RegisterPublishingKeyResponse)(nil),      // 37: elephant.hub.v1.RegisterPublishingKeyResponse
+	(*RegisterOrgPublishingKeyRequest)(nil),    // 38: elephant.hub.v1.RegisterOrgPublishingKeyRequest
+	(*RegisterOrgPublishingKeyResponse)(nil),   // 39: elephant.hub.v1.RegisterOrgPublishingKeyResponse
+	(*ListPublishingKeysRequest)(nil),          // 40: elephant.hub.v1.ListPublishingKeysRequest
+	(*ListPublishingKeysResponse)(nil),         // 41: elephant.hub.v1.ListPublishingKeysResponse
+	(*GetPublishingKeyRequest)(nil),            // 42: elephant.hub.v1.GetPublishingKeyRequest
+	(*GetPublishingKeyResponse)(nil),           // 43: elephant.hub.v1.GetPublishingKeyResponse
+	(*DeactivatePublishingKeyRequest)(nil),     // 44: elephant.hub.v1.DeactivatePublishingKeyRequest
+	(*DeactivatePublishingKeyResponse)(nil),    // 45: elephant.hub.v1.DeactivatePublishingKeyResponse
+	(*ActivatePublishingKeyRequest)(nil),       // 46: elephant.hub.v1.ActivatePublishingKeyRequest
+	(*ActivatePublishingKeyResponse)(nil),      // 47: elephant.hub.v1.ActivatePublishingKeyResponse
+	(*RevokePublishingKeyRequest)(nil),         // 48: elephant.hub.v1.RevokePublishingKeyRequest
+	(*RevokePublishingKeyResponse)(nil),        // 49: elephant.hub.v1.RevokePublishingKeyResponse
+	(*AddAllowedPublishingKeyRequest)(nil),     // 50: elephant.hub.v1.AddAllowedPublishingKeyRequest
+	(*AddAllowedPublishingKeyResponse)(nil),    // 51: elephant.hub.v1.AddAllowedPublishingKeyResponse
+	(*RemoveAllowedPublishingKeyRequest)(nil),  // 52: elephant.hub.v1.RemoveAllowedPublishingKeyRequest
+	(*RemoveAllowedPublishingKeyResponse)(nil), // 53: elephant.hub.v1.RemoveAllowedPublishingKeyResponse
+	(*ListArtifactPermissionsRequest)(nil),     // 54: elephant.hub.v1.ListArtifactPermissionsRequest
+	(*ListArtifactPermissionsResponse)(nil),    // 55: elephant.hub.v1.ListArtifactPermissionsResponse
+	(*SetArtifactVisibilityRequest)(nil),       // 56: elephant.hub.v1.SetArtifactVisibilityRequest
+	(*SetArtifactVisibilityResponse)(nil),      // 57: elephant.hub.v1.SetArtifactVisibilityResponse
+	(*ArtifactGrant)(nil),                      // 58: elephant.hub.v1.ArtifactGrant
+	(*AddArtifactGrantRequest)(nil),            // 59: elephant.hub.v1.AddArtifactGrantRequest
+	(*AddArtifactGrantResponse)(nil),           // 60: elephant.hub.v1.AddArtifactGrantResponse
+	(*RemoveArtifactGrantRequest)(nil),         // 61: elephant.hub.v1.RemoveArtifactGrantRequest
+	(*RemoveArtifactGrantResponse)(nil),        // 62: elephant.hub.v1.RemoveArtifactGrantResponse
+	(*ListArtifactGrantsRequest)(nil),          // 63: elephant.hub.v1.ListArtifactGrantsRequest
+	(*ListArtifactGrantsResponse)(nil),         // 64: elephant.hub.v1.ListArtifactGrantsResponse
+	(*OIDCProviderInfo)(nil),                   // 65: elephant.hub.v1.OIDCProviderInfo
+	(*ArtifactPublisherInfo)(nil),              // 66: elephant.hub.v1.ArtifactPublisherInfo
+	(*SchemaRef)(nil),                          // 67: elephant.hub.v1.SchemaRef
+	(*RegisterGenerationRequest)(nil),          // 68: elephant.hub.v1.RegisterGenerationRequest
+	(*RegisterGenerationResponse)(nil),         // 69: elephant.hub.v1.RegisterGenerationResponse
+	(*GetLatestGenerationRequest)(nil),         // 70: elephant.hub.v1.GetLatestGenerationRequest
+	(*GetLatestGenerationResponse)(nil),        // 71: elephant.hub.v1.GetLatestGenerationResponse
+	(*GetGenerationRequest)(nil),               // 72: elephant.hub.v1.GetGenerationRequest
+	(*GetGenerationResponse)(nil),              // 73: elephant.hub.v1.GetGenerationResponse
+	(*ManifestRef)(nil),                        // 74: elephant.hub.v1.ManifestRef
+	(*GetManifestsRequest)(nil),                // 75: elephant.hub.v1.GetManifestsRequest
+	(*ArtifactManifest)(nil),                   // 76: elephant.hub.v1.ArtifactManifest
+	(*GetManifestsResponse)(nil),               // 77: elephant.hub.v1.GetManifestsResponse
+	(*GetAssetRequest)(nil),                    // 78: elephant.hub.v1.GetAssetRequest
+	(*GetAssetResponse)(nil),                   // 79: elephant.hub.v1.GetAssetResponse
+	(*GetAccessChangesRequest)(nil),            // 80: elephant.hub.v1.GetAccessChangesRequest
+	(*AccessChange)(nil),                       // 81: elephant.hub.v1.AccessChange
+	(*GetAccessChangesResponse)(nil),           // 82: elephant.hub.v1.GetAccessChangesResponse
 }
 var file_elephant_hub_v1_service_proto_depIdxs = []int32{
 	0,  // 0: elephant.hub.v1.ArtifactInfo.kind:type_name -> elephant.hub.v1.ArtifactKind
 	4,  // 1: elephant.hub.v1.ArtifactInfo.schema_usage:type_name -> elephant.hub.v1.SchemaUsage
 	1,  // 2: elephant.hub.v1.VersionInfo.signature_type:type_name -> elephant.hub.v1.SignatureType
 	3,  // 3: elephant.hub.v1.PublishingKeyInfo.status:type_name -> elephant.hub.v1.PublishingKeyStatus
-	6,  // 4: elephant.hub.v1.ListOrganisationsResponse.organisations:type_name -> elephant.hub.v1.Organisation
+	7,  // 4: elephant.hub.v1.ListOrganisationsResponse.organisations:type_name -> elephant.hub.v1.Organisation
 	0,  // 5: elephant.hub.v1.ListArtifactsRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
 	4,  // 6: elephant.hub.v1.ListArtifactsRequest.schema_usage:type_name -> elephant.hub.v1.SchemaUsage
-	7,  // 7: elephant.hub.v1.ListArtifactsResponse.artifacts:type_name -> elephant.hub.v1.ArtifactInfo
+	8,  // 7: elephant.hub.v1.ListArtifactsResponse.artifacts:type_name -> elephant.hub.v1.ArtifactInfo
 	0,  // 8: elephant.hub.v1.GetArtifactRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	7,  // 9: elephant.hub.v1.GetArtifactResponse.artifact:type_name -> elephant.hub.v1.ArtifactInfo
-	8,  // 10: elephant.hub.v1.GetArtifactResponse.versions:type_name -> elephant.hub.v1.VersionInfo
+	8,  // 9: elephant.hub.v1.GetArtifactResponse.artifact:type_name -> elephant.hub.v1.ArtifactInfo
+	9,  // 10: elephant.hub.v1.GetArtifactResponse.versions:type_name -> elephant.hub.v1.VersionInfo
 	0,  // 11: elephant.hub.v1.GetArtifactVersionRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	7,  // 12: elephant.hub.v1.GetArtifactVersionResponse.artifact:type_name -> elephant.hub.v1.ArtifactInfo
-	8,  // 13: elephant.hub.v1.GetArtifactVersionResponse.version:type_name -> elephant.hub.v1.VersionInfo
-	9,  // 14: elephant.hub.v1.GetArtifactVersionResponse.assets:type_name -> elephant.hub.v1.AssetInfo
+	8,  // 12: elephant.hub.v1.GetArtifactVersionResponse.artifact:type_name -> elephant.hub.v1.ArtifactInfo
+	9,  // 13: elephant.hub.v1.GetArtifactVersionResponse.version:type_name -> elephant.hub.v1.VersionInfo
+	10, // 14: elephant.hub.v1.GetArtifactVersionResponse.assets:type_name -> elephant.hub.v1.AssetInfo
 	0,  // 15: elephant.hub.v1.GetArtifactAssetRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
 	0,  // 16: elephant.hub.v1.ListDocumentationRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	9,  // 17: elephant.hub.v1.ListDocumentationResponse.files:type_name -> elephant.hub.v1.AssetInfo
+	10, // 17: elephant.hub.v1.ListDocumentationResponse.files:type_name -> elephant.hub.v1.AssetInfo
 	0,  // 18: elephant.hub.v1.GetDocumentationRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
 	0,  // 19: elephant.hub.v1.PublishVersionRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
 	1,  // 20: elephant.hub.v1.PublishVersionRequest.signature_type:type_name -> elephant.hub.v1.SignatureType
-	11, // 21: elephant.hub.v1.PublishVersionRequest.assets:type_name -> elephant.hub.v1.PublishAsset
+	12, // 21: elephant.hub.v1.PublishVersionRequest.assets:type_name -> elephant.hub.v1.PublishAsset
 	0,  // 22: elephant.hub.v1.BulkPublishItem.kind:type_name -> elephant.hub.v1.ArtifactKind
-	11, // 23: elephant.hub.v1.BulkPublishItem.assets:type_name -> elephant.hub.v1.PublishAsset
+	12, // 23: elephant.hub.v1.BulkPublishItem.assets:type_name -> elephant.hub.v1.PublishAsset
 	1,  // 24: elephant.hub.v1.BulkPublishVersionRequest.signature_type:type_name -> elephant.hub.v1.SignatureType
-	30, // 25: elephant.hub.v1.BulkPublishVersionRequest.items:type_name -> elephant.hub.v1.BulkPublishItem
+	31, // 25: elephant.hub.v1.BulkPublishVersionRequest.items:type_name -> elephant.hub.v1.BulkPublishItem
 	0,  // 26: elephant.hub.v1.RevokeVersionRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	10, // 27: elephant.hub.v1.ListPublishingKeysResponse.publishing_keys:type_name -> elephant.hub.v1.PublishingKeyInfo
+	11, // 27: elephant.hub.v1.ListPublishingKeysResponse.publishing_keys:type_name -> elephant.hub.v1.PublishingKeyInfo
 	3,  // 28: elephant.hub.v1.GetPublishingKeyResponse.status:type_name -> elephant.hub.v1.PublishingKeyStatus
 	0,  // 29: elephant.hub.v1.AddAllowedPublishingKeyRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
 	0,  // 30: elephant.hub.v1.RemoveAllowedPublishingKeyRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
 	0,  // 31: elephant.hub.v1.ListArtifactPermissionsRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	10, // 32: elephant.hub.v1.ListArtifactPermissionsResponse.allowed_publishing_keys:type_name -> elephant.hub.v1.PublishingKeyInfo
-	58, // 33: elephant.hub.v1.ListArtifactPermissionsResponse.publishers:type_name -> elephant.hub.v1.ArtifactPublisherInfo
+	11, // 32: elephant.hub.v1.ListArtifactPermissionsResponse.allowed_publishing_keys:type_name -> elephant.hub.v1.PublishingKeyInfo
+	66, // 33: elephant.hub.v1.ListArtifactPermissionsResponse.publishers:type_name -> elephant.hub.v1.ArtifactPublisherInfo
 	0,  // 34: elephant.hub.v1.SetArtifactVisibilityRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
-	2,  // 35: elephant.hub.v1.OIDCProviderInfo.forge_type:type_name -> elephant.hub.v1.ForgeType
-	59, // 36: elephant.hub.v1.RegisterGenerationRequest.schemas:type_name -> elephant.hub.v1.SchemaRef
-	0,  // 37: elephant.hub.v1.ArtifactRef.kind:type_name -> elephant.hub.v1.ArtifactKind
-	64, // 38: elephant.hub.v1.GetAssetURLsRequest.artifacts:type_name -> elephant.hub.v1.ArtifactRef
-	0,  // 39: elephant.hub.v1.ArtifactAssetURLs.kind:type_name -> elephant.hub.v1.ArtifactKind
-	3,  // 40: elephant.hub.v1.ArtifactAssetURLs.key_status:type_name -> elephant.hub.v1.PublishingKeyStatus
-	66, // 41: elephant.hub.v1.ArtifactAssetURLs.assets:type_name -> elephant.hub.v1.SignedAsset
-	5,  // 42: elephant.hub.v1.ArtifactAssetURLs.error:type_name -> elephant.hub.v1.AssetURLError
-	67, // 43: elephant.hub.v1.GetAssetURLsResponse.artifacts:type_name -> elephant.hub.v1.ArtifactAssetURLs
-	12, // 44: elephant.hub.v1.HubService.ListOrganisations:input_type -> elephant.hub.v1.ListOrganisationsRequest
-	14, // 45: elephant.hub.v1.HubService.ApproveOrganisation:input_type -> elephant.hub.v1.ApproveOrganisationRequest
-	16, // 46: elephant.hub.v1.HubService.ListArtifacts:input_type -> elephant.hub.v1.ListArtifactsRequest
-	18, // 47: elephant.hub.v1.HubService.GetArtifact:input_type -> elephant.hub.v1.GetArtifactRequest
-	20, // 48: elephant.hub.v1.HubService.GetArtifactVersion:input_type -> elephant.hub.v1.GetArtifactVersionRequest
-	22, // 49: elephant.hub.v1.HubService.GetArtifactAsset:input_type -> elephant.hub.v1.GetArtifactAssetRequest
-	24, // 50: elephant.hub.v1.HubService.ListDocumentation:input_type -> elephant.hub.v1.ListDocumentationRequest
-	26, // 51: elephant.hub.v1.HubService.GetDocumentation:input_type -> elephant.hub.v1.GetDocumentationRequest
-	28, // 52: elephant.hub.v1.HubService.PublishVersion:input_type -> elephant.hub.v1.PublishVersionRequest
-	31, // 53: elephant.hub.v1.HubService.BulkPublishVersion:input_type -> elephant.hub.v1.BulkPublishVersionRequest
-	33, // 54: elephant.hub.v1.HubService.RevokeVersion:input_type -> elephant.hub.v1.RevokeVersionRequest
-	35, // 55: elephant.hub.v1.HubService.RegisterPublishingKey:input_type -> elephant.hub.v1.RegisterPublishingKeyRequest
-	37, // 56: elephant.hub.v1.HubService.RegisterOrgPublishingKey:input_type -> elephant.hub.v1.RegisterOrgPublishingKeyRequest
-	39, // 57: elephant.hub.v1.HubService.ListPublishingKeys:input_type -> elephant.hub.v1.ListPublishingKeysRequest
-	41, // 58: elephant.hub.v1.HubService.GetPublishingKey:input_type -> elephant.hub.v1.GetPublishingKeyRequest
-	43, // 59: elephant.hub.v1.HubService.DeactivatePublishingKey:input_type -> elephant.hub.v1.DeactivatePublishingKeyRequest
-	45, // 60: elephant.hub.v1.HubService.ActivatePublishingKey:input_type -> elephant.hub.v1.ActivatePublishingKeyRequest
-	47, // 61: elephant.hub.v1.HubService.RevokePublishingKey:input_type -> elephant.hub.v1.RevokePublishingKeyRequest
-	49, // 62: elephant.hub.v1.HubService.AddAllowedPublishingKey:input_type -> elephant.hub.v1.AddAllowedPublishingKeyRequest
-	51, // 63: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:input_type -> elephant.hub.v1.RemoveAllowedPublishingKeyRequest
-	53, // 64: elephant.hub.v1.HubService.ListArtifactPermissions:input_type -> elephant.hub.v1.ListArtifactPermissionsRequest
-	55, // 65: elephant.hub.v1.HubService.SetArtifactVisibility:input_type -> elephant.hub.v1.SetArtifactVisibilityRequest
-	60, // 66: elephant.hub.v1.ClientService.RegisterGeneration:input_type -> elephant.hub.v1.RegisterGenerationRequest
-	62, // 67: elephant.hub.v1.ClientService.GetLatestGeneration:input_type -> elephant.hub.v1.GetLatestGenerationRequest
-	65, // 68: elephant.hub.v1.ClientService.GetAssetURLs:input_type -> elephant.hub.v1.GetAssetURLsRequest
-	13, // 69: elephant.hub.v1.HubService.ListOrganisations:output_type -> elephant.hub.v1.ListOrganisationsResponse
-	15, // 70: elephant.hub.v1.HubService.ApproveOrganisation:output_type -> elephant.hub.v1.ApproveOrganisationResponse
-	17, // 71: elephant.hub.v1.HubService.ListArtifacts:output_type -> elephant.hub.v1.ListArtifactsResponse
-	19, // 72: elephant.hub.v1.HubService.GetArtifact:output_type -> elephant.hub.v1.GetArtifactResponse
-	21, // 73: elephant.hub.v1.HubService.GetArtifactVersion:output_type -> elephant.hub.v1.GetArtifactVersionResponse
-	23, // 74: elephant.hub.v1.HubService.GetArtifactAsset:output_type -> elephant.hub.v1.GetArtifactAssetResponse
-	25, // 75: elephant.hub.v1.HubService.ListDocumentation:output_type -> elephant.hub.v1.ListDocumentationResponse
-	27, // 76: elephant.hub.v1.HubService.GetDocumentation:output_type -> elephant.hub.v1.GetDocumentationResponse
-	29, // 77: elephant.hub.v1.HubService.PublishVersion:output_type -> elephant.hub.v1.PublishVersionResponse
-	32, // 78: elephant.hub.v1.HubService.BulkPublishVersion:output_type -> elephant.hub.v1.BulkPublishVersionResponse
-	34, // 79: elephant.hub.v1.HubService.RevokeVersion:output_type -> elephant.hub.v1.RevokeVersionResponse
-	36, // 80: elephant.hub.v1.HubService.RegisterPublishingKey:output_type -> elephant.hub.v1.RegisterPublishingKeyResponse
-	38, // 81: elephant.hub.v1.HubService.RegisterOrgPublishingKey:output_type -> elephant.hub.v1.RegisterOrgPublishingKeyResponse
-	40, // 82: elephant.hub.v1.HubService.ListPublishingKeys:output_type -> elephant.hub.v1.ListPublishingKeysResponse
-	42, // 83: elephant.hub.v1.HubService.GetPublishingKey:output_type -> elephant.hub.v1.GetPublishingKeyResponse
-	44, // 84: elephant.hub.v1.HubService.DeactivatePublishingKey:output_type -> elephant.hub.v1.DeactivatePublishingKeyResponse
-	46, // 85: elephant.hub.v1.HubService.ActivatePublishingKey:output_type -> elephant.hub.v1.ActivatePublishingKeyResponse
-	48, // 86: elephant.hub.v1.HubService.RevokePublishingKey:output_type -> elephant.hub.v1.RevokePublishingKeyResponse
-	50, // 87: elephant.hub.v1.HubService.AddAllowedPublishingKey:output_type -> elephant.hub.v1.AddAllowedPublishingKeyResponse
-	52, // 88: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:output_type -> elephant.hub.v1.RemoveAllowedPublishingKeyResponse
-	54, // 89: elephant.hub.v1.HubService.ListArtifactPermissions:output_type -> elephant.hub.v1.ListArtifactPermissionsResponse
-	56, // 90: elephant.hub.v1.HubService.SetArtifactVisibility:output_type -> elephant.hub.v1.SetArtifactVisibilityResponse
-	61, // 91: elephant.hub.v1.ClientService.RegisterGeneration:output_type -> elephant.hub.v1.RegisterGenerationResponse
-	63, // 92: elephant.hub.v1.ClientService.GetLatestGeneration:output_type -> elephant.hub.v1.GetLatestGenerationResponse
-	68, // 93: elephant.hub.v1.ClientService.GetAssetURLs:output_type -> elephant.hub.v1.GetAssetURLsResponse
-	69, // [69:94] is the sub-list for method output_type
-	44, // [44:69] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	0,  // 35: elephant.hub.v1.AddArtifactGrantRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	0,  // 36: elephant.hub.v1.RemoveArtifactGrantRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	0,  // 37: elephant.hub.v1.ListArtifactGrantsRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	58, // 38: elephant.hub.v1.ListArtifactGrantsResponse.grants:type_name -> elephant.hub.v1.ArtifactGrant
+	2,  // 39: elephant.hub.v1.OIDCProviderInfo.forge_type:type_name -> elephant.hub.v1.ForgeType
+	67, // 40: elephant.hub.v1.RegisterGenerationRequest.schemas:type_name -> elephant.hub.v1.SchemaRef
+	67, // 41: elephant.hub.v1.GetGenerationResponse.schemas:type_name -> elephant.hub.v1.SchemaRef
+	0,  // 42: elephant.hub.v1.ManifestRef.kind:type_name -> elephant.hub.v1.ArtifactKind
+	74, // 43: elephant.hub.v1.GetManifestsRequest.artifacts:type_name -> elephant.hub.v1.ManifestRef
+	0,  // 44: elephant.hub.v1.ArtifactManifest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	3,  // 45: elephant.hub.v1.ArtifactManifest.key_status:type_name -> elephant.hub.v1.PublishingKeyStatus
+	10, // 46: elephant.hub.v1.ArtifactManifest.assets:type_name -> elephant.hub.v1.AssetInfo
+	5,  // 47: elephant.hub.v1.ArtifactManifest.error:type_name -> elephant.hub.v1.ManifestError
+	76, // 48: elephant.hub.v1.GetManifestsResponse.artifacts:type_name -> elephant.hub.v1.ArtifactManifest
+	0,  // 49: elephant.hub.v1.GetAssetRequest.kind:type_name -> elephant.hub.v1.ArtifactKind
+	6,  // 50: elephant.hub.v1.AccessChange.type:type_name -> elephant.hub.v1.AccessChangeType
+	0,  // 51: elephant.hub.v1.AccessChange.kind:type_name -> elephant.hub.v1.ArtifactKind
+	81, // 52: elephant.hub.v1.GetAccessChangesResponse.changes:type_name -> elephant.hub.v1.AccessChange
+	13, // 53: elephant.hub.v1.HubService.ListOrganisations:input_type -> elephant.hub.v1.ListOrganisationsRequest
+	15, // 54: elephant.hub.v1.HubService.ApproveOrganisation:input_type -> elephant.hub.v1.ApproveOrganisationRequest
+	17, // 55: elephant.hub.v1.HubService.ListArtifacts:input_type -> elephant.hub.v1.ListArtifactsRequest
+	19, // 56: elephant.hub.v1.HubService.GetArtifact:input_type -> elephant.hub.v1.GetArtifactRequest
+	21, // 57: elephant.hub.v1.HubService.GetArtifactVersion:input_type -> elephant.hub.v1.GetArtifactVersionRequest
+	23, // 58: elephant.hub.v1.HubService.GetArtifactAsset:input_type -> elephant.hub.v1.GetArtifactAssetRequest
+	25, // 59: elephant.hub.v1.HubService.ListDocumentation:input_type -> elephant.hub.v1.ListDocumentationRequest
+	27, // 60: elephant.hub.v1.HubService.GetDocumentation:input_type -> elephant.hub.v1.GetDocumentationRequest
+	29, // 61: elephant.hub.v1.HubService.PublishVersion:input_type -> elephant.hub.v1.PublishVersionRequest
+	32, // 62: elephant.hub.v1.HubService.BulkPublishVersion:input_type -> elephant.hub.v1.BulkPublishVersionRequest
+	34, // 63: elephant.hub.v1.HubService.RevokeVersion:input_type -> elephant.hub.v1.RevokeVersionRequest
+	36, // 64: elephant.hub.v1.HubService.RegisterPublishingKey:input_type -> elephant.hub.v1.RegisterPublishingKeyRequest
+	38, // 65: elephant.hub.v1.HubService.RegisterOrgPublishingKey:input_type -> elephant.hub.v1.RegisterOrgPublishingKeyRequest
+	40, // 66: elephant.hub.v1.HubService.ListPublishingKeys:input_type -> elephant.hub.v1.ListPublishingKeysRequest
+	42, // 67: elephant.hub.v1.HubService.GetPublishingKey:input_type -> elephant.hub.v1.GetPublishingKeyRequest
+	44, // 68: elephant.hub.v1.HubService.DeactivatePublishingKey:input_type -> elephant.hub.v1.DeactivatePublishingKeyRequest
+	46, // 69: elephant.hub.v1.HubService.ActivatePublishingKey:input_type -> elephant.hub.v1.ActivatePublishingKeyRequest
+	48, // 70: elephant.hub.v1.HubService.RevokePublishingKey:input_type -> elephant.hub.v1.RevokePublishingKeyRequest
+	50, // 71: elephant.hub.v1.HubService.AddAllowedPublishingKey:input_type -> elephant.hub.v1.AddAllowedPublishingKeyRequest
+	52, // 72: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:input_type -> elephant.hub.v1.RemoveAllowedPublishingKeyRequest
+	54, // 73: elephant.hub.v1.HubService.ListArtifactPermissions:input_type -> elephant.hub.v1.ListArtifactPermissionsRequest
+	56, // 74: elephant.hub.v1.HubService.SetArtifactVisibility:input_type -> elephant.hub.v1.SetArtifactVisibilityRequest
+	59, // 75: elephant.hub.v1.HubService.AddArtifactGrant:input_type -> elephant.hub.v1.AddArtifactGrantRequest
+	61, // 76: elephant.hub.v1.HubService.RemoveArtifactGrant:input_type -> elephant.hub.v1.RemoveArtifactGrantRequest
+	63, // 77: elephant.hub.v1.HubService.ListArtifactGrants:input_type -> elephant.hub.v1.ListArtifactGrantsRequest
+	68, // 78: elephant.hub.v1.ClientService.RegisterGeneration:input_type -> elephant.hub.v1.RegisterGenerationRequest
+	70, // 79: elephant.hub.v1.ClientService.GetLatestGeneration:input_type -> elephant.hub.v1.GetLatestGenerationRequest
+	72, // 80: elephant.hub.v1.ClientService.GetGeneration:input_type -> elephant.hub.v1.GetGenerationRequest
+	75, // 81: elephant.hub.v1.ClientService.GetManifests:input_type -> elephant.hub.v1.GetManifestsRequest
+	78, // 82: elephant.hub.v1.ClientService.GetAsset:input_type -> elephant.hub.v1.GetAssetRequest
+	80, // 83: elephant.hub.v1.ClientService.GetAccessChanges:input_type -> elephant.hub.v1.GetAccessChangesRequest
+	14, // 84: elephant.hub.v1.HubService.ListOrganisations:output_type -> elephant.hub.v1.ListOrganisationsResponse
+	16, // 85: elephant.hub.v1.HubService.ApproveOrganisation:output_type -> elephant.hub.v1.ApproveOrganisationResponse
+	18, // 86: elephant.hub.v1.HubService.ListArtifacts:output_type -> elephant.hub.v1.ListArtifactsResponse
+	20, // 87: elephant.hub.v1.HubService.GetArtifact:output_type -> elephant.hub.v1.GetArtifactResponse
+	22, // 88: elephant.hub.v1.HubService.GetArtifactVersion:output_type -> elephant.hub.v1.GetArtifactVersionResponse
+	24, // 89: elephant.hub.v1.HubService.GetArtifactAsset:output_type -> elephant.hub.v1.GetArtifactAssetResponse
+	26, // 90: elephant.hub.v1.HubService.ListDocumentation:output_type -> elephant.hub.v1.ListDocumentationResponse
+	28, // 91: elephant.hub.v1.HubService.GetDocumentation:output_type -> elephant.hub.v1.GetDocumentationResponse
+	30, // 92: elephant.hub.v1.HubService.PublishVersion:output_type -> elephant.hub.v1.PublishVersionResponse
+	33, // 93: elephant.hub.v1.HubService.BulkPublishVersion:output_type -> elephant.hub.v1.BulkPublishVersionResponse
+	35, // 94: elephant.hub.v1.HubService.RevokeVersion:output_type -> elephant.hub.v1.RevokeVersionResponse
+	37, // 95: elephant.hub.v1.HubService.RegisterPublishingKey:output_type -> elephant.hub.v1.RegisterPublishingKeyResponse
+	39, // 96: elephant.hub.v1.HubService.RegisterOrgPublishingKey:output_type -> elephant.hub.v1.RegisterOrgPublishingKeyResponse
+	41, // 97: elephant.hub.v1.HubService.ListPublishingKeys:output_type -> elephant.hub.v1.ListPublishingKeysResponse
+	43, // 98: elephant.hub.v1.HubService.GetPublishingKey:output_type -> elephant.hub.v1.GetPublishingKeyResponse
+	45, // 99: elephant.hub.v1.HubService.DeactivatePublishingKey:output_type -> elephant.hub.v1.DeactivatePublishingKeyResponse
+	47, // 100: elephant.hub.v1.HubService.ActivatePublishingKey:output_type -> elephant.hub.v1.ActivatePublishingKeyResponse
+	49, // 101: elephant.hub.v1.HubService.RevokePublishingKey:output_type -> elephant.hub.v1.RevokePublishingKeyResponse
+	51, // 102: elephant.hub.v1.HubService.AddAllowedPublishingKey:output_type -> elephant.hub.v1.AddAllowedPublishingKeyResponse
+	53, // 103: elephant.hub.v1.HubService.RemoveAllowedPublishingKey:output_type -> elephant.hub.v1.RemoveAllowedPublishingKeyResponse
+	55, // 104: elephant.hub.v1.HubService.ListArtifactPermissions:output_type -> elephant.hub.v1.ListArtifactPermissionsResponse
+	57, // 105: elephant.hub.v1.HubService.SetArtifactVisibility:output_type -> elephant.hub.v1.SetArtifactVisibilityResponse
+	60, // 106: elephant.hub.v1.HubService.AddArtifactGrant:output_type -> elephant.hub.v1.AddArtifactGrantResponse
+	62, // 107: elephant.hub.v1.HubService.RemoveArtifactGrant:output_type -> elephant.hub.v1.RemoveArtifactGrantResponse
+	64, // 108: elephant.hub.v1.HubService.ListArtifactGrants:output_type -> elephant.hub.v1.ListArtifactGrantsResponse
+	69, // 109: elephant.hub.v1.ClientService.RegisterGeneration:output_type -> elephant.hub.v1.RegisterGenerationResponse
+	71, // 110: elephant.hub.v1.ClientService.GetLatestGeneration:output_type -> elephant.hub.v1.GetLatestGenerationResponse
+	73, // 111: elephant.hub.v1.ClientService.GetGeneration:output_type -> elephant.hub.v1.GetGenerationResponse
+	77, // 112: elephant.hub.v1.ClientService.GetManifests:output_type -> elephant.hub.v1.GetManifestsResponse
+	79, // 113: elephant.hub.v1.ClientService.GetAsset:output_type -> elephant.hub.v1.GetAssetResponse
+	82, // 114: elephant.hub.v1.ClientService.GetAccessChanges:output_type -> elephant.hub.v1.GetAccessChangesResponse
+	84, // [84:115] is the sub-list for method output_type
+	53, // [53:84] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_elephant_hub_v1_service_proto_init() }
@@ -4434,8 +5452,8 @@ func file_elephant_hub_v1_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_elephant_hub_v1_service_proto_rawDesc), len(file_elephant_hub_v1_service_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   63,
+			NumEnums:      7,
+			NumMessages:   76,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

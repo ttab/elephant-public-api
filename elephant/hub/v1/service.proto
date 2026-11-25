@@ -76,6 +76,22 @@ service HubService {
 
   // SetArtifactVisibility sets whether an artifact is publicly visible.
   rpc SetArtifactVisibility(SetArtifactVisibilityRequest) returns (SetArtifactVisibilityResponse);
+
+  // --- Grants ---
+
+  // AddArtifactGrant gives another organisation read access to an artifact,
+  // all its versions: its manifests, assets and documentation, through this
+  // service and through ClientService, as if the artifact were its own to
+  // read. Requires the caller to administer the artifact's organisation.
+  // Idempotent. The grantee's ClientService callers see the grant on
+  // GetAccessChanges.
+  rpc AddArtifactGrant(AddArtifactGrantRequest) returns (AddArtifactGrantResponse);
+  // RemoveArtifactGrant withdraws a grant. The withdrawal reaches the
+  // grantee on GetAccessChanges. Idempotent.
+  rpc RemoveArtifactGrant(RemoveArtifactGrantRequest) returns (RemoveArtifactGrantResponse);
+  // ListArtifactGrants lists the organisations an artifact is granted to.
+  // Requires the caller to administer the artifact's organisation.
+  rpc ListArtifactGrants(ListArtifactGrantsRequest) returns (ListArtifactGrantsResponse);
 }
 
 // ClientService is the API for machine clients of the hub: elephant-repository
@@ -95,12 +111,35 @@ service ClientService {
   // Scope: hub_generations.
   rpc GetLatestGeneration(GetLatestGenerationRequest) returns (GetLatestGenerationResponse);
 
-  // --- Asset URLs ---
+  // GetGeneration returns the schema set of a generation registered by any
+  // client of the caller's organisation, so that a plugin's schemas can be
+  // checked against what a repository activated. Scope: hub_generations.
+  rpc GetGeneration(GetGenerationRequest) returns (GetGenerationResponse);
 
-  // GetAssetURLs resolves artifacts to their manifests, signatures and
-  // signed CDN asset URLs. Access is decided per artifact: public, or
-  // owned by the caller's organisation. Scope: hub_assets.
-  rpc GetAssetURLs(GetAssetURLsRequest) returns (GetAssetURLsResponse);
+  // --- Plugin and schema loading ---
+
+  // GetManifests resolves named artifact versions to their manifests, with
+  // what a consumer needs to verify them: the signature, the signing key
+  // and its status, and the version's status. Access is decided per
+  // artifact: public, owned by the caller's organisation, or granted to
+  // it. The response carries the GetAccessChanges position read in the
+  // same snapshot, from which a consumer follows the feed to keep what it
+  // cached correct. Scope: hub_assets.
+  rpc GetManifests(GetManifestsRequest) returns (GetManifestsResponse);
+  // GetAsset streams one asset of an artifact version, named by its role,
+  // in chunks. It refuses a revoked version and one the caller cannot see.
+  // The consumer checks the bytes against the SHA-256 the signed manifest
+  // declares. Scope: hub_assets.
+  rpc GetAsset(GetAssetRequest) returns (stream GetAssetResponse);
+  // GetAccessChanges is a long-poll feed of the access changes the
+  // caller's organisation can see, in both directions, in order from a
+  // cursor: a version revoked; a publishing key deactivated, reactivated
+  // or revoked; an artifact made private or public; a grant to the
+  // caller's organisation added or withdrawn. It answers at once when
+  // there are changes past the cursor, and otherwise waits for one or for
+  // the call's deadline, answering with no changes. Events are kept
+  // forever, so every cursor stays valid. Scope: hub_assets.
+  rpc GetAccessChanges(GetAccessChangesRequest) returns (GetAccessChangesResponse);
 }
 
 // --- Enums ---
@@ -112,11 +151,11 @@ enum ArtifactKind {
 }
 
 enum SignatureType {
+  reserved 2;
+  reserved "SIGNATURE_TYPE_SIGSTORE";
+
   SIGNATURE_TYPE_UNSPECIFIED = 0;
   SIGNATURE_TYPE_PUBLISHING_KEY = 1;
-  // Deprecated: sigstore signing is no longer supported for new publishes.
-  // Kept for reading historical versions.
-  SIGNATURE_TYPE_SIGSTORE = 2;
 }
 
 enum ForgeType {
@@ -144,14 +183,45 @@ enum SchemaUsage {
   SCHEMA_USAGE_MESSAGES = 4;
 }
 
-// Reason an artifact in a GetAssetURLs request could not be resolved to
-// asset URLs.
-enum AssetURLError {
-  ASSET_URL_ERROR_UNSPECIFIED = 0;
-  ASSET_URL_ERROR_NOT_FOUND = 1;
-  ASSET_URL_ERROR_FORBIDDEN = 2;
-  ASSET_URL_ERROR_REVOKED = 3;
-  ASSET_URL_ERROR_INVALID = 4;
+// Reason an artifact version in a GetManifests request could not be
+// resolved. A revoked version is not an error: it is returned with revoked
+// set, so that a consumer learns of the revocation.
+enum ManifestError {
+  MANIFEST_ERROR_UNSPECIFIED = 0;
+  // No such artifact, or no such version of it.
+  MANIFEST_ERROR_NOT_FOUND = 1;
+  // The artifact is private and neither owned by nor granted to the
+  // caller's organisation.
+  MANIFEST_ERROR_FORBIDDEN = 2;
+  // The reference is malformed: an unknown kind, an invalid name or
+  // version.
+  MANIFEST_ERROR_INVALID = 3;
+}
+
+// What an access change did. Each one carries the artifact or the
+// publishing key it concerns.
+enum AccessChangeType {
+  ACCESS_CHANGE_TYPE_UNSPECIFIED = 0;
+  // An artifact version was revoked. Its assets are no longer served.
+  ACCESS_CHANGE_TYPE_VERSION_REVOKED = 1;
+  // A publishing key was deactivated: the artifacts it signed are no
+  // longer to be picked up, until it is reactivated.
+  ACCESS_CHANGE_TYPE_KEY_DEACTIVATED = 2;
+  // A deactivated publishing key was activated again.
+  ACCESS_CHANGE_TYPE_KEY_REACTIVATED = 3;
+  // A publishing key was revoked: signatures made with it are to be
+  // treated as forgeries. Permanent.
+  ACCESS_CHANGE_TYPE_KEY_REVOKED = 4;
+  // An artifact was made private. Sent to the organisations that lost
+  // access by it.
+  ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PRIVATE = 5;
+  // An artifact was made public.
+  ACCESS_CHANGE_TYPE_ARTIFACT_MADE_PUBLIC = 6;
+  // The artifact was granted to the caller's organisation.
+  ACCESS_CHANGE_TYPE_GRANT_ADDED = 7;
+  // A grant of the artifact to the caller's organisation was withdrawn.
+  // Sent only when the organisation lost access by it.
+  ACCESS_CHANGE_TYPE_GRANT_WITHDRAWN = 8;
 }
 
 // --- Common types ---
@@ -194,6 +264,12 @@ message VersionInfo {
 message AssetInfo {
   string filename = 1;
   string sha256 = 2;
+  // The asset's role in the manifest's assets list: "js", "css",
+  // "documentation", "schema", "mirror", "contract", "settings" or one of
+  // the core module's roles.
+  string role = 3;
+  // Size in bytes.
+  int64 size = 4;
 }
 
 message PublishingKeyInfo {
@@ -261,14 +337,13 @@ message GetArtifactVersionResponse {
   // Signature over the exact manifest bytes returned in the manifest field,
   // as stored at publish time. Verify it against those bytes as they are,
   // without re-serialising, reformatting or otherwise normalising the
-  // manifest. Empty for versions signed with SIGNATURE_TYPE_SIGSTORE.
+  // manifest.
   bytes signature = 5;
   // Raw 32-byte Ed25519 public key of the publishing key identified by
   // VersionInfo.signing_identity. A valid signature only shows which key
   // signed the manifest, not that the key is still trusted, so a consumer
   // should also check the key status through GetPublishingKey to honour
-  // deactivation and revocation. Empty for versions signed with
-  // SIGNATURE_TYPE_SIGSTORE.
+  // deactivation and revocation.
   bytes public_key = 6;
 }
 
@@ -330,6 +405,17 @@ message PublishVersionRequest {
   // Publishing key fingerprint.
   string signing_identity = 7;
   repeated PublishAsset assets = 8;
+  // The contract document of a plugin version that ships a contract (an
+  // asset with the role "contract"): JSON naming the contract package's
+  // name and version and the tarball's SHA-256 and SHA-512. Public
+  // whatever the plugin's visibility. Empty when the version has no
+  // contract.
+  bytes contract_document = 9;
+  // Ed25519 signature over the exact contract_document bytes, made with the
+  // same publishing key as the manifest signature, so that the contract
+  // verifies with the publisher's key alone. Required with a contract
+  // document.
+  bytes contract_signature = 10;
 }
 message PublishVersionResponse {
   int64 version_id = 1;
@@ -465,6 +551,44 @@ message SetArtifactVisibilityRequest {
 }
 message SetArtifactVisibilityResponse {}
 
+// --- Grant requests/responses ---
+
+message ArtifactGrant {
+  // URI of the organisation the artifact is granted to (e.g.
+  // core://org/tt).
+  string organisation = 1;
+  string created_at = 2;
+  // Email of the user who added the grant.
+  string granted_by = 3;
+}
+
+message AddArtifactGrantRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name = 2;
+  // URI of the organisation to grant the artifact to.
+  string organisation = 3;
+}
+message AddArtifactGrantResponse {}
+
+message RemoveArtifactGrantRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name = 2;
+  // URI of the organisation whose grant is withdrawn.
+  string organisation = 3;
+}
+message RemoveArtifactGrantResponse {}
+
+message ListArtifactGrantsRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name = 2;
+}
+message ListArtifactGrantsResponse {
+  repeated ArtifactGrant grants = 1;
+}
+
 // --- OIDC / CI publisher types ---
 
 message OIDCProviderInfo {
@@ -506,36 +630,41 @@ message GetLatestGenerationResponse {
   int64 number = 1;
 }
 
-// --- Asset URL requests/responses ---
+message GetGenerationRequest {
+  // Client id (the azp claim) of the repository that registered the
+  // generation. Any client of the caller's organisation may be named.
+  string client_id = 1;
+  // Generation number. Zero for the latest that client registered.
+  int64 number = 2;
+}
+message GetGenerationResponse {
+  string client_id = 1;
+  int64 number = 2;
+  // RFC 3339.
+  string registered_at = 3;
+  repeated SchemaRef schemas = 4;
+}
 
-message ArtifactRef {
+// --- Plugin and schema loading requests/responses ---
+
+message ManifestRef {
   ArtifactKind kind = 1;
   // Full artifact name in reverse-domain notation.
   string name = 2;
-  // Empty resolves to the latest non-revoked, non-prerelease version.
+  // The version, required: a consumer loads what it named.
   string version = 3;
-  // Also mint URLs for the documentation assets (README.md, agents/*.md).
-  // Off by default: they are read by tooling, not by the editor at load
-  // time, and stay out of the hot path.
-  bool include_documentation = 4;
 }
 
-message GetAssetURLsRequest {
+message GetManifestsRequest {
   // At most 100.
-  repeated ArtifactRef artifacts = 1;
+  repeated ManifestRef artifacts = 1;
 }
 
-message SignedAsset {
-  string filename = 1;
-  string sha256 = 2;
-  string url = 3;
-}
-
-message ArtifactAssetURLs {
+message ArtifactManifest {
   ArtifactKind kind = 1;
   // Full artifact name in reverse-domain notation.
   string name = 2;
-  // The resolved version.
+  // The version, normalised to the hub's v-prefixed form.
   string version = 3;
   // Raw manifest bytes.
   bytes manifest = 4;
@@ -548,22 +677,84 @@ message ArtifactAssetURLs {
   string signing_identity = 6;
   // Raw 32-byte Ed25519 public key of the signing publishing key.
   bytes public_key = 7;
-  // Current status of the signing key. A manifest signed by a key that is
-  // no longer PUBLISHING_KEY_STATUS_ACTIVE must not be trusted even if the
-  // signature verifies.
+  // Current status of the signing key. A manifest signed by a deactivated
+  // key is not to be picked up, and one signed by a revoked key is a
+  // forgery, even if the signature verifies.
   PublishingKeyStatus key_status = 8;
-  repeated SignedAsset assets = 9;
+  // Whether the version has been revoked. A revoked version's assets are
+  // not served.
+  bool revoked = 9;
+  // The version's stored assets, the manifest's assets list as the hub
+  // holds it.
+  repeated AssetInfo assets = 10;
   // Set instead of the fields above when this artifact could not be
   // resolved; the other entries are unaffected.
-  AssetURLError error = 10;
-  string error_message = 11;
+  ManifestError error = 11;
+  string error_message = 12;
 }
 
-message GetAssetURLsResponse {
-  // RFC 3339: the earliest expiry among the URLs in this response, so
-  // every URL in it is valid at least until then. Individual URLs may
-  // outlive it by the time the hub took to mint the set. Empty when
-  // nothing was minted, which is the case when every artifact failed.
-  string expires_at = 1;
-  repeated ArtifactAssetURLs artifacts = 2;
+message GetManifestsResponse {
+  // In the order of the request.
+  repeated ArtifactManifest artifacts = 1;
+  // The GetAccessChanges cursor as of the snapshot the manifests were read
+  // in. Following the feed from it misses no change to them.
+  int64 access_cursor = 2;
+}
+
+message GetAssetRequest {
+  ArtifactKind kind = 1;
+  // Full artifact name in reverse-domain notation.
+  string name = 2;
+  string version = 3;
+  // The asset's role in the manifest, e.g. "js" or "mirror".
+  string role = 4;
+  // The asset's file, as the manifest names it. Required for a role that
+  // repeats, such as "documentation"; optional otherwise, and checked
+  // against the asset when given.
+  string file = 5;
+}
+
+// One chunk of an asset. The first message carries the asset's metadata
+// as well as the first chunk of data; the others carry data only.
+message GetAssetResponse {
+  string file = 1;
+  string role = 2;
+  // Hex SHA-256 of the whole asset, as the manifest declares it.
+  string sha256 = 3;
+  // Size of the whole asset in bytes.
+  int64 size = 4;
+  bytes data = 5;
+}
+
+message GetAccessChangesRequest {
+  // Return changes after this position: zero for the start of the feed, or
+  // the cursor of a previous response or of GetManifests.
+  int64 after = 1;
+  // At most this many changes. Zero, or more than the hub's limit, takes
+  // the hub's limit.
+  int32 limit = 2;
+}
+
+message AccessChange {
+  // Position in the feed.
+  int64 id = 1;
+  AccessChangeType type = 2;
+  // RFC 3339.
+  string created_at = 3;
+  // The artifact the change concerns. Unset for a publishing key change.
+  ArtifactKind kind = 4;
+  string name = 5;
+  // The revoked version, for ACCESS_CHANGE_TYPE_VERSION_REVOKED.
+  string version = 6;
+  // The key's fingerprint in SSH SHA256 form, for a publishing key change.
+  string fingerprint = 7;
+}
+
+message GetAccessChangesResponse {
+  // In feed order.
+  repeated AccessChange changes = 1;
+  // Where to continue from. It may be past the last change returned, since
+  // changes the caller cannot see are skipped, and it is the request's
+  // cursor when nothing has happened.
+  int64 cursor = 2;
 }

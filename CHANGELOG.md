@@ -4,6 +4,37 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
+## [Unreleased]
+
+**Breaking:** hub's `ClientService.GetAssetURLs` is removed, with
+`GetAssetURLsRequest`, `GetAssetURLsResponse`, `ArtifactRef`,
+`ArtifactAssetURLs`, `SignedAsset` and `AssetURLError`: the hub no longer
+signs CDN URLs, and its consumers download from it. `SIGNATURE_TYPE_SIGSTORE`
+is removed and its number reserved; a publish is always signed with a
+publishing key.
+
+Changes:
+
+- Hub's `ClientService` gains `GetManifests`, which resolves named artifact
+  versions to their manifests with the signature, the signing key and its
+  status, whether the version is revoked and its stored assets, a per-item
+  `ManifestError`, and the `GetAccessChanges` cursor of the same snapshot;
+  `GetAsset`, a server stream of one asset's chunks, named by artifact,
+  version and role; and `GetAccessChanges`, a long-poll feed from a cursor of
+  version revocations, publishing key deactivations, reactivations and
+  revocations, visibility flips, and grants to the caller's organisation
+  added and withdrawn. All three require `hub_assets`.
+- Hub's `ClientService.GetGeneration` returns the schema set of a generation
+  any client of the caller's organisation registered, under
+  `hub_generations`.
+- Hub's `HubService` gains `AddArtifactGrant`, `RemoveArtifactGrant` and
+  `ListArtifactGrants`, by which an organisation gives another read access to
+  an artifact.
+- Hub's `PublishVersionRequest` gains `contract_document` and
+  `contract_signature`, the publisher-signed document of a plugin's contract
+  package.
+- Hub's `AssetInfo` gains the asset's `role` and `size`.
+
 ## [v0.3.1] - 2026-10-22
 
 **Breaking:** distribution's `SubscriptionsService.CalibrateVectorClause`
