@@ -4,7 +4,7 @@ The log starts at v0.0.11, the earliest release listed here; releases before
 that are not reconstructed. The entries are derived from the release tags, and
 the linked pull requests hold the detail.
 
-## [Unreleased]
+## [v0.4.0] - 2026-11-26
 
 **Breaking:** hub's `ClientService.GetAssetURLs` is removed, with
 `GetAssetURLsRequest`, `GetAssetURLsResponse`, `ArtifactRef`,
